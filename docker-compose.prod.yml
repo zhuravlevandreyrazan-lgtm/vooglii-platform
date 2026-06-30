@@ -1,0 +1,20 @@
+services:
+  backend:
+    env_file:
+      - .env.production
+    environment:
+      APP_ENV: production
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_started

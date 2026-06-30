@@ -1,0 +1,449 @@
+from __future__ import annotations
+
+from typing import Any
+
+import telegram_bot
+
+from analytics.cache import get_stale_cache_value
+from analytics.common import (
+    DEFAULT_USER_ID,
+    PRODUCT_NAME,
+    current_month_days,
+    format_confidence,
+    now_iso,
+    safe_call,
+    safe_int,
+    safe_list,
+    safe_text,
+    snapshot_context,
+    status_to_api,
+)
+from analytics.performance import get_performance_snapshot
+
+
+def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
+    start_date, end_date = current_month_days()
+    days = (start_date, end_date)
+    shared_context = snapshot_context()
+
+    financial_engine_snapshot, financial_engine_error = safe_call(
+        "financial_engine_snapshot",
+        lambda: telegram_bot._financial_engine_snapshot(start_date, end_date, user=user_id, context=shared_context),
+    )
+    business_metrics_snapshot, business_metrics_error = safe_call(
+        "business_metrics_snapshot",
+        lambda: telegram_bot._business_metrics_snapshot(user_id, start_date, end_date, context=shared_context),
+    )
+    director_snapshot, director_error = safe_call(
+        "director_snapshot",
+        lambda: telegram_bot._director_snapshot(user_id, days, context=shared_context),
+    )
+    kpi_snapshot, kpi_error = safe_call(
+        "kpi_snapshot",
+        lambda: telegram_bot._kpi_snapshot(user_id, days, context=shared_context),
+    )
+    advisor_snapshot, advisor_error = safe_call(
+        "advisor_v2_snapshot",
+        lambda: telegram_bot._advisor_v2_snapshot(user_id, days, context=shared_context),
+    )
+    decision_snapshot, decision_error = safe_call(
+        "decision_snapshot",
+        lambda: telegram_bot._decision_snapshot(user_id, days, context=shared_context),
+    )
+    cfo_snapshot, cfo_error = safe_call(
+        "cfo_insights_snapshot",
+        lambda: telegram_bot._cfo_insights_snapshot(user_id, days, context=shared_context),
+    )
+    control_snapshot, control_error = safe_call(
+        "control_center_snapshot",
+        lambda: telegram_bot._control_center_snapshot(user=user_id, days=days),
+    )
+    system_snapshot, system_error = safe_call(
+        "system_audit_snapshot",
+        lambda: telegram_bot._system_audit_snapshot(user_id),
+    )
+    finance_api_snapshot, finance_api_error = safe_call(
+        "finance_api_status_snapshot",
+        lambda: telegram_bot._finance_api_status_snapshot(user_id),
+    )
+
+    degraded_notes = [
+        item
+        for item in (
+            financial_engine_error,
+            business_metrics_error,
+            director_error,
+            kpi_error,
+            advisor_error,
+            decision_error,
+            cfo_error,
+            control_error,
+            system_error,
+            finance_api_error,
+        )
+        if item
+    ]
+
+    executive_summary = safe_text(
+        director_snapshot.get("executive_summary")
+        or (advisor_snapshot.get("business_state") or {}).get("summary")
+        or "Command Center snapshot is available in degraded read-only mode.",
+        "Command Center snapshot is available in degraded read-only mode.",
+    )
+    business_health_status = status_to_api(director_snapshot.get("business_health"))
+    confidence_score = safe_int(
+        director_snapshot.get("data_confidence")
+        or advisor_snapshot.get("data_confidence")
+        or kpi_snapshot.get("data_confidence"),
+        50,
+    )
+    trust_score = safe_int(((control_snapshot.get("data") or {}).get("trust_score")), confidence_score)
+    health_score_base = {
+        "GOOD": 84,
+        "WARNING": 62,
+        "CRITICAL": 28,
+        "UNKNOWN": 50,
+    }[business_health_status]
+    health_score = max(0, min(100, int(round((health_score_base + trust_score) / 2))))
+
+    cfo_insights = list(cfo_snapshot.get("insights") or [])
+    cfo_risks = list(cfo_snapshot.get("risks") or [])
+    advisor_risks = list(advisor_snapshot.get("risks") or [])
+    control_blockers = list(control_snapshot.get("known_blockers") or [])
+    decision_actions = list(decision_snapshot.get("top_actions") or [])
+    advisor_actions = list(advisor_snapshot.get("do_now") or [])
+    cfo_actions = list(cfo_snapshot.get("actions") or [])
+
+    what_happened: list[str] = []
+    if executive_summary:
+        what_happened.append(executive_summary)
+    for entry in cfo_insights[:2]:
+        message = safe_text((entry or {}).get("message"), "")
+        if message:
+            what_happened.append(message)
+    what_happened = [item for item in what_happened if item][:3]
+
+    why: list[str] = []
+    for entry in cfo_risks[:2]:
+        message = safe_text((entry or {}).get("message"), "")
+        if message:
+            why.append(message)
+    why.extend([safe_text(item, "") for item in control_blockers[:2]])
+    why = [item for item in why if item][:4]
+
+    actions: list[str] = []
+    for item in advisor_actions + decision_actions + cfo_actions:
+        text = safe_text(item, "")
+        if text and text not in actions:
+            actions.append(text)
+    actions = actions[:5]
+
+    kpis = []
+    for item in list(kpi_snapshot.get("kpis") or []):
+        item = dict(item or {})
+        title = safe_text(item.get("name"), "KPI")
+        kpis.append(
+            {
+                "id": title.lower().replace(" ", "-"),
+                "title": title,
+                "value": safe_text(item.get("value"), "n/a"),
+                "delta": safe_text(item.get("target") or item.get("basis"), "n/a"),
+                "status": status_to_api(item.get("status")),
+                "source": safe_text(item.get("basis") or item.get("group"), "UNKNOWN"),
+            }
+        )
+
+    workspaces = [
+        {
+            "title": "Business",
+            "href": "/business",
+            "summary": "Director summary, risks, and operating context.",
+            "status": status_to_api(((control_snapshot.get("business") or {}).get("director_status"))),
+        },
+        {
+            "title": "Finance",
+            "href": "/finance",
+            "summary": "Official finance status, payout confidence, and coverage.",
+            "status": status_to_api(((control_snapshot.get("finance") or {}).get("new_finance_api_status"))),
+        },
+        {
+            "title": "Products",
+            "href": "/products",
+            "summary": "Cost coverage and SKU readiness signals.",
+            "status": status_to_api(((control_snapshot.get("data") or {}).get("sku_registry_status"))),
+        },
+        {
+            "title": "Advertising",
+            "href": "/advertising",
+            "summary": "Ads health and linkability quality.",
+            "status": status_to_api(((control_snapshot.get("data") or {}).get("ads_status"))),
+        },
+        {
+            "title": "System",
+            "href": "/system",
+            "summary": "Diagnostics, data trust, and runtime readiness.",
+            "status": status_to_api(((control_snapshot.get("diagnostics") or {}).get("system_audit_status"))),
+        },
+    ]
+
+    recent_events = [
+        {
+            "id": f"event-{index}",
+            "title": f"Signal {index}",
+            "detail": item,
+            "status": business_health_status,
+        }
+        for index, item in enumerate(what_happened[:3], 1)
+    ]
+
+    critical_alerts = [
+        {
+            "id": f"alert-{index}",
+            "title": "Attention required",
+            "detail": safe_text(item),
+            "status": "CRITICAL" if index <= 2 else "WARNING",
+        }
+        for index, item in enumerate(control_blockers[:3] + advisor_risks[:2], 1)
+    ]
+
+    today_actions = [
+        {
+            "id": f"action-{index}",
+            "title": item,
+            "owner": "Command Center",
+            "eta": "Today",
+            "status": "WARNING" if index == 1 else "GOOD",
+        }
+        for index, item in enumerate(actions[:4], 1)
+    ]
+
+    return {
+        "product": PRODUCT_NAME,
+        "screen": "command_center",
+        "period": {
+            "label": "current_month",
+            "date_from": start_date,
+            "date_to": end_date,
+        },
+        "business_health": {
+            "score": health_score,
+            "status": business_health_status,
+            "summary": executive_summary,
+            "confidence": confidence_score,
+            "data_mode": "official" if business_metrics_snapshot.get("official_available") else (
+                "operational" if business_metrics_snapshot.get("operational_available") else "partial"
+            ),
+        },
+        "executive_brief": {
+            "title": safe_text(
+                (director_snapshot.get("main_action") or {}).get("title")
+                or (advisor_snapshot.get("main_recommendation") or {}).get("title"),
+                "Executive brief",
+            ),
+            "what_happened": what_happened or ["No executive summary was available."],
+            "why": why or ["Read-only summary is running with partial evidence."],
+            "actions": actions or ["Review system and finance workspaces for more detail."],
+            "confidence": confidence_score,
+            "sources": safe_list(director_snapshot.get("source_layers") or ["Director", "KPI", "Advisor v2"]),
+        },
+        "kpis": kpis,
+        "workspaces": workspaces,
+        "today_actions": today_actions,
+        "critical_alerts": critical_alerts,
+        "recent_events": recent_events,
+        "system": {
+            "status": safe_text((system_snapshot.get("health") or {}).get("verdict") or system_snapshot.get("verdict"), "UNKNOWN"),
+            "finance_api": safe_text(finance_api_snapshot.get("status"), "UNKNOWN"),
+            "last_updated": now_iso(),
+            "degraded": bool(degraded_notes),
+            "degraded_notes": degraded_notes,
+        },
+    }
+
+
+def _cached_snapshot(key: str) -> dict[str, Any]:
+    return get_stale_cache_value(key) or {}
+
+
+def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
+    del user_id
+    start_date, end_date = current_month_days()
+    business = _cached_snapshot("business")
+    finance = _cached_snapshot("finance")
+    advertising = _cached_snapshot("advertising")
+    products = _cached_snapshot("products")
+    inventory = _cached_snapshot("inventory")
+    advisor = _cached_snapshot("advisor")
+    system = _cached_snapshot("system")
+    performance = get_performance_snapshot()
+
+    business_summary = dict(business.get("summary") or {})
+    finance_summary = dict(finance.get("summary") or {})
+    finance_quality = dict(finance.get("quality") or {})
+    advertising_summary = dict(advertising.get("summary") or {})
+    products_summary = dict(products.get("summary") or {})
+    inventory_summary = dict(inventory.get("summary") or {})
+    advisor_summary = dict(advisor.get("summary") or {})
+    business_health_status = status_to_api(business.get("healthStatus") or finance_summary.get("health") or advisor_summary.get("overallHealth"))
+    trust_score = safe_int(finance_summary.get("trustScore"), 50)
+    health_score = safe_int(
+        business.get("healthScore"),
+        max(35, min(95, int(round((trust_score + (84 if business_health_status == "GOOD" else 58)) / 2)))),
+    )
+
+    executive_summary = safe_text(
+        (system.get("controlCenter") or {}).get("summary")
+        or (advisor.get("insights") or [{}])[0].get("summary")
+        or f"Revenue {business_summary.get('revenue', 0)} and operating profit {business_summary.get('profit', 0)} were loaded from cached workspace snapshots.",
+        "Executive overview is waiting for workspace caches to warm up.",
+    )
+    what_happened = [
+        executive_summary,
+        safe_text(finance_summary.get("status"), ""),
+        safe_text(advertising_summary.get("status"), ""),
+    ]
+    what_happened = [item for item in what_happened if item][:3]
+
+    why = [
+        safe_text((finance.get("difference") or {}).get("reason"), ""),
+        safe_text((inventory.get("health") or {}).get("warehouseStatus"), ""),
+        safe_text((advisor.get("conversation") or {}).get("prompt"), ""),
+    ]
+    why = [item for item in why if item][:4]
+
+    actions: list[str] = []
+    for item in list(advisor.get("actions") or []):
+        label = safe_text((item or {}).get("label"), "")
+        if label and label not in actions:
+            actions.append(label)
+    for item in (
+        "Use Finance workspace for official-profit validation.",
+        "Review inventory pressure before scaling demand.",
+        "Check advertising efficiency for current spend.",
+    ):
+        if item not in actions:
+            actions.append(item)
+    actions = actions[:5]
+
+    kpis = [
+        {
+            "id": "revenue",
+            "title": "Revenue",
+            "value": safe_text(business_summary.get("revenue"), "n/a"),
+            "delta": "Business",
+            "status": status_to_api(business.get("healthStatus")),
+            "source": "business",
+        },
+        {
+            "id": "profit",
+            "title": "Operating Profit",
+            "value": safe_text(business_summary.get("profit"), "n/a"),
+            "delta": "Finance-aligned",
+            "status": status_to_api(finance_summary.get("health")),
+            "source": "finance",
+        },
+        {
+            "id": "trust-score",
+            "title": "Trust Score",
+            "value": f"{trust_score}/100",
+            "delta": safe_text(finance_quality.get("confidence"), "Unknown"),
+            "status": status_to_api(finance_summary.get("health")),
+            "source": "finance",
+        },
+        {
+            "id": "ads-health",
+            "title": "Ads Health",
+            "value": safe_text(advertising_summary.get("adsHealth"), "UNKNOWN"),
+            "delta": safe_text(advertising_summary.get("status"), "Pending"),
+            "status": status_to_api(advertising_summary.get("adsHealth")),
+            "source": "advertising",
+        },
+        {
+            "id": "inventory-health",
+            "title": "Inventory Health",
+            "value": safe_text(inventory_summary.get("inventoryHealth"), "UNKNOWN"),
+            "delta": safe_text((inventory.get("health") or {}).get("forecastConfidence"), "Unknown"),
+            "status": status_to_api(inventory_summary.get("inventoryHealth")),
+            "source": "inventory",
+        },
+    ]
+
+    workspaces = [
+        {"title": "Business", "href": "/business", "summary": "Revenue and profit trends from the live backend.", "status": status_to_api(business.get("healthStatus"))},
+        {"title": "Finance", "href": "/finance", "summary": "Trust, coverage, and difference explainability.", "status": status_to_api(finance_summary.get("health"))},
+        {"title": "Advertising", "href": "/advertising", "summary": "Spend, ROAS, ACOS, and ads health.", "status": status_to_api(advertising_summary.get("adsHealth"))},
+        {"title": "Products", "href": "/products", "summary": "SKU-level product and risk signals.", "status": "GOOD" if products_summary.get("skuCount") else "UNKNOWN"},
+        {"title": "Inventory", "href": "/inventory", "summary": "Coverage, restock, and warehouse readiness.", "status": status_to_api(inventory_summary.get("inventoryHealth"))},
+        {"title": "System", "href": "/system", "summary": "Runtime diagnostics and endpoint stability.", "status": status_to_api(system.get("status"))},
+    ]
+
+    alerts: list[dict[str, Any]] = []
+    for payload, title in (
+        (finance, "Finance requires attention"),
+        (products, "Product risk detected"),
+        (inventory, "Inventory pressure detected"),
+    ):
+        for item in list(payload.get("alerts") or [])[:2]:
+            alerts.append(
+                {
+                    "id": f"alert-{len(alerts) + 1}",
+                    "title": title,
+                    "detail": safe_text((item or {}).get("description") or (item or {}).get("title"), "Review workspace details."),
+                    "status": "WARNING",
+                }
+            )
+    if not alerts and performance.get("/api/executive", {}).get("last_error"):
+        alerts.append(
+            {
+                "id": "alert-runtime",
+                "title": "Executive runtime warning",
+                "detail": safe_text(performance.get("/api/executive", {}).get("last_error"), "Executive cache is warming up."),
+                "status": "WARNING",
+            }
+        )
+
+    recent_events = [
+        {"id": f"event-{index}", "title": f"Signal {index}", "detail": item, "status": business_health_status}
+        for index, item in enumerate(what_happened, 1)
+    ]
+    today_actions = [
+        {"id": f"action-{index}", "title": item, "owner": "Command Center", "eta": "Today", "status": "GOOD" if index > 1 else "WARNING"}
+        for index, item in enumerate(actions[:4], 1)
+    ]
+
+    return {
+        "product": PRODUCT_NAME,
+        "screen": "command_center",
+        "period": {
+            "label": "current_month",
+            "date_from": start_date,
+            "date_to": end_date,
+        },
+        "business_health": {
+            "score": health_score,
+            "status": business_health_status,
+            "summary": executive_summary,
+            "confidence": trust_score,
+            "data_mode": "cached_workspaces",
+        },
+        "executive_brief": {
+            "title": safe_text((advisor.get("insights") or [{}])[0].get("title"), "Executive brief"),
+            "what_happened": what_happened or ["Workspace caches are warming up."],
+            "why": why or ["The executive layer is using the latest cached workspace snapshots."],
+            "actions": actions or ["Open stable workspaces to warm the shared cache."],
+            "confidence": trust_score,
+            "sources": ["business", "finance", "advertising", "products", "inventory", "advisor", "system"],
+        },
+        "kpis": kpis,
+        "workspaces": workspaces,
+        "today_actions": today_actions,
+        "critical_alerts": alerts[:5],
+        "recent_events": recent_events,
+        "system": {
+            "status": safe_text(system.get("status"), "UNKNOWN"),
+            "finance_api": safe_text((system.get("financeApi") or {}).get("status"), safe_text(finance_summary.get("health"), "UNKNOWN")),
+            "last_updated": now_iso(),
+            "degraded": not bool(business or finance or advertising or products or inventory),
+            "degraded_notes": [] if (business or finance or advertising or products or inventory) else ["Cached workspace snapshots are not ready yet."],
+        },
+    }

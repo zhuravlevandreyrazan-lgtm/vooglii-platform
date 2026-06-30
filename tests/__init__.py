@@ -1,0 +1,1 @@
+"""Readonly smoke test package."""
