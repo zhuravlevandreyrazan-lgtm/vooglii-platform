@@ -1,9 +1,9 @@
 import os
 
 DB_NAME = os.getenv('DB_NAME', 'wildberries.db')
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8668280881:AAEk2xPjYehD3rZ38klNUFOTCew1kmDdTwo').strip()
+BOT_TOKEN = os.getenv('BOT_TOKEN', '').strip()
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'unknown').strip() or 'unknown'
-WB_TOKEN = os.getenv('WB_TOKEN', 'eyJhbGciOiJFUzI1NiIsImtpZCI6IjIwMjYwMzAydjEiLCJ0eXAiOiJKV1QifQ.eyJhY2MiOjMsImVudCI6MSwiZXhwIjoxNzk4NDI3NDc1LCJmb3IiOiJzZWxmIiwiaWQiOiIwMTlmMGVjOC1lN2QxLTc2ZWQtYWU0MS02ZjEzNGUyYzA1YzYiLCJpaWQiOjE3OTYwNTAyLCJvaWQiOjI1MDAyMzUxMCwicyI6MTA3MzgyMzQ4Niwic2lkIjoiZDczMzU2NGItOTRlYS00MDkyLWI0YzgtYWM5OWU5YWMwYzAzIiwidCI6ZmFsc2UsInVpZCI6MTc5NjA1MDJ9.pW6zENc5J-vs17E1UqF3uJf7SOeGZPeoR3mJD0UGVyE5h97z15RgGVzXiLkRXwYBGc9OACEV-aPK2dvwuBMvdQ')
+WB_TOKEN = os.getenv('WB_TOKEN', '').strip()
 PAYMENT_PROVIDER_TOKEN = os.getenv('PAYMENT_PROVIDER_TOKEN', '')
 ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_IDS', '658486226').replace(' ', '').split(',') if x]
 PRO_PRICE_RUB = int(os.getenv('PRO_PRICE_RUB', '690'))

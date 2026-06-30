@@ -18,6 +18,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-development}
     env_file:
       - .env.example
     ports:
@@ -30,8 +33,8 @@ services:
     image: postgres:16-alpine
     profiles: ["future"]
     environment:
-      POSTGRES_DB: vooglii
-      POSTGRES_USER: vooglii
+      POSTGRES_DB: ${POSTGRES_DB:-vooglii}
+      POSTGRES_USER: ${POSTGRES_USER:-vooglii}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
     volumes:
       - postgres_data:/var/lib/postgresql/data
