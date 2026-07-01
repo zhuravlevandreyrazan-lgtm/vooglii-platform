@@ -14,7 +14,7 @@ export function Card({
   const surfaceClass = {
     default: "bg-[var(--panel)] border-[var(--line)]",
     muted: "bg-[var(--panel-strong)] border-[var(--line)]",
-    accent: "bg-[linear-gradient(135deg,#1f2937_0%,#0f172a_55%,#172554_100%)] text-white border-transparent"
+    accent: "bg-[linear-gradient(135deg,#fff6ee_0%,#f6ebdf_55%,#fdf7f1_100%)] text-[var(--ink)] border-[color:rgba(217,119,69,0.18)]"
   };
 
   return (

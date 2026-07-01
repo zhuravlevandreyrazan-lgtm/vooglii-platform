@@ -78,7 +78,7 @@ export type WorkspaceCard = {
 
 export type CommandCenterSnapshot = {
   businessHealth: {
-    score: number;
+    score?: number | null;
     status: string;
     summary: string;
   };

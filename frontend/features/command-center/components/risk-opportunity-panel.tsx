@@ -1,5 +1,6 @@
 import { WidgetCard } from "@/shared/widgets";
 import type { KpiOpportunity, KpiRisk } from "@/features/command-center/kpi-types";
+import { localizeKnownText, localizeSourceName, localizeStatus } from "@/shared/ui/status-labels";
 
 export type RiskOpportunityPanelProps = {
   topRisk: KpiRisk | null;
@@ -27,7 +28,7 @@ function CompactSignalCard({
       emptyMessage={emptyMessage}
       error={error}
       loading={loading}
-      status={item ? { label: item.tone, tone: item.tone } : undefined}
+      status={item ? { label: localizeStatus(item.tone), tone: item.tone } : undefined}
       title={title}
     >
       {item ? (
@@ -35,7 +36,7 @@ function CompactSignalCard({
           <div className="text-base font-semibold">{item.title}</div>
           <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.summary}</p>
           <div className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-            Основание: {item.source}
+            Основание: {localizeKnownText(localizeSourceName(item.source), "данные кабинета")}
           </div>
         </div>
       ) : null}

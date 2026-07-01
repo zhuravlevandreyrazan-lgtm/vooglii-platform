@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PanelLeftClose } from "lucide-react";
 import { useAuth } from "@/features/auth";
 import { hasAnyPermission } from "@/features/auth/rbac";
+import { BrandLogo } from "@/shared/brand/brand-logo";
 import { Button } from "@/shared/components/button";
 import { StatusBadge } from "@/shared/status";
 import { theme } from "@/shared/theme";
@@ -36,7 +37,7 @@ export function WorkspaceSidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 border-r border-[var(--line)] bg-[color:rgba(255,253,248,0.96)] p-5 backdrop-blur transition-transform duration-200 lg:static lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 border-r border-[var(--line)] bg-[color:rgba(255,253,252,0.96)] p-5 backdrop-blur transition-transform duration-200 lg:static lg:translate-x-0",
         collapsed ? "w-[108px]" : "w-[300px]",
         mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}
@@ -44,12 +45,10 @@ export function WorkspaceSidebar({
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-3">
           <Link className="inline-flex items-center gap-3" href="/executive">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[var(--ink)] text-lg font-semibold text-white">
-              V
-            </div>
+            <BrandLogo compact={collapsed} priority />
             {!collapsed ? (
               <div>
-                <div className="text-lg font-semibold">{theme.brand.name}</div>
+                <div className="text-lg font-semibold tracking-[0.12em]">{theme.brand.name}</div>
                 <div className="mt-1 max-w-[160px] text-xs leading-5 text-[var(--ink-soft)]">
                   {theme.brand.tagline}
                 </div>
@@ -67,7 +66,7 @@ export function WorkspaceSidebar({
         </div>
 
         {!collapsed ? (
-          <div className="mt-8 rounded-[28px] border border-[var(--line)] bg-[linear-gradient(180deg,#fff8ed_0%,#f6efe2_100%)] p-4 shadow-[var(--shadow-soft)]">
+          <div className="mt-8 rounded-[28px] border border-[var(--line)] bg-[linear-gradient(180deg,#fffaf4_0%,#f6eee4_100%)] p-4 shadow-[var(--shadow-soft)]">
             <StatusBadge tone="accent">Панель продавца</StatusBadge>
             <h2 className="mt-4 text-xl font-semibold tracking-[-0.04em]">Единый центр управления</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
@@ -104,19 +103,19 @@ export function WorkspaceSidebar({
                 className={cn(
                   "group flex items-center gap-3 rounded-3xl border px-4 py-3 outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
                   active
-                    ? "border-transparent bg-[var(--ink)] text-white shadow-[var(--shadow-soft)]"
-                    : "border-[var(--line)] bg-white/55 hover:bg-white"
+                    ? "border-[color:rgba(217,119,69,0.18)] bg-[linear-gradient(135deg,#fff4ea_0%,#f9ecdf_100%)] text-[var(--ink)] shadow-[var(--shadow-soft)]"
+                    : "border-[var(--line)] bg-white/72 hover:border-[color:rgba(217,119,69,0.16)] hover:bg-white"
                 )}
                 href={item.href}
                 onClick={onClose}
               >
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", active ? "bg-white/10" : "bg-[var(--panel-strong)]")}>
+                <div className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", active ? "bg-[color:rgba(217,119,69,0.12)] text-[var(--accent-strong)]" : "bg-[var(--panel-strong)]")}>
                   <Icon size={18} />
                 </div>
                 {!collapsed ? (
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{item.label}</div>
-                    <div className={cn("mt-1 text-xs leading-5", active ? "text-white/75" : "text-[var(--ink-soft)]")}>
+                    <div className={cn("mt-1 text-xs leading-5", "text-[var(--ink-soft)]")}>
                       {item.description}
                     </div>
                   </div>

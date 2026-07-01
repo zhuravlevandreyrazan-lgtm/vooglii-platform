@@ -285,12 +285,12 @@ export default function SettingsReadinessPage() {
       <div className="grid gap-6 xl:grid-cols-3">
         <WidgetCard subtitle="Сервисы платформы" title="Автоматизация">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Выгрузки, расписания и фоновые задачи уже подготовлены для production-среды.
+            Выгрузки, расписания и фоновые задачи уже подготовлены для боевой среды.
           </p>
         </WidgetCard>
         <WidgetCard subtitle="Сервисы платформы" title="Уведомления">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Раздел уведомлений отслеживается, а безопасные заглушки доставки остаются отделены от production-секретов.
+            Раздел уведомлений отслеживается, а безопасные заглушки доставки остаются отделены от боевых секретов.
           </p>
         </WidgetCard>
         <WidgetCard subtitle="Сервисы платформы" title="Доступ">

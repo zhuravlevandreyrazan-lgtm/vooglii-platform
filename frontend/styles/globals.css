@@ -3,23 +3,23 @@
 :root {
   --font-sans: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "IBM Plex Mono", "Consolas", monospace;
-  --background: #f4efe7;
-  --background-strong: #e9dfd0;
-  --panel: #fffdf8;
-  --panel-strong: #f7f2e8;
-  --line: #d6ccbc;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --accent: #d0683f;
-  --accent-strong: #a94822;
-  --mint: #5e8f7a;
-  --gold: #cc9c2c;
-  --sky: #7ea4b8;
-  --danger: #b84545;
-  --success: #2f7d63;
-  --warning: #b07a18;
-  --shadow-soft: 0 20px 50px rgba(15, 23, 42, 0.08);
-  --shadow-raised: 0 28px 90px rgba(15, 23, 42, 0.14);
+  --background: #f7f3ec;
+  --background-strong: #efe7db;
+  --panel: #fffdfc;
+  --panel-strong: #fbf6ef;
+  --line: #e8e0d5;
+  --ink: #1f2937;
+  --ink-soft: #6b7280;
+  --accent: #d97745;
+  --accent-strong: #ba6438;
+  --mint: #8ca996;
+  --gold: #d9a441;
+  --sky: #c8d6df;
+  --danger: #c75c5c;
+  --success: #4e8c66;
+  --warning: #d9a441;
+  --shadow-soft: 0 18px 48px rgba(31, 41, 55, 0.08);
+  --shadow-raised: 0 24px 72px rgba(31, 41, 55, 0.12);
   --radius-card: 24px;
   --radius-panel: 32px;
 }
@@ -36,9 +36,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(208, 104, 63, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(126, 164, 184, 0.18), transparent 30%),
-    linear-gradient(180deg, #f7f2e8 0%, var(--background) 36%, #efe6d8 100%);
+    radial-gradient(circle at top left, rgba(217, 119, 69, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(140, 169, 150, 0.12), transparent 28%),
+    linear-gradient(180deg, #faf6ef 0%, var(--background) 34%, #f2ebe0 100%);
   color: var(--ink);
   font-family: var(--font-sans);
 }
@@ -56,7 +56,7 @@ select {
 }
 
 ::selection {
-  background: rgba(208, 104, 63, 0.22);
+  background: rgba(217, 119, 69, 0.22);
 }
 
 .shell-grid {
@@ -76,7 +76,7 @@ select {
   height: 220px;
   width: 220px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(94, 143, 122, 0.14), transparent 72%);
+  background: radial-gradient(circle, rgba(78, 140, 102, 0.12), transparent 72%);
   filter: blur(16px);
   pointer-events: none;
 }

@@ -21,5 +21,9 @@ export function HealthBadge({
   score?: number | null;
   label?: string;
 }) {
-  return <StatusBadge tone={mapHealthTone(score)}>{label ?? (typeof score === "number" ? `${score}/100` : "Unknown")}</StatusBadge>;
+  return (
+    <StatusBadge tone={mapHealthTone(score)}>
+      {label ?? (typeof score === "number" ? `${score}/100` : "Недостаточно данных")}
+    </StatusBadge>
+  );
 }

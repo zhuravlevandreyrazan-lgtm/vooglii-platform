@@ -3,11 +3,11 @@ import { cn } from "@/shared/lib/cn";
 import type { StatusTone } from "@/types/platform";
 
 const toneClasses: Record<StatusTone, string> = {
-  healthy: "bg-[color:rgba(47,125,99,0.12)] text-[var(--success)]",
-  watch: "bg-[color:rgba(176,122,24,0.14)] text-[var(--warning)]",
-  risk: "bg-[color:rgba(184,69,69,0.12)] text-[var(--danger)]",
-  neutral: "bg-[color:rgba(51,65,85,0.08)] text-[var(--ink-soft)]",
-  accent: "bg-[color:rgba(208,104,63,0.12)] text-[var(--accent-strong)]"
+  healthy: "border border-[color:rgba(78,140,102,0.18)] bg-[color:rgba(78,140,102,0.10)] text-[var(--success)]",
+  watch: "border border-[color:rgba(217,164,65,0.18)] bg-[color:rgba(217,164,65,0.14)] text-[var(--warning)]",
+  risk: "border border-[color:rgba(199,92,92,0.16)] bg-[color:rgba(199,92,92,0.10)] text-[var(--danger)]",
+  neutral: "border border-[color:rgba(232,224,213,0.95)] bg-[color:rgba(255,253,252,0.92)] text-[var(--ink-soft)]",
+  accent: "border border-[color:rgba(217,119,69,0.16)] bg-[color:rgba(217,119,69,0.12)] text-[var(--accent-strong)]"
 };
 
 export function StatusBadge({

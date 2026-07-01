@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   WARNING: "Требует внимания",
   PARTIAL: "Требует внимания",
   WATCH: "Наблюдать",
+  RISK: "Риск",
   DEGRADED: "Данные частично недоступны",
   CRITICAL: "Критично",
   ERROR: "Критично",

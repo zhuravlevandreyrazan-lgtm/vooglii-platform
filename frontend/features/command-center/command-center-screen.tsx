@@ -110,7 +110,7 @@ function dataRuntimeTone(
   if (runtimeSource === "degraded" || runtimeSource === "stale_cache" || runtimeSource === "fallback") {
     return "watch";
   }
-  return snapshot.businessHealth?.status === "GOOD" ? "healthy" : "accent";
+  return "healthy";
 }
 
 export function CommandCenterScreen({
@@ -163,19 +163,25 @@ export function CommandCenterScreen({
           error={sharedWidgetError}
           loading={loading}
           status={{
-            label: localizeStatus(snapshot.businessHealth?.status ?? "UNKNOWN"),
+            label: kpis.businessHealth.state === "ready" ? localizeStatus(snapshot.businessHealth?.status ?? "UNKNOWN") : "Ожидаем данные",
             tone: kpis.businessHealth.tone
           }}
-          subtitle={formatKpiValue(kpis.businessHealth)}
+          subtitle={kpis.businessHealth.state === "ready" ? formatKpiValue(kpis.businessHealth) : "Недостаточно данных"}
           title="Здоровье бизнеса"
           updatedAt={updatedAtLabel}
         >
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-semibold tracking-[-0.05em]">
-              {kpis.businessHealth.state === "ready" ? kpis.businessHealth.numericValue : "-"}
-            </span>
-            <span className="text-lg text-[var(--ink-soft)]">/100</span>
-          </div>
+          {kpis.businessHealth.state === "ready" ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-semibold tracking-[-0.05em]">
+                {kpis.businessHealth.numericValue}
+              </span>
+              <span className="text-lg text-[var(--ink-soft)]">/100</span>
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-[var(--line)] bg-[linear-gradient(180deg,#fffdfc_0%,#fbf6ef_100%)] p-4 text-sm leading-6 text-[var(--ink-soft)]">
+              Показатель появится после загрузки кабинета и первой синхронизации данных.
+            </div>
+          )}
           <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
             {sanitizeUserText(kpis.businessHealth.note, "Сводка по состоянию бизнеса пока недоступна.")}
           </p>

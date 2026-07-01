@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, Menu, RefreshCcw, Search, UserCircle2 } from "lucide-react";
 import { useAuth } from "@/features/auth";
 import { useNotificationSummary } from "@/features/notifications/hooks/use-notification-summary";
+import { BrandLogo } from "@/shared/brand/brand-logo";
 import { useDemoMode } from "@/shared/demo/demo-provider";
 import { Button } from "@/shared/components/button";
 import { StatusBadge } from "@/shared/status";
@@ -33,12 +34,15 @@ export function WorkspaceTopBar({
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[color:rgba(244,239,231,0.82)] px-4 py-4 backdrop-blur lg:px-8">
+    <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[color:rgba(247,243,236,0.88)] px-4 py-4 backdrop-blur lg:px-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <Button aria-label="Открыть меню" className="lg:hidden" variant="ghost" onClick={onOpenSidebar}>
             <Menu size={16} />
           </Button>
+          <Link className="hidden lg:inline-flex" href="/executive">
+            <BrandLogo compact className="h-10 w-10 rounded-[14px]" />
+          </Link>
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
               {breadcrumb.map((item, index) => (

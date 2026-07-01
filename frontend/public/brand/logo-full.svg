@@ -1,0 +1,9 @@
+<svg width="720" height="220" viewBox="0 0 720 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="220" rx="40" fill="#FFFDFC"/>
+  <circle cx="110" cy="110" r="76" fill="#F7F3EC" stroke="#E8E0D5" stroke-width="10"/>
+  <path d="M68 136L96 84L110 112L126 92L154 136" stroke="#1F2937" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M130 80H166V116" stroke="#D97745" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M165 81L126 120" stroke="#D97745" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="220" y="108" fill="#1F2937" font-family="Aptos, Trebuchet MS, Segoe UI, sans-serif" font-size="60" font-weight="700" letter-spacing="10">VOOGLII</text>
+  <text x="222" y="146" fill="#6B7280" font-family="Aptos, Trebuchet MS, Segoe UI, sans-serif" font-size="22" font-weight="500" letter-spacing="1.1">Платформа управления бизнесом Wildberries</text>
+</svg>

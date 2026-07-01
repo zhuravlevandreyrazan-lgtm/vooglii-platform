@@ -157,7 +157,27 @@ function buildDerivedMetric(
 }
 
 function buildBusinessHealthMetric(snapshot: CommandCenterSnapshot): KpiMetric {
-  const score = Number.isFinite(snapshot.businessHealth.score) ? snapshot.businessHealth.score : 0;
+  const rawScore = snapshot.businessHealth.score;
+  const score = typeof rawScore === "number" && Number.isFinite(rawScore) ? rawScore : null;
+
+  if (score === null) {
+    return {
+      key: "businessHealth",
+      label: "Здоровье бизнеса",
+      value: "Недостаточно данных",
+      numericValue: 0,
+      unit: "score",
+      state: "unknown",
+      tone: "neutral",
+      note: snapshot.businessHealth.summary || "Данные появятся после первой синхронизации.",
+      trend: {
+        value: "Ожидаем данные",
+        direction: "unknown",
+        summary: "Оценка появится после загрузки данных кабинета."
+      },
+      source: "api.businessHealth"
+    };
+  }
 
   return {
     key: "businessHealth",

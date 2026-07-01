@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AuthProvider } from "@/features/auth";
 import { DemoModeProvider } from "@/shared/demo/demo-provider";
-import { BuildInfoFooter } from "@/shared/layout/build-info-footer";
 import { resolveWorkspaceMeta } from "@/shared/layout/platform-shell.config";
 import { WorkspaceSidebar } from "@/shared/layout/workspace-sidebar";
 import { WorkspaceTopBar } from "@/shared/layout/workspace-topbar";
@@ -56,7 +55,6 @@ export function PlatformShell({ children }: { children: ReactNode }) {
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                   <span>VOOGLII Platform</span>
                   <span>Платформа для управления бизнесом, финансами, рекламой и аналитикой Wildberries.</span>
-                  <BuildInfoFooter />
                 </div>
               </footer>
             </div>

@@ -187,25 +187,22 @@ export function mapCommandCenterApiResponseToSnapshot(
   ].filter(Boolean);
   const executiveSummary = sanitizeUserTextList(summaryBits, "").join(" ");
   const businessSummary = sanitizeUserText(payload.business_health?.summary, "");
-  const sourceSummary = executiveSummary || businessSummary || commandCenterMock.executiveBrief.summary;
-  const sanitizedSources =
-    sanitizeUserTextList(payload.executive_brief?.sources, "").length > 0
-      ? sanitizeUserTextList(payload.executive_brief?.sources, "")
-      : commandCenterMock.executiveBrief.sources;
+  const sourceSummary = executiveSummary || businessSummary || "Данные появятся после первой синхронизации.";
+  const sanitizedSources = sanitizeUserTextList(payload.executive_brief?.sources, "");
   const runtimeDescription = payload.system?.degraded
     ? "Часть модулей временно недоступна, но платформа продолжает показывать подтвержденные данные."
     : "Данные получены из рабочего контура и обновлены для текущего экрана.";
 
   return {
     businessHealth: {
-      score: payload.business_health?.score ?? commandCenterMock.businessHealth.score,
+      score: typeof payload.business_health?.score === "number" ? payload.business_health.score : null,
       status: localizeStatus(payload.business_health?.status ?? "UNKNOWN"),
-      summary: sourceSummary
+      summary: sourceSummary || "Данные появятся после первой синхронизации."
     },
     executiveBrief: {
       id: "executive-brief",
       eyebrow: "Краткий вывод",
-      title: sanitizeUserText(payload.executive_brief?.title, commandCenterMock.executiveBrief.title),
+      title: sanitizeUserText(payload.executive_brief?.title, "Сводка появится после загрузки данных"),
       summary: sourceSummary,
       confidence: formatConfidence(payload.executive_brief?.confidence),
       sources: sanitizedSources,
@@ -218,7 +215,7 @@ export function mapCommandCenterApiResponseToSnapshot(
         delta: sanitizeUserText(metric.delta, "Нет данных"),
         tone: statusToTone(metric.status),
         note: "Актуальные показатели по выбранному периоду"
-      })) ?? commandCenterMock.kpis,
+      })) ?? [],
     timeline:
       payload.recent_events?.map((event, index) => ({
         id: event.id ?? `timeline-${index + 1}`,
@@ -226,7 +223,7 @@ export function mapCommandCenterApiResponseToSnapshot(
         title: localizeKnownText(event.title, "Последнее событие"),
         detail: localizeKnownText(event.detail, "Подробности появятся после обновления данных."),
         tone: statusToTone(event.status)
-      })) ?? commandCenterMock.timeline,
+      })) ?? [],
     actions:
       payload.today_actions?.map((action, index) => ({
         id: action.id ?? `action-${index + 1}`,
@@ -234,14 +231,14 @@ export function mapCommandCenterApiResponseToSnapshot(
         owner: sanitizeUserText(action.owner, "Центр управления"),
         eta: sanitizeUserText(action.eta, "Сегодня"),
         tone: statusToTone(action.status)
-      })) ?? commandCenterMock.actions,
+      })) ?? [],
     alerts:
       payload.critical_alerts?.map((alert, index) => ({
         id: alert.id ?? `alert-${index + 1}`,
         title: localizeKnownText(alert.title, "Сигнал"),
         detail: localizeKnownText(alert.detail, "Подробности появятся после обновления данных."),
         tone: statusToTone(alert.status)
-      })) ?? commandCenterMock.alerts,
+      })) ?? [],
     workspaces:
       payload.workspaces?.map((workspace) => ({
         title: localizeWorkspaceLabel(workspace.title ?? "workspace"),

@@ -37,8 +37,8 @@ function MessageState({
 }) {
   const toneClass =
     tone === "error"
-      ? "border-[color:rgba(184,69,69,0.2)] bg-[color:rgba(184,69,69,0.06)] text-[var(--danger)]"
-      : "border-[var(--line)] bg-[var(--panel-strong)] text-[var(--ink-soft)]";
+      ? "border-[color:rgba(199,92,92,0.18)] bg-[color:rgba(199,92,92,0.06)] text-[var(--danger)]"
+      : "border-[var(--line)] bg-[linear-gradient(180deg,#fffdfc_0%,#fbf6ef_100%)] text-[var(--ink-soft)]";
 
   return (
     <div className={cn("rounded-[22px] border p-4", toneClass)}>
@@ -58,7 +58,7 @@ export function WidgetCard({
   loading = false,
   error,
   empty = false,
-  emptyMessage = "Данные для этого блока пока недоступны.",
+  emptyMessage = "Данные появятся после первой синхронизации.",
   className,
   ...props
 }: WidgetCardProps) {
@@ -76,7 +76,7 @@ export function WidgetCard({
     );
   } else if (empty) {
     content = (
-      <MessageState message={emptyMessage} title="Нет данных" tone="empty" />
+      <MessageState message={emptyMessage} title="Ожидаем данные" tone="empty" />
     );
   }
 
