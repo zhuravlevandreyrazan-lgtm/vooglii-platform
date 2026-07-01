@@ -116,13 +116,13 @@ function getEmptyTrend(key: BusinessPeriodKey): BusinessTrend {
   return {
     key,
     label: PERIOD_LABELS[key],
-    revenue: 0,
-    profit: 0,
-    margin: 0,
-    orders: 0,
-    returns: 0,
-    averageOrderValue: 0,
-    unitsSold: 0
+    revenue: null,
+    profit: null,
+    margin: null,
+    orders: null,
+    returns: null,
+    averageOrderValue: null,
+    unitsSold: null
   };
 }
 
@@ -163,12 +163,12 @@ export function normalizeBusinessSnapshot(
       unitsSold: raw.summary?.unitsSold ?? null
     },
     trends: {
-      revenue: raw.trends?.revenue ?? 0,
-      profit: raw.trends?.profit ?? 0,
-      margin: raw.trends?.margin ?? 0,
-      returns: raw.trends?.returns ?? 0
+      revenue: raw.trends?.revenue ?? null,
+      profit: raw.trends?.profit ?? null,
+      margin: raw.trends?.margin ?? null,
+      returns: raw.trends?.returns ?? null
     },
-    healthScore: raw.healthScore ?? 0,
+    healthScore: raw.healthScore ?? undefined,
     healthStatus: raw.healthStatus ?? "Unknown",
     periods: {
       today: normalizeTrend("today", raw.periods?.today),

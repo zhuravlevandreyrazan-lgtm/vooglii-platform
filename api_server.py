@@ -78,7 +78,7 @@ from analytics.advisor import (
     get_advisor_query_degraded_payload,
     get_advisor_query_payload,
 )
-from analytics.business import get_business_payload
+from analytics.business import get_business_payload, normalize_business_payload
 from analytics.common import BUILD_VERSION, DEFAULT_USER_ID, PRODUCT_NAME
 from analytics.degraded import (
     advertising_degraded,
@@ -646,7 +646,7 @@ def api_executive(actor: dict[str, Any] = Depends(require_permission("dashboard:
 @app.get("/api/business", response_model=BusinessResponse, responses={500: {"model": ApiErrorResponse}})
 def api_business(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/business", get_business_payload, business_degraded)
+    return _cached_snapshot("/api/business", lambda: normalize_business_payload(get_business_payload()), business_degraded)
 
 
 @app.get("/api/finance", response_model=FinanceResponse, responses={500: {"model": ApiErrorResponse}})

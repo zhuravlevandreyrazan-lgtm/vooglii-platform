@@ -139,10 +139,10 @@ def _build_business_period(user_id: int, start_date: str, end_date: str, context
         revenue = None
         profit = None
         margin = None
-        orders = 0
-        returns = 0
+        orders = None
+        returns = None
         average_order_value = None
-        units_sold = 0
+        units_sold = None
 
     return {
         "revenue": revenue,
@@ -154,6 +154,68 @@ def _build_business_period(user_id: int, start_date: str, end_date: str, context
         "unitsSold": units_sold,
         "available": not looks_empty,
     }
+
+
+def _meaningful_product_row(row: dict[str, Any]) -> bool:
+    revenue = safe_float(row.get("revenue"))
+    profit = safe_float(row.get("contribution_profit"))
+    margin = safe_float(row.get("real_margin"))
+    return any(value not in (None, 0, 0.0) for value in (revenue, profit, margin))
+
+
+def normalize_business_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload or {})
+    summary = dict(result.get("summary") or {})
+    periods = dict(result.get("periods") or {})
+    top_products = [row for row in list(result.get("topProducts") or []) if _meaningful_product_row(row)]
+    health_status = str(result.get("healthStatus") or "").strip() or NO_BUSINESS_DATA_STATUS
+
+    no_summary_data = (
+        summary.get("revenue") is None
+        and summary.get("profit") is None
+        and summary.get("orders") is None
+        and summary.get("unitsSold") is None
+    )
+    no_business_data = health_status == NO_BUSINESS_DATA_STATUS or (no_summary_data and not top_products)
+
+    result["topProducts"] = top_products
+
+    if not no_business_data:
+        return result
+
+    result["healthStatus"] = NO_BUSINESS_DATA_STATUS
+    result["healthScore"] = None
+    result["summary"] = {
+        "revenue": None,
+        "profit": None,
+        "margin": None,
+        "orders": None,
+        "returns": None,
+        "averageOrderValue": None,
+        "unitsSold": None,
+    }
+    result["trends"] = {
+        "revenue": None,
+        "profit": None,
+        "margin": None,
+        "returns": None,
+    }
+    result["periods"] = {
+        key: {
+            **dict(period or {}),
+            "revenue": None,
+            "profit": None,
+            "margin": None,
+            "orders": None,
+            "returns": None,
+            "averageOrderValue": None,
+            "unitsSold": None,
+            "available": False,
+        }
+        for key, period in periods.items()
+    }
+    result["topProducts"] = []
+    return result
 
 
 def _trend_delta(current_value: float | None, previous_value: float | None) -> float:
@@ -188,7 +250,9 @@ def get_business_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     }.get(str(director.get("business_health") or "UNKNOWN").upper(), 50)
 
     top_products = []
-    for row in sorted(sku_rows, key=lambda item: float(item.get("revenue") or 0), reverse=True)[:3]:
+    for row in sorted(sku_rows, key=lambda item: float(item.get("revenue") or 0), reverse=True):
+        if not _meaningful_product_row(row):
+            continue
         top_products.append(
             {
                 "sku": safe_text(row.get("article"), "unknown"),
@@ -199,11 +263,13 @@ def get_business_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "status": safe_text((row.get("verdicts") or ["Stable"])[0], "Stable"),
             }
         )
+        if len(top_products) >= 3:
+            break
 
     has_business_data = bool(summary.get("available") or top_products)
     health_status = safe_text(director.get("business_health"), "Unknown") if has_business_data else NO_BUSINESS_DATA_STATUS
 
-    return {
+    return normalize_business_payload({
         "summary": {
             "revenue": revenue,
             "profit": profit,
@@ -229,4 +295,4 @@ def get_business_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         },
         "topProducts": top_products,
         "generatedAt": end_date,
-    }
+    })

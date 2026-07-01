@@ -75,15 +75,6 @@ function createUnknownMetric(
 }
 
 export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
-  const revenue = snapshot.summary.revenue ?? 0;
-  const profit = snapshot.summary.profit ?? 0;
-  const margin = snapshot.summary.margin ?? (snapshot.summary.revenue !== null && snapshot.summary.profit !== null && revenue > 0 ? (profit / revenue) * 100 : 0);
-  const orders = snapshot.summary.orders ?? 0;
-  const returns = snapshot.summary.returns ?? 0;
-  const averageOrderValue =
-    snapshot.summary.averageOrderValue ?? (snapshot.summary.orders !== null && orders > 0 ? revenue / orders : 0);
-  const unitsSold = snapshot.summary.unitsSold ?? 0;
-  const healthScore = snapshot.healthScore ?? 0;
   const noData =
     snapshot.healthStatus === "No business data available" ||
     (snapshot.summary.revenue === null &&
@@ -132,14 +123,36 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     };
   }
 
+  const revenue = snapshot.summary.revenue ?? 0;
+  const profit = snapshot.summary.profit ?? 0;
+  const margin =
+    snapshot.summary.margin ??
+    (snapshot.summary.revenue !== null && snapshot.summary.profit !== null && revenue > 0 ? (profit / revenue) * 100 : 0);
+  const orders = snapshot.summary.orders ?? 0;
+  const returns = snapshot.summary.returns ?? 0;
+  const averageOrderValue =
+    snapshot.summary.averageOrderValue ?? (snapshot.summary.orders !== null && orders > 0 ? revenue / orders : 0);
+  const unitsSold = snapshot.summary.unitsSold ?? 0;
+  const healthScore = snapshot.healthScore ?? 0;
+  const revenueTrend = snapshot.trends.revenue ?? 0;
+  const profitTrend = snapshot.trends.profit ?? 0;
+  const marginTrend = snapshot.trends.margin ?? 0;
+  const returnsTrend = snapshot.trends.returns ?? 0;
+  const todayOrders = snapshot.periods.today.orders ?? 0;
+  const yesterdayOrders = snapshot.periods.yesterday.orders ?? 0;
+  const todayAverageOrderValue = snapshot.periods.today.averageOrderValue ?? 0;
+  const yesterdayAverageOrderValue = snapshot.periods.yesterday.averageOrderValue ?? 0;
+  const todayUnitsSold = snapshot.periods.today.unitsSold ?? 0;
+  const yesterdayUnitsSold = snapshot.periods.yesterday.unitsSold ?? 0;
+
   const revenueMetric = createMetric(
     "revenue",
     "Выручка",
     revenue,
     formatCurrency(revenue),
-    `${snapshot.trends.revenue >= 0 ? "+" : ""}${snapshot.trends.revenue.toFixed(1)}%`,
+    `${revenueTrend >= 0 ? "+" : ""}${revenueTrend.toFixed(1)}%`,
     "Общая выручка бизнеса за выбранный период.",
-    toneFromTrend(snapshot.trends.revenue)
+    toneFromTrend(revenueTrend)
   );
 
   const profitMetric = createMetric(
@@ -147,9 +160,9 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Прибыль",
     profit,
     formatCurrency(profit),
-    `${snapshot.trends.profit >= 0 ? "+" : ""}${snapshot.trends.profit.toFixed(1)}%`,
+    `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}%`,
     "Прибыль после текущих расходов маркетплейса.",
-    toneFromTrend(snapshot.trends.profit)
+    toneFromTrend(profitTrend)
   );
 
   const marginMetric = createMetric(
@@ -157,7 +170,7 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Маржинальность",
     margin,
     formatPercent(margin),
-    `${snapshot.trends.margin >= 0 ? "+" : ""}${snapshot.trends.margin.toFixed(1)} pp`,
+    `${marginTrend >= 0 ? "+" : ""}${marginTrend.toFixed(1)} pp`,
     "Доля прибыли в выручке бизнеса.",
     toneFromMargin(margin)
   );
@@ -167,7 +180,7 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Заказы",
     orders,
     orders.toLocaleString("en-US"),
-    `${snapshot.periods.today.orders >= snapshot.periods.yesterday.orders ? "+" : ""}${snapshot.periods.today.orders - snapshot.periods.yesterday.orders} день к дню`,
+    `${todayOrders >= yesterdayOrders ? "+" : ""}${todayOrders - yesterdayOrders} день к дню`,
     "Подтвержденные заказы за выбранный период.",
     orders > 0 ? "healthy" : "neutral"
   );
@@ -177,9 +190,9 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Возвраты",
     returns,
     returns.toLocaleString("en-US"),
-    `${snapshot.trends.returns >= 0 ? "+" : ""}${snapshot.trends.returns.toFixed(1)}%`,
+    `${returnsTrend >= 0 ? "+" : ""}${returnsTrend.toFixed(1)}%`,
     "Возвраты и отмены за тот же период.",
-    snapshot.trends.returns > 10 ? "risk" : snapshot.trends.returns > 5 ? "watch" : "neutral"
+    returnsTrend > 10 ? "risk" : returnsTrend > 5 ? "watch" : "neutral"
   );
 
   const averageOrderValueMetric = createMetric(
@@ -187,7 +200,7 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Средний чек",
     averageOrderValue,
     formatCurrency(averageOrderValue),
-    `${snapshot.periods.today.averageOrderValue >= snapshot.periods.yesterday.averageOrderValue ? "+" : ""}${(snapshot.periods.today.averageOrderValue - snapshot.periods.yesterday.averageOrderValue).toFixed(0)} день к дню`,
+    `${todayAverageOrderValue >= yesterdayAverageOrderValue ? "+" : ""}${(todayAverageOrderValue - yesterdayAverageOrderValue).toFixed(0)} день к дню`,
     "Средняя выручка на один заказ.",
     averageOrderValue > 0 ? "accent" : "neutral"
   );
@@ -197,7 +210,7 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
     "Проданные единицы",
     unitsSold,
     unitsSold.toLocaleString("en-US"),
-    `${snapshot.periods.today.unitsSold >= snapshot.periods.yesterday.unitsSold ? "+" : ""}${snapshot.periods.today.unitsSold - snapshot.periods.yesterday.unitsSold} день к дню`,
+    `${todayUnitsSold >= yesterdayUnitsSold ? "+" : ""}${todayUnitsSold - yesterdayUnitsSold} день к дню`,
     "Количество проданных единиц за период.",
     unitsSold > 0 ? "healthy" : "neutral"
   );
@@ -205,31 +218,31 @@ export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
   const revenueTrendMetric = createMetric(
     "revenue",
     "Динамика выручки",
-    snapshot.trends.revenue,
-    `${snapshot.trends.revenue >= 0 ? "+" : ""}${snapshot.trends.revenue.toFixed(1)}%`,
+    revenueTrend,
+    `${revenueTrend >= 0 ? "+" : ""}${revenueTrend.toFixed(1)}%`,
     "к предыдущему периоду",
     "Направление изменения выручки.",
-    toneFromTrend(snapshot.trends.revenue)
+    toneFromTrend(revenueTrend)
   );
 
   const profitTrendMetric = createMetric(
     "profit",
     "Динамика прибыли",
-    snapshot.trends.profit,
-    `${snapshot.trends.profit >= 0 ? "+" : ""}${snapshot.trends.profit.toFixed(1)}%`,
+    profitTrend,
+    `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}%`,
     "к предыдущему периоду",
     "Направление изменения прибыли.",
-    toneFromTrend(snapshot.trends.profit)
+    toneFromTrend(profitTrend)
   );
 
   const marginTrendMetric = createMetric(
     "margin",
     "Динамика маржинальности",
-    snapshot.trends.margin,
-    `${snapshot.trends.margin >= 0 ? "+" : ""}${snapshot.trends.margin.toFixed(1)} pp`,
+    marginTrend,
+    `${marginTrend >= 0 ? "+" : ""}${marginTrend.toFixed(1)} pp`,
     "к предыдущему периоду",
     "Направление изменения маржинальности.",
-    toneFromTrend(snapshot.trends.margin)
+    toneFromTrend(marginTrend)
   );
 
   const healthMetric = createMetric(

@@ -29,13 +29,13 @@ export type BusinessMetric = {
 export type BusinessTrend = {
   key: BusinessPeriodKey;
   label: string;
-  revenue: number;
-  profit: number;
-  margin: number;
-  orders: number;
-  returns: number;
-  averageOrderValue: number;
-  unitsSold: number;
+  revenue: number | null;
+  profit: number | null;
+  margin: number | null;
+  orders: number | null;
+  returns: number | null;
+  averageOrderValue: number | null;
+  unitsSold: number | null;
 };
 
 export type BusinessProduct = {
@@ -58,10 +58,10 @@ export type BusinessSnapshot = {
     unitsSold: number | null;
   };
   trends: {
-    revenue: number;
-    profit: number;
-    margin: number;
-    returns: number;
+    revenue: number | null;
+    profit: number | null;
+    margin: number | null;
+    returns: number | null;
   };
   healthScore?: number;
   healthStatus?: string;

@@ -5,7 +5,7 @@ from typing import Any
 import telegram_bot
 
 from analytics.advertising import get_advertising_payload
-from analytics.business import get_business_payload
+from analytics.business import get_business_payload, normalize_business_payload
 from analytics.cache import get_stale_cache_value
 from analytics.common import (
     DEFAULT_USER_ID,
@@ -324,8 +324,9 @@ def _cached_snapshot(key: str) -> dict[str, Any]:
 def _workspace_payload(key: str, builder, user_id: int) -> dict[str, Any]:
     payload = _cached_snapshot(key)
     if payload:
-        return payload
-    return builder(user_id)
+        return normalize_business_payload(payload) if key == "business" else payload
+    payload = builder(user_id)
+    return normalize_business_payload(payload) if key == "business" else payload
 
 
 def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
