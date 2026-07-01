@@ -6,13 +6,13 @@ import type { AdvertisingCampaign } from "@/features/advertising/types";
 
 function toneForStatus(status: string) {
   const normalized = status.toLowerCase();
-  if (normalized.includes("await")) {
+  if (normalized.includes("ожида")) {
     return "neutral" as const;
   }
-  if (normalized.includes("need")) {
+  if (normalized.includes("треб")) {
     return "watch" as const;
   }
-  if (normalized.includes("scal")) {
+  if (normalized.includes("масш")) {
     return "accent" as const;
   }
   return "healthy" as const;
@@ -30,7 +30,7 @@ export function AdvertisingCampaignsWidget({
   return (
     <WidgetCard
       empty={campaigns.length === 0}
-      emptyMessage="Таблица кампаний появится здесь, когда backend начнет отдавать построчные данные по рекламе."
+      emptyMessage="Таблица кампаний появится после загрузки рекламных данных."
       error={error}
       loading={loading}
       subtitle="Таблица кампаний"
@@ -57,11 +57,15 @@ export function AdvertisingCampaignsWidget({
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">ROAS</div>
-                <div className="mt-1 text-sm font-semibold">{campaign.roas === null ? "Нет данных" : `${campaign.roas.toFixed(1)}x`}</div>
+                <div className="mt-1 text-sm font-semibold">
+                  {campaign.roas === null ? "Нет данных" : `${campaign.roas.toFixed(1)}x`}
+                </div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">ACOS</div>
-                <div className="mt-1 text-sm font-semibold">{campaign.acos === null ? "Нет данных" : formatPercent(campaign.acos)}</div>
+                <div className="mt-1 text-sm font-semibold">
+                  {campaign.acos === null ? "Нет данных" : formatPercent(campaign.acos)}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Рекомендация</div>

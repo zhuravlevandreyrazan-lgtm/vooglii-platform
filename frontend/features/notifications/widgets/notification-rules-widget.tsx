@@ -20,11 +20,11 @@ export function NotificationRulesWidget({
   return (
     <WidgetCard
       empty={rules.length === 0}
-      emptyMessage="Правила уведомлений появятся здесь после загрузки настроек."
+      emptyMessage="Правила уведомлений появятся после загрузки настроек."
       error={error}
       loading={loading}
-      subtitle="Routing rules"
-      title="Rules"
+      subtitle="Маршруты и правила доставки"
+      title="Правила уведомлений"
     >
       <div className="space-y-3">
         {rules.map((item) => (
@@ -35,17 +35,19 @@ export function NotificationRulesWidget({
                 <p className="mt-1 text-sm text-[var(--ink-soft)]">{item.channel} • {item.schedule}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <StatusBadge tone={item.enabled ? "healthy" : "watch"}>{item.enabled ? "Enabled" : "Muted"}</StatusBadge>
+                <StatusBadge tone={item.enabled ? "healthy" : "watch"}>
+                  {item.enabled ? "Включено" : "Отключено"}
+                </StatusBadge>
                 <SeverityBadge severity={item.severity} />
               </div>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Trigger</p>
+                <p className="font-semibold">Условие</p>
                 <p className="mt-1 text-[var(--ink-soft)]">{item.trigger}</p>
               </div>
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Owner</p>
+                <p className="font-semibold">Ответственный</p>
                 <p className="mt-1 text-[var(--ink-soft)]">{item.owner}</p>
                 {item.organizationName || item.cabinetName ? (
                   <p className="mt-2 text-xs text-[var(--ink-soft)]">
@@ -54,17 +56,24 @@ export function NotificationRulesWidget({
                 ) : null}
               </div>
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Last triggered</p>
-                <p className="mt-1 text-[var(--ink-soft)]">{item.lastTriggeredAt ?? "Not triggered yet"}</p>
+                <p className="font-semibold">Последний запуск</p>
+                <p className="mt-1 text-[var(--ink-soft)]">{item.lastTriggeredAt ?? "Пока не запускалось"}</p>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Button disabled={pendingAction} onClick={() => void onToggleRule(item.id, !item.enabled)} variant={item.enabled ? "ghost" : "secondary"}>
-                {item.enabled ? "Mute Rule" : "Enable Rule"}
+              <Button
+                disabled={pendingAction}
+                onClick={() => void onToggleRule(item.id, !item.enabled)}
+                variant={item.enabled ? "ghost" : "secondary"}
+              >
+                {item.enabled ? "Отключить правило" : "Включить правило"}
               </Button>
               {item.deepLink ? (
-                <Link className="inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]" href={item.deepLink}>
-                  Open workspace
+                <Link
+                  className="inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
+                  href={item.deepLink}
+                >
+                  Открыть раздел
                 </Link>
               ) : null}
             </div>

@@ -14,10 +14,10 @@ export function InventoryAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Сигналы по остаткам появятся после получения предупреждений от backend."
+      emptyMessage="Сигналы по остаткам появятся после обновления данных."
       error={error}
       loading={loading}
-      subtitle="Сигналы по остаткам"
+      subtitle="Что требует внимания"
       title="Предупреждения"
     >
       <div className="space-y-3">
@@ -28,9 +28,6 @@ export function InventoryAlertsWidget({
               <SeverityBadge severity={alert.severity} />
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{alert.description}</p>
-            <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Источник: {alert.source}
-            </div>
           </div>
         ))}
       </div>

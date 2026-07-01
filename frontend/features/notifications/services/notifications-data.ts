@@ -81,84 +81,84 @@ const MOCK_CHANNELS: NotificationChannelItem[] = [
 const MOCK_RULES: NotificationRuleItem[] = [
   {
     id: "notification-rule-ceo",
-    name: "Daily CEO Report",
+    name: "Ежедневный отчет для руководителя",
     enabled: true,
     channel: "in_app",
     severity: "info",
-    trigger: "Scheduled CEO report delivery",
-    schedule: "Daily 09:00 Europe/Moscow",
+    trigger: "Публикация ежедневной управленческой сводки",
+    schedule: "Ежедневно в 09:00 Europe/Moscow",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T09:00:00Z",
     deepLink: "/executive"
   },
   {
     id: "notification-rule-profit",
-    name: "Profit Drop Alert",
+    name: "Падение прибыли",
     enabled: true,
     channel: "telegram",
     severity: "high",
-    trigger: "Operating profit week-over-week drop > 10%",
-    schedule: "Event-driven",
+    trigger: "Операционная прибыль падает более чем на 10% неделя к неделе",
+    schedule: "По событию",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T10:12:00Z",
     deepLink: "/finance"
   },
   {
     id: "notification-rule-stock",
-    name: "Out Of Stock Risk",
+    name: "Риск потери продаж из-за остатков",
     enabled: true,
     channel: "in_app",
     severity: "high",
-    trigger: "Stock coverage below threshold",
-    schedule: "Every 2 hours",
+    trigger: "Покрытие запасов опускается ниже порога",
+    schedule: "Каждые 2 часа",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T08:25:00Z",
     deepLink: "/inventory"
   },
   {
     id: "notification-rule-ads",
-    name: "High Advertising Spend",
+    name: "Рост рекламных расходов",
     enabled: true,
     channel: "email",
     severity: "medium",
-    trigger: "Spend exceeds daily efficiency plan",
-    schedule: "Event-driven",
+    trigger: "Расходы превышают дневной план эффективности",
+    schedule: "По событию",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T10:35:00Z",
     deepLink: "/advertising"
   },
   {
     id: "notification-rule-quality",
-    name: "Finance Data Quality Warning",
+    name: "Качество финансовых данных",
     enabled: false,
     channel: "in_app",
     severity: "muted",
-    trigger: "Finance confidence below 80%",
-    schedule: "After finance snapshot",
+    trigger: "Надежность финансовых данных падает ниже 80%",
+    schedule: "После обновления финансов",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: null,
     deepLink: "/finance"
   },
   {
     id: "notification-rule-weekly",
-    name: "Weekly Report",
+    name: "Еженедельный отчет",
     enabled: true,
     channel: "email",
     severity: "info",
-    trigger: "Weekly report bundle available",
-    schedule: "Weekly Monday 08:00",
+    trigger: "Пакет еженедельных отчетов готов",
+    schedule: "По понедельникам в 08:00",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T08:00:00Z",
     deepLink: "/reports"
   },
   {
     id: "notification-rule-advisor",
-    name: "Advisor Critical Recommendation",
+    name: "Критичная рекомендация ИИ-советника",
     enabled: true,
     channel: "in_app",
     severity: "critical",
-    trigger: "Advisor emits critical recommendation",
-    schedule: "Event-driven",
+    trigger: "ИИ-советник сформировал критичную рекомендацию",
+    schedule: "По событию",
     owner: "Daria Kuznetsova",
     lastTriggeredAt: "2026-06-30T11:10:00Z",
     deepLink: "/advisor"
@@ -168,33 +168,33 @@ const MOCK_RULES: NotificationRuleItem[] = [
 const MOCK_HISTORY: NotificationHistoryItem[] = [
   {
     id: "notification-history-1",
-    title: "CEO daily report is ready",
+    title: "Ежедневная сводка готова",
     channel: "in_app",
     status: "sent",
     time: "2026-06-30T09:00:12Z",
-    target: "Executive inbox",
+    target: "Входящие руководителя",
     relatedWorkspace: "executive",
     error: null,
     deepLink: "/executive"
   },
   {
     id: "notification-history-2",
-    title: "Profit drop alert",
+    title: "Сигнал о падении прибыли",
     channel: "telegram",
     status: "failed",
     time: "2026-06-30T10:12:00Z",
-    target: "Telegram placeholder",
+    target: "Telegram",
     relatedWorkspace: "finance",
-    error: "Real delivery is disabled in this environment.",
+    error: "Доставка уведомлений в этой среде отключена.",
     deepLink: "/finance"
   },
   {
     id: "notification-history-3",
-    title: "Weekly report bundle available",
+    title: "Еженедельный отчет подготовлен",
     channel: "email",
     status: "pending",
     time: "2026-06-30T11:18:00Z",
-    target: "Email placeholder",
+    target: "Email",
     relatedWorkspace: "reports",
     error: null,
     deepLink: "/reports"
@@ -204,10 +204,10 @@ const MOCK_HISTORY: NotificationHistoryItem[] = [
 function buildQuickStats(snapshot: NotificationsSnapshot): NotificationQuickStat[] {
   const healthTone = snapshot.overview.health === "Healthy" ? "healthy" : "watch";
   return [
-    { label: "Unread", value: snapshot.unreadCount, tone: "accent" as const },
-    { label: "Enabled Rules", value: snapshot.overview.enabledRules, tone: "healthy" as const },
-    { label: "Failed Deliveries", value: snapshot.overview.failedDeliveries, tone: "watch" as const },
-    { label: "Health", value: snapshot.overview.health, tone: healthTone }
+    { label: "Непрочитанные", value: snapshot.unreadCount, tone: "accent" as const },
+    { label: "Активные правила", value: snapshot.overview.enabledRules, tone: "healthy" as const },
+    { label: "Ошибки доставки", value: snapshot.overview.failedDeliveries, tone: "watch" as const },
+    { label: "Состояние", value: snapshot.overview.health, tone: healthTone }
   ];
 }
 
@@ -292,10 +292,10 @@ export async function fetchNotificationsSnapshot(signal?: AbortSignal) {
 
   return normalizeNotificationsSnapshot(
     {
-      overview: isRecord(summaryRecord.status) ? summaryRecord.status as RawNotificationsRecord["status"] : undefined,
-      channels: Array.isArray(channelsRecord.channels) ? channelsRecord.channels as RawChannelRecord[] : [],
-      rules: Array.isArray(summaryRecord.rules) ? summaryRecord.rules as RawRuleRecord[] : [],
-      history: Array.isArray(historyRecord.history) ? historyRecord.history as RawHistoryRecord[] : [],
+      overview: isRecord(summaryRecord.status) ? (summaryRecord.status as RawNotificationsRecord["status"]) : undefined,
+      channels: Array.isArray(channelsRecord.channels) ? (channelsRecord.channels as RawChannelRecord[]) : [],
+      rules: Array.isArray(summaryRecord.rules) ? (summaryRecord.rules as RawRuleRecord[]) : [],
+      history: Array.isArray(historyRecord.history) ? (historyRecord.history as RawHistoryRecord[]) : [],
       unreadCount: typeof summaryRecord.unreadCount === "number" ? summaryRecord.unreadCount : 0,
       lastUpdated: new Date().toISOString()
     },
@@ -314,7 +314,7 @@ export async function testNotificationChannel(payload: {
     body: JSON.stringify(payload)
   });
   const record = assertWorkspacePayload(response, apiEndpoints.notificationTest, "Notification Test");
-  const delivery = isRecord(record.delivery) ? record.delivery as RawTestResponse["delivery"] : null;
+  const delivery = isRecord(record.delivery) ? (record.delivery as RawTestResponse["delivery"]) : null;
   if (!delivery) {
     throw new ApiError("Notification test payload has an invalid shape.", {
       code: "invalid_shape",
@@ -332,7 +332,7 @@ export async function updateNotificationRule(ruleId: string, payload: Record<str
     body: JSON.stringify(payload)
   });
   const record = assertWorkspacePayload(response, `${apiEndpoints.notificationRules}/${ruleId}`, "Notification Rule Update");
-  const rule = isRecord(record.rule) ? record.rule as NotificationRuleItem : null;
+  const rule = isRecord(record.rule) ? (record.rule as NotificationRuleItem) : null;
   if (!rule) {
     throw new ApiError("Notification rule update payload has an invalid shape.", {
       code: "invalid_shape",

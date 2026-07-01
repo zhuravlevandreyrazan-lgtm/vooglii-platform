@@ -12,14 +12,14 @@ export function ProductRecommendationsWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Recommendations" title="Action plan">
+    <WidgetCard error={error} loading={loading} subtitle="Что сделать по товару" title="План действий">
       <div className="space-y-4">
         {recommendations.map((item) => (
           <div key={item.id} className="rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="flex flex-wrap items-center gap-3">
               <SeverityBadge severity={item.priority} />
               <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                {item.confidence} confidence
+                Уверенность: {item.confidence}
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-[var(--ink)]">{item.reason}</p>

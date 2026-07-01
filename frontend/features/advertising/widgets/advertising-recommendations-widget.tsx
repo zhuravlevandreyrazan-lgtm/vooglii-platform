@@ -15,7 +15,7 @@ export function AdvertisingRecommendationsWidget({
   return (
     <WidgetCard
       empty={recommendations.length === 0}
-      emptyMessage="Рекомендации по кампаниям появятся здесь, когда backend вернет payload с действиями."
+      emptyMessage="Рекомендации по кампаниям появятся после следующего обновления данных."
       error={error}
       loading={loading}
       subtitle="Рекомендации по кампаниям"

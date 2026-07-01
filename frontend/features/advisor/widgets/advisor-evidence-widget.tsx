@@ -15,7 +15,7 @@ export function AdvisorEvidenceWidget({
   return (
     <WidgetCard
       empty={evidence.length === 0}
-      emptyMessage="Основания рекомендаций появятся после получения данных от backend."
+      emptyMessage="Основания рекомендаций появятся после обновления данных."
       error={error}
       loading={loading}
       subtitle="Почему советник рекомендует именно это"

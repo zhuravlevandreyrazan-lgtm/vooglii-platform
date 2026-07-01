@@ -4,7 +4,7 @@ import { WidgetCard } from "@/shared/widgets";
 import type { ScheduleItem } from "@/features/automation/types";
 
 function formatDate(value: string | null) {
-  return value ?? "Not run yet";
+  return value ?? "Еще не запускалось";
 }
 
 export function ScheduledReportsWidget({
@@ -23,11 +23,11 @@ export function ScheduledReportsWidget({
   return (
     <WidgetCard
       empty={schedules.length === 0}
-      emptyMessage="Запланированные отчеты появятся здесь после загрузки расписаний."
+      emptyMessage="Запланированные отчеты появятся после загрузки расписаний."
       error={error}
       loading={loading}
-      subtitle="Scheduled reports"
-      title="Schedules"
+      subtitle="Автоматические выгрузки"
+      title="Расписания"
     >
       <div className="space-y-3">
         {schedules.map((item) => (
@@ -41,22 +41,22 @@ export function ScheduledReportsWidget({
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone={item.enabled ? "healthy" : "watch"}>
-                  {item.enabled ? "Enabled" : "Paused"}
+                  {item.enabled ? "Включено" : "На паузе"}
                 </StatusBadge>
                 <StatusBadge tone="neutral">{item.format}</StatusBadge>
               </div>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Last run</p>
+                <p className="font-semibold">Последний запуск</p>
                 <p className="mt-1 text-[var(--ink-soft)]">{formatDate(item.lastRunAt)}</p>
               </div>
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Next run</p>
+                <p className="font-semibold">Следующий запуск</p>
                 <p className="mt-1 text-[var(--ink-soft)]">{formatDate(item.nextRunAt)}</p>
               </div>
               <div className="rounded-[18px] bg-[var(--panel-strong)] p-3 text-sm">
-                <p className="font-semibold">Owner</p>
+                <p className="font-semibold">Ответственный</p>
                 <p className="mt-1 text-[var(--ink-soft)]">{item.owner}</p>
               </div>
             </div>
@@ -66,7 +66,7 @@ export function ScheduledReportsWidget({
                 onClick={() => void onToggle(item.id, !item.enabled)}
                 variant={item.enabled ? "ghost" : "secondary"}
               >
-                {item.enabled ? "Pause schedule" : "Enable schedule"}
+                {item.enabled ? "Остановить расписание" : "Запустить расписание"}
               </Button>
             </div>
           </div>

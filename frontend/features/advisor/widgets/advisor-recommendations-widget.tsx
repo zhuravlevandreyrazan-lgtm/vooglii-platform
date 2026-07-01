@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SeverityBadge, StatusBadge } from "@/shared/status";
+import { localizeConfidence, localizeKnownText, localizeStatus } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { AdvisorRecommendation } from "@/features/advisor/types";
 
@@ -15,7 +16,7 @@ export function AdvisorRecommendationsWidget({
   return (
     <WidgetCard
       empty={recommendations.length === 0}
-      emptyMessage="Рекомендации появятся после получения данных от backend."
+      emptyMessage="Рекомендации появятся после обновления данных кабинета."
       error={error}
       loading={loading}
       subtitle="Рекомендации для действий"
@@ -30,10 +31,11 @@ export function AdvisorRecommendationsWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.reason}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge tone="accent">{item.expectedEffect}</StatusBadge>
-              <StatusBadge tone="neutral">Уверенность: {item.confidence}</StatusBadge>
-              <StatusBadge tone="watch">Источник: {item.source}</StatusBadge>
-              <StatusBadge tone="healthy">{item.status}</StatusBadge>
+              <StatusBadge tone="accent">
+                {localizeKnownText(item.expectedEffect, "Эффект будет понятен после обновления данных.")}
+              </StatusBadge>
+              <StatusBadge tone="neutral">Уверенность: {localizeConfidence(item.confidence)}</StatusBadge>
+              <StatusBadge tone="healthy">{localizeStatus(item.status)}</StatusBadge>
             </div>
             <div className="mt-4">
               <Link className="text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>

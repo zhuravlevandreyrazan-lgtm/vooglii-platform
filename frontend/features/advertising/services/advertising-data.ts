@@ -10,6 +10,7 @@ import {
   normalizeRuntimeMetadata,
   requestJson
 } from "@/shared/api";
+import { localizeKnownText, localizeStatus } from "@/shared/ui/status-labels";
 import type {
   AdvertisingAlert,
   AdvertisingCampaign,
@@ -60,58 +61,58 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
   metrics: [
     {
       key: "advertisingSpend",
-      label: "Advertising Spend",
+      label: "Расходы на рекламу",
       value: formatCurrency(68420),
-      note: "Total ad spend from the current backend-ready advertising snapshot.",
+      note: "Расходы на рекламу за выбранный период.",
       tone: "watch"
     },
     {
       key: "linkedSpend",
-      label: "Linked Spend",
+      label: "Связанные расходы",
       value: formatCurrency(53600),
-      note: "Spend successfully linked to attributable campaign-level analytics.",
+      note: "Расходы, которые уже связаны с аналитикой кампаний.",
       tone: "healthy"
     },
     {
       key: "unlinkedSpend",
-      label: "Unlinked Spend",
+      label: "Нераспределенные расходы",
       value: formatCurrency(14820),
-      note: "Spend not fully attributable in the current advertising snapshot.",
+      note: "Часть расходов пока не привязана к кампаниям.",
       tone: "watch"
     },
     {
       key: "roas",
       label: "ROAS",
       value: "4.2x",
-      note: "Backend-provided return on advertising spend.",
+      note: "Окупаемость рекламных расходов.",
       tone: "healthy"
     },
     {
       key: "acos",
       label: "ACOS",
       value: formatPercent(23.8),
-      note: "Backend-provided advertising cost of sales.",
+      note: "Доля рекламных расходов в продажах.",
       tone: "accent"
     },
     {
       key: "adsHealth",
-      label: "Ads Health",
+      label: "Состояние рекламы",
       value: "WATCH",
-      note: "Overall advertising health status from the analytics engine.",
+      note: "Сводная оценка рекламных метрик.",
       tone: "watch"
     },
     {
       key: "trust",
-      label: "Trust",
+      label: "Надежность",
       value: "Medium",
-      note: "Trust level inherited from backend advertising analytics readiness.",
+      note: "Насколько полно собраны рекламные данные.",
       tone: "neutral"
     },
     {
       key: "status",
-      label: "Status",
+      label: "Статус",
       value: "Attention on efficiency",
-      note: "Current advertising operating status from the prepared snapshot.",
+      note: "Короткий вывод по текущей эффективности рекламы.",
       tone: "watch"
     }
   ],
@@ -119,18 +120,18 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
     {
       id: "ads-rec-1",
       campaign: "Search Cluster A",
-      recommendation: "Reduce bids on low-intent queries",
-      reason: "ROAS has weakened while spend continues to rise in this cluster.",
-      expectedEffect: "Recover efficiency and protect contribution margin.",
+      recommendation: "Снизить ставки по низкоконверсионным запросам",
+      reason: "ROAS снижается, а расходы в этом кластере продолжают расти.",
+      expectedEffect: "Вернуть эффективность и защитить маржу.",
       confidence: "Medium",
       severity: "high"
     },
     {
       id: "ads-rec-2",
       campaign: "Brand Retargeting",
-      recommendation: "Increase spend gradually",
-      reason: "This campaign maintains strong ROAS with stable attribution quality.",
-      expectedEffect: "Capture additional profitable demand with limited downside risk.",
+      recommendation: "Увеличивать бюджет постепенно",
+      reason: "Кампания удерживает сильный ROAS и стабильную атрибуцию.",
+      expectedEffect: "Поможет аккуратно нарастить прибыльный спрос.",
       confidence: "High",
       severity: "low"
     }
@@ -138,15 +139,15 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
   alerts: [
     {
       id: "ads-alert-1",
-      title: "Unlinked spend remains elevated",
-      description: "A material share of spend is still not linked to attributable campaign analytics.",
+      title: "Нераспределенные расходы остаются высокими",
+      description: "Заметная часть рекламных расходов пока не связана с аналитикой кампаний.",
       severity: "medium",
       source: "backend"
     },
     {
       id: "ads-alert-2",
-      title: "Duplicate spend detected",
-      description: "Duplicate spend needs review before campaign efficiency can be read with full confidence.",
+      title: "Найдены дублирующиеся расходы",
+      description: "Проверьте дубли перед оценкой эффективности рекламных кампаний.",
       severity: "high",
       source: "backend"
     }
@@ -154,24 +155,24 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
   timeline: [
     {
       id: "ads-timeline-1",
-      title: "Advertising sync completed",
-      description: "The latest ad account sync finished and prepared a new snapshot for the workspace.",
+      title: "Синхронизация рекламного кабинета завершена",
+      description: "В рабочее пространство загружены обновленные рекламные данные.",
       period: "sync",
       severity: "info",
       source: "backend"
     },
     {
       id: "ads-timeline-2",
-      title: "Latest analytics bundle loaded",
-      description: "Advertising analytics from the current backend engine were refreshed.",
+      title: "Аналитика рекламы обновлена",
+      description: "Появились свежие метрики по расходам и эффективности кампаний.",
       period: "analytics",
       severity: "low",
       source: "backend"
     },
     {
       id: "ads-timeline-3",
-      title: "Latest Ads Health evaluated",
-      description: "Current Ads Health remains in watch mode due to efficiency and attribution pressure.",
+      title: "Рекламные метрики требуют внимания",
+      description: "Эффективность и атрибуция части кампаний пока нестабильны.",
       period: "health",
       severity: "medium",
       source: "backend"
@@ -185,8 +186,8 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
       revenue: 78600,
       roas: 3.6,
       acos: 27.9,
-      status: "Needs tuning",
-      recommendation: "Reduce bids on low-intent queries"
+      status: "Требует настройки",
+      recommendation: "Снизить ставки по низкоконверсионным запросам"
     },
     {
       id: "ads-campaign-2",
@@ -195,8 +196,8 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
       revenue: 76140,
       roas: 5.3,
       acos: 18.8,
-      status: "Scaling",
-      recommendation: "Increase spend gradually"
+      status: "Можно масштабировать",
+      recommendation: "Увеличивать бюджет постепенно"
     },
     {
       id: "ads-campaign-3",
@@ -205,8 +206,8 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
       revenue: null,
       roas: null,
       acos: null,
-      status: "Awaiting linkage",
-      recommendation: "Wait for clearer attribution"
+      status: "Ожидаем атрибуцию",
+      recommendation: "Дождитесь накопления данных по атрибуции"
     }
   ],
   lastUpdated: "2026-06-30T13:00:00.000Z"
@@ -215,9 +216,9 @@ const rawAdvertisingSnapshot: RawAdvertisingSnapshot = {
 function normalizeMetric(metric: Partial<AdvertisingMetric>, index: number): AdvertisingMetric {
   return {
     key: metric.key ?? "advertisingSpend",
-    label: metric.label ?? `Advertising Metric ${index + 1}`,
-    value: metric.value ?? "n/a",
-    note: metric.note ?? "No advertising detail is available for this metric yet.",
+    label: localizeKnownText(metric.label, `Показатель ${index + 1}`),
+    value: localizeKnownText(metric.value, "Нет данных"),
+    note: localizeKnownText(metric.note, "Показатель появится после синхронизации."),
     tone: metric.tone ?? "neutral"
   };
 }
@@ -233,18 +234,18 @@ export function normalizeAdvertisingSnapshot(
       unlinkedSpend: raw.summary?.unlinkedSpend ?? null,
       roas: raw.summary?.roas ?? null,
       acos: raw.summary?.acos ?? null,
-      adsHealth: raw.summary?.adsHealth ?? "Unknown",
-      trust: raw.summary?.trust ?? "Unknown",
-      status: raw.summary?.status ?? "Pending",
+      adsHealth: localizeStatus(raw.summary?.adsHealth ?? "Unknown"),
+      trust: localizeKnownText(raw.summary?.trust ?? "Unknown"),
+      status: localizeKnownText(raw.summary?.status ?? "Pending"),
       trend: raw.summary?.trend ?? []
     },
     health: {
-      adsHealth: raw.health?.adsHealth ?? "Unknown",
+      adsHealth: localizeStatus(raw.health?.adsHealth ?? "Unknown"),
       linkability: raw.health?.linkability ?? null,
       duplicateSpend: raw.health?.duplicateSpend ?? null,
       linkedPercent: raw.health?.linkedPercent ?? null,
       coverage: raw.health?.coverage ?? null,
-      status: raw.health?.status ?? "Pending"
+      status: localizeKnownText(raw.health?.status ?? "Pending")
     },
     metrics: (raw.metrics ?? []).map(normalizeMetric),
     recommendations:
@@ -253,10 +254,10 @@ export function normalizeAdvertisingSnapshot(
         : [
             {
               id: "ads-rec-fallback",
-              campaign: "No campaign recommendation yet",
-              recommendation: "Wait for backend recommendation payload",
-              reason: "No campaign recommendation was returned in the current advertising snapshot.",
-              expectedEffect: "Recommendation panel architecture stays ready for future backend integration.",
+              campaign: "Рекомендации по кампаниям пока не готовы",
+              recommendation: "Дождитесь обновления рекламных данных",
+              reason: "Система пока не получила рекомендации по кампаниям.",
+              expectedEffect: "Советы появятся после следующей синхронизации.",
               confidence: "Unknown",
               severity: "info"
             }
@@ -267,8 +268,8 @@ export function normalizeAdvertisingSnapshot(
         : [
             {
               id: "ads-alert-fallback",
-              title: "No advertising alerts available",
-              description: "Backend did not return advertising alerts for the current snapshot.",
+              title: "Сигналы по рекламе пока не поступали",
+              description: "После синхронизации здесь появятся важные предупреждения по рекламе.",
               severity: "info",
               source: "placeholder"
             }
@@ -279,8 +280,8 @@ export function normalizeAdvertisingSnapshot(
         : [
             {
               id: "ads-timeline-fallback",
-              title: "Advertising timeline is waiting for backend events",
-              description: "No timeline events are available for the current advertising snapshot.",
+              title: "Лента рекламы обновится после синхронизации",
+              description: "События по рекламным кампаниям появятся автоматически.",
               period: "sync",
               severity: "info",
               source: "placeholder"
@@ -292,13 +293,13 @@ export function normalizeAdvertisingSnapshot(
         : [
             {
               id: "ads-campaign-fallback",
-              campaign: "Campaign data pending",
+              campaign: "Данные по кампаниям появятся после синхронизации",
               spend: null,
               revenue: null,
               roas: null,
               acos: null,
-              status: "No backend campaign list yet",
-              recommendation: "Placeholder row keeps the UI ready for direct backend campaign payloads."
+              status: "Нет данных",
+              recommendation: "Показатели появятся после обновления рекламных данных."
             }
           ],
     lastUpdated: raw.lastUpdated ?? null,

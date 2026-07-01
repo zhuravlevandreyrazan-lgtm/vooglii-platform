@@ -14,11 +14,11 @@ export function AutomationTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="События автоматизации появятся здесь после загрузки истории экспорта и расписаний."
+      emptyMessage="События автоматизации появятся после загрузки истории экспортов и расписаний."
       error={error}
       loading={loading}
-      subtitle="Recent automation events"
-      title="Automation Timeline"
+      subtitle="Последние события"
+      title="Лента автоматизации"
     >
       <div className="space-y-3">
         {timeline.map((item) => (
@@ -28,9 +28,6 @@ export function AutomationTimelineWidget({
               <SeverityBadge severity={item.severity} />
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>
-            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Источник: {item.source}
-            </p>
           </div>
         ))}
       </div>

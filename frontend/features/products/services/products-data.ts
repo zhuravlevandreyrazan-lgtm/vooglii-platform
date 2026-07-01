@@ -64,7 +64,7 @@ const rawProductSnapshot: RawProductSnapshot = {
         label: "Scaling",
         tone: "accent"
       },
-      recommendation: "Increase stock coverage before the next promotion cycle.",
+      recommendation: "Увеличьте запас перед следующим промо-периодом.",
       trend: "Growing",
       warehouse: "Kolедino"
     },
@@ -92,7 +92,7 @@ const rawProductSnapshot: RawProductSnapshot = {
         label: "Margin pressure",
         tone: "watch"
       },
-      recommendation: "Reduce inefficient traffic and protect margin before scaling.",
+      recommendation: "Снизьте неэффективный трафик и защитите маржу перед масштабированием.",
       trend: "Flat",
       warehouse: "Elektrougli"
     },
@@ -113,14 +113,14 @@ const rawProductSnapshot: RawProductSnapshot = {
         status: "Restock needed",
         abc: "B",
         xyz: "X",
-        forecast: "Demand is accelerating",
+        forecast: "Demand accelerating",
         riskLevel: "High"
       },
       status: {
         label: "Restock needed",
         tone: "risk"
       },
-      recommendation: "Prioritize replenishment and monitor demand daily.",
+      recommendation: "Приоритизируйте пополнение и проверяйте спрос ежедневно.",
       trend: "Fast growth",
       warehouse: "Kazan"
     }
@@ -129,20 +129,20 @@ const rawProductSnapshot: RawProductSnapshot = {
     {
       id: "product-rec-1",
       sku: "VOO-HM-203",
-      recommendation: "Restock within 3 days",
-      reason: "Days left are low while demand remains strong.",
+      recommendation: "Пополнить запас в течение 3 дней",
+      reason: "Остаток быстро сокращается при сильном спросе.",
       priority: "critical",
       confidence: "High",
-      expectedEffect: "Avoid stockout and protect revenue continuity."
+      expectedEffect: "Поможет избежать out-of-stock и сохранить выручку."
     },
     {
       id: "product-rec-2",
       sku: "VOO-BG-018",
-      recommendation: "Audit paid traffic efficiency",
-      reason: "Margin and ACOS suggest weak advertising quality.",
+      recommendation: "Проверить эффективность платного трафика",
+      reason: "Маржа и ACOS указывают на слабое качество рекламы.",
       priority: "high",
       confidence: "Medium",
-      expectedEffect: "Recover contribution margin on a high-volume SKU."
+      expectedEffect: "Поможет вернуть маржу на SKU с хорошим объемом продаж."
     }
   ],
   history: [
@@ -150,40 +150,40 @@ const rawProductSnapshot: RawProductSnapshot = {
       period: "today",
       sales: 21480,
       advertising: 4210,
-      note: "Current-day SKU revenue and ad activity snapshot."
+      note: "Продажи и реклама за сегодня."
     },
     {
       period: "sevenDays",
       sales: 148300,
       advertising: 23640,
-      note: "Seven-day product sales and advertising summary."
+      note: "Сводка по товарам за 7 дней."
     },
     {
       period: "thirtyDays",
       sales: 411800,
       advertising: 68420,
-      note: "Thirty-day product performance rollup."
+      note: "Сводка по товарам за 30 дней."
     },
     {
       period: "ninetyDays",
       sales: 1094700,
       advertising: 183600,
-      note: "Ninety-day long-range product trend rollup."
+      note: "Длинный тренд по товарам за 90 дней."
     }
   ],
   inventoryPreview: [],
   alerts: [
     {
       id: "product-alert-1",
-      title: "Out-of-stock risk on a growing SKU",
-      description: "At least one SKU has low days left while demand remains strong.",
+      title: "Риск потери продаж по растущему SKU",
+      description: "Минимум у одного SKU мало дней запаса при стабильном спросе.",
       severity: "high",
       source: "backend"
     },
     {
       id: "product-alert-2",
-      title: "Margin pressure on key assortment",
-      description: "One of the top revenue SKUs shows weaker profitability quality.",
+      title: "Давление на маржу в ключевом ассортименте",
+      description: "Один из товаров с высокой выручкой показывает слабую прибыльность.",
       severity: "medium",
       source: "backend"
     }
@@ -191,24 +191,24 @@ const rawProductSnapshot: RawProductSnapshot = {
   timeline: [
     {
       id: "product-timeline-1",
-      title: "Latest product sync completed",
-      description: "Product intelligence snapshot has been refreshed from backend-ready analytics.",
+      title: "Синхронизация товаров завершена",
+      description: "Товарная аналитика обновлена и доступна в рабочем пространстве.",
       period: "sync",
       severity: "info",
       source: "backend"
     },
     {
       id: "product-timeline-2",
-      title: "Latest SKU audit recorded",
-      description: "Current SKU health and action plan were updated in the product snapshot.",
+      title: "План действий по SKU обновлен",
+      description: "Актуализированы сигналы по товарам и рекомендации по ассортименту.",
       period: "audit",
       severity: "medium",
       source: "backend"
     },
     {
       id: "product-timeline-3",
-      title: "Latest forecast updated",
-      description: "Backend-ready forecast values were refreshed for product planning.",
+      title: "Прогноз по товарам обновлен",
+      description: "Добавлены свежие ориентиры для планирования ассортимента.",
       period: "forecast",
       severity: "low",
       source: "backend"
@@ -218,7 +218,7 @@ const rawProductSnapshot: RawProductSnapshot = {
     {
       id: "product-action-1",
       sku: "VOO-HM-203",
-      action: "Restock urgently",
+      action: "Срочно пополнить",
       status: "Open"
     }
   ],
@@ -228,7 +228,7 @@ const rawProductSnapshot: RawProductSnapshot = {
 function emptyProductCard(): ProductCard {
   return {
     sku: "SKU-PENDING",
-    name: "Product data pending",
+    name: "Данные по товарам появятся после синхронизации",
     metrics: {
       revenue: null,
       profit: null,
@@ -240,19 +240,19 @@ function emptyProductCard(): ProductCard {
     },
     health: {
       health: "Unknown",
-      status: "Pending backend data",
+      status: "Нет данных",
       abc: "n/a",
       xyz: "n/a",
-      forecast: "No forecast yet",
+      forecast: "Прогноз появится после синхронизации",
       riskLevel: "Unknown"
     },
     status: {
-      label: "Pending",
+      label: "Нет данных",
       tone: "neutral"
     },
-    recommendation: "Placeholder row keeps the Products UI ready for direct backend integration.",
-    trend: "Unknown",
-    warehouse: "n/a"
+    recommendation: "Показатели появятся после загрузки данных кабинета.",
+    trend: "Нет данных",
+    warehouse: "Нет данных"
   };
 }
 
@@ -278,12 +278,12 @@ export function normalizeProductSnapshot(
         : [
             {
               id: "product-rec-fallback",
-              sku: "No SKU recommendation yet",
-              recommendation: "Wait for backend action plan",
-              reason: "No SKU action plan was returned in the current product snapshot.",
+              sku: "Рекомендации по SKU пока не готовы",
+              recommendation: "Дождитесь обновления товарной аналитики",
+              reason: "План действий по товарам пока не получен.",
               priority: "info",
               confidence: "Unknown",
-              expectedEffect: "Recommendations panel remains ready for direct backend payloads."
+              expectedEffect: "Рекомендации появятся после следующей синхронизации."
             }
           ],
     history:
@@ -294,7 +294,7 @@ export function normalizeProductSnapshot(
               period: "today",
               sales: null,
               advertising: null,
-              note: "Historical data is not available yet."
+              note: "История появится после загрузки данных."
             }
           ],
     inventoryPreview: raw.inventoryPreview?.length ? raw.inventoryPreview : [fallbackCard],
@@ -304,8 +304,8 @@ export function normalizeProductSnapshot(
         : [
             {
               id: "product-alert-fallback",
-              title: "No product alerts available",
-              description: "Backend did not return product alerts for the current snapshot.",
+              title: "Сигналы по товарам пока не поступали",
+              description: "После синхронизации здесь появятся важные предупреждения по ассортименту.",
               severity: "info",
               source: "placeholder"
             }
@@ -316,8 +316,8 @@ export function normalizeProductSnapshot(
         : [
             {
               id: "product-timeline-fallback",
-              title: "Product timeline is waiting for backend events",
-              description: "No timeline entries are available yet.",
+              title: "Лента товаров обновится после синхронизации",
+              description: "События по товарам появятся автоматически.",
               period: "sync",
               severity: "info",
               source: "placeholder"

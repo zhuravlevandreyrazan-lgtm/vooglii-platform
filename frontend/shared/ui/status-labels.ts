@@ -11,7 +11,7 @@ const STATUS_LABELS: Record<string, string> = {
   OPERATIONAL: "Работает",
   WARNING: "Требует внимания",
   PARTIAL: "Требует внимания",
-  WATCH: "Под наблюдением",
+  WATCH: "Наблюдать",
   DEGRADED: "Данные частично недоступны",
   CRITICAL: "Критично",
   ERROR: "Критично",
@@ -26,7 +26,14 @@ const STATUS_LABELS: Record<string, string> = {
   GENERATED: "Сформировано",
   HIGH: "Высокий уровень",
   MEDIUM: "Средний уровень",
-  LOW: "Низкий уровень"
+  LOW: "Низкий уровень",
+  SENT: "Отправлено",
+  FAILED: "Ошибка",
+  RUNNING: "В процессе",
+  QUEUED: "В очереди",
+  COMPLETED: "Готово",
+  PAUSED: "На паузе",
+  MUTED: "Отключено"
 };
 
 const WORKSPACE_LABELS: Record<string, string> = {
@@ -54,13 +61,14 @@ const PERIOD_LABELS: Record<string, string> = {
   sync: "Синхронизация",
   audit: "Аудит",
   analytics: "Аналитика",
-  health: "Оценка состояния",
+  health: "Состояние",
   import: "Импорт",
   forecast: "Прогноз",
   restock: "Пополнение",
   sevenDays: "7 дней",
   thirtyDays: "30 дней",
-  ninetyDays: "90 дней"
+  ninetyDays: "90 дней",
+  week: "На неделе"
 };
 
 const KNOWN_TEXT_LABELS: Record<string, string> = {
@@ -77,7 +85,7 @@ const KNOWN_TEXT_LABELS: Record<string, string> = {
   Ready: "Готово",
   Today: "Сегодня",
   Tomorrow: "Завтра",
-  Week: "Неделя",
+  Week: "На неделе",
   "Executive Brief": "Краткий вывод",
   Difference: "Расхождение",
   "Backend is unreachable.": "Не удалось загрузить данные. Попробуйте обновить страницу позже.",
@@ -85,10 +93,74 @@ const KNOWN_TEXT_LABELS: Record<string, string> = {
   "Empty state": "Нет данных",
   "Data for this block is not available yet.": "Данные для этого блока пока недоступны.",
   "Command Center": "Центр управления",
-  "Source": "Источник",
-  "Updated": "Обновлено",
+  Source: "Источник",
+  Updated: "Обновлено",
   "Refresh snapshot": "Обновить данные",
-  "Coming soon": "Раздел в подготовке"
+  "Coming soon": "Раздел в подготовке",
+  Revenue: "Выручка",
+  Profit: "Прибыль",
+  "Operating Profit": "Операционная прибыль",
+  Margin: "Маржинальность",
+  Orders: "Заказы",
+  "Advertising Spend": "Расходы на рекламу",
+  "Linked Spend": "Связанные расходы",
+  "Unlinked Spend": "Нераспределенные расходы",
+  Trust: "Надежность",
+  Status: "Статус",
+  "Ads Health": "Состояние рекламы",
+  "Inventory Health": "Состояние остатков",
+  "Forecast Coverage": "Покрытие прогноза",
+  "Days Left Average": "Средний запас в днях",
+  "Warehouse Count": "Складов в отчете",
+  "Products Summary": "Сводка по товарам",
+  "Routing rules": "Правила маршрутизации",
+  Rules: "Правила",
+  Enabled: "Включено",
+  Muted: "Отключено",
+  Trigger: "Условие",
+  Owner: "Ответственный",
+  "Last triggered": "Последний запуск",
+  "Not triggered yet": "Пока не запускалось",
+  "Mute Rule": "Отключить правило",
+  "Enable Rule": "Включить правило",
+  "Open workspace": "Открыть раздел",
+  "Recent automation events": "Последние события",
+  "Automation Timeline": "Лента автоматизации",
+  "Scheduled reports": "Автоматические выгрузки",
+  Schedules: "Расписания",
+  "Last run": "Последний запуск",
+  "Next run": "Следующий запуск",
+  "Pause schedule": "Остановить расписание",
+  "Enable schedule": "Запустить расписание",
+  "Not run yet": "Еще не запускалось",
+  "AI Insight": "Инсайт ИИ",
+  "Backend-ready analysis": "Аналитический вывод",
+  "Top risk": "Главный риск",
+  "Top opportunity": "Точка роста",
+  Recommendation: "Рекомендация",
+  Recommendations: "Рекомендации",
+  "Action plan": "План действий",
+  "No warehouse status available.": "Статус складов появится после синхронизации.",
+  "No completed exports yet": "Завершенных выгрузок пока нет",
+  Unknown: "Нет данных",
+  Pending: "Ожидаем данные",
+  Strong: "Норма",
+  Stable: "Стабильно",
+  Scaling: "Есть потенциал роста",
+  "Margin pressure": "Давление на маржу",
+  "Restock needed": "Нужно пополнение",
+  "Attention on efficiency": "Требуется внимание к эффективности",
+  "Partially linked": "Данные связаны частично",
+  "Demand remains stable": "Спрос остается стабильным",
+  "Demand accelerating": "Спрос ускоряется",
+  "Fast growth": "Быстрый рост",
+  Growing: "Рост",
+  Flat: "Без выраженного роста",
+  "Active SKU": "Активные SKU",
+  "Problem SKU": "SKU с рисками",
+  "SKU at Risk": "SKU под риском",
+  "Growth SKU": "SKU роста",
+  "SKU Count": "Всего SKU"
 };
 
 export function localizeStatus(value?: string | null) {
@@ -96,7 +168,7 @@ export function localizeStatus(value?: string | null) {
   if (!normalized) {
     return "Нет данных";
   }
-  return STATUS_LABELS[normalized] ?? value ?? "Нет данных";
+  return STATUS_LABELS[normalized] ?? KNOWN_TEXT_LABELS[value ?? ""] ?? value ?? "Нет данных";
 }
 
 export function localizeWorkspaceLabel(value?: string | null) {
@@ -117,7 +189,7 @@ export function localizeRuntimeSource(source?: ApiRuntimeSource | string | null)
     case "degraded":
       return "Данные частично недоступны";
     case "fallback":
-      return "Резервный режим";
+      return "Повторите обновление позже";
     case "demo":
       return "Демо-режим";
     case "dev":
@@ -179,7 +251,7 @@ export function localizePeriodLabel(value?: string | null) {
   if (!normalized) {
     return "Период не указан";
   }
-  return PERIOD_LABELS[normalized] ?? value ?? "Период не указан";
+  return PERIOD_LABELS[normalized] ?? KNOWN_TEXT_LABELS[normalized] ?? value ?? "Период не указан";
 }
 
 export function localizeKnownText(value?: string | null, fallback = "Нет данных") {
@@ -187,31 +259,31 @@ export function localizeKnownText(value?: string | null, fallback = "Нет да
   if (!text) {
     return fallback;
   }
-  return KNOWN_TEXT_LABELS[text] ?? text;
+  if (KNOWN_TEXT_LABELS[text]) {
+    return KNOWN_TEXT_LABELS[text];
+  }
+  if (/confidence$/i.test(text)) {
+    return "Уверенность";
+  }
+  if (/backend|frontend|snapshot|placeholder|mock|runtime|source|api\./i.test(text)) {
+    return fallback;
+  }
+  return text;
 }
 
 export function localizeSourceName(value?: string | null) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (!normalized) {
-    return "источник не указан";
+    return "данные кабинета";
   }
   const mapped = WORKSPACE_LABELS[normalized];
   if (mapped) {
     return mapped.toLowerCase();
   }
-  if (normalized === "backend") {
+  if (["backend", "placeholder", "executivebrief", "priorityactions", "api.alerts", "api.actions"].includes(normalized)) {
     return "данные кабинета";
   }
-  if (normalized === "placeholder") {
-    return "временный источник";
-  }
-  if (normalized === "system") {
-    return "система";
-  }
-  if (normalized === "executivebrief" || normalized === "priorityactions" || normalized === "api.alerts" || normalized === "api.actions") {
-    return "данные кабинета";
-  }
-  return value ?? "источник не указан";
+  return "данные кабинета";
 }
 
 export function humanizeErrorMessage(value?: string | null) {
@@ -225,7 +297,10 @@ export function humanizeErrorMessage(value?: string | null) {
   if (text.includes("API token")) {
     return "Данные временно недоступны. Проверьте подключение кабинета и повторите обновление позже.";
   }
-  return text;
+  if (/backend|frontend|snapshot|placeholder|mock|runtime|source|api\./i.test(text)) {
+    return "Не удалось загрузить данные. Попробуйте обновить страницу позже.";
+  }
+  return KNOWN_TEXT_LABELS[text] ?? text;
 }
 
 export function formatOptionalValue(value?: string | number | null, fallback = "Нет данных") {
@@ -244,4 +319,21 @@ export function formatOptionalValue(value?: string | number | null, fallback = "
   }
 
   return localizeKnownText(text, fallback);
+}
+
+export function localizeRoleLabel(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "owner":
+      return "Владелец";
+    case "admin":
+      return "Администратор";
+    case "manager":
+      return "Менеджер";
+    case "analyst":
+      return "Аналитик";
+    case "viewer":
+      return "Наблюдатель";
+    default:
+      return "Нет данных";
+  }
 }

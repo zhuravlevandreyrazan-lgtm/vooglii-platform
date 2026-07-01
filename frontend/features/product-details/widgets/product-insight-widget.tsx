@@ -12,7 +12,7 @@ export function ProductInsightWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="AI Insight" title="Backend-ready analysis">
+    <WidgetCard error={error} loading={loading} subtitle="Вывод по товару" title="Инсайт ИИ">
       <div className="space-y-5">
         <p className="text-sm leading-7 text-[var(--ink)]">{insight.summary}</p>
 
@@ -20,7 +20,7 @@ export function ProductInsightWidget({
           <div className="rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="flex items-center gap-3">
               <SeverityBadge severity="high" />
-              <p className="text-sm font-semibold">Top risk</p>
+              <p className="text-sm font-semibold">Главный риск</p>
             </div>
             <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{insight.topRisk}</p>
           </div>
@@ -28,14 +28,14 @@ export function ProductInsightWidget({
           <div className="rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="flex items-center gap-3">
               <SeverityBadge severity="medium" />
-              <p className="text-sm font-semibold">Top opportunity</p>
+              <p className="text-sm font-semibold">Точка роста</p>
             </div>
             <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{insight.topOpportunity}</p>
           </div>
         </div>
 
         <div className="rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-4">
-          <p className="text-sm font-semibold">Recommendation</p>
+          <p className="text-sm font-semibold">Рекомендация</p>
           <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{insight.recommendation}</p>
         </div>
 

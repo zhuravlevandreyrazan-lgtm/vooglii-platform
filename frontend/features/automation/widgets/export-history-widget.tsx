@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/shared/status";
+import { localizeStatus } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ExportHistoryItem } from "@/features/automation/types";
 
@@ -14,7 +15,7 @@ export function ExportHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="История выгрузок появится после появления записей об экспорте."
+      emptyMessage="История выгрузок появится после первых экспортов."
       error={error}
       loading={loading}
       subtitle="Последние выгрузки"
@@ -26,23 +27,25 @@ export function ExportHistoryWidget({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-base font-semibold">{item.type}</p>
-                <p className="mt-1 text-sm text-[var(--ink-soft)]">{item.source} - владелец: {item.owner}</p>
+                <p className="mt-1 text-sm text-[var(--ink-soft)]">Ответственный: {item.owner}</p>
                 {item.organizationName || item.cabinetName ? (
                   <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                    {[item.organizationName, item.cabinetName].filter(Boolean).join(" - ")}
+                    {[item.organizationName, item.cabinetName].filter(Boolean).join(" • ")}
                   </p>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone="accent">{item.format}</StatusBadge>
-                <StatusBadge tone={item.status.toLowerCase() === "completed" ? "healthy" : item.status.toLowerCase() === "failed" ? "risk" : "watch"}>
-                  {item.status}
+                <StatusBadge
+                  tone={item.status.toLowerCase() === "completed" ? "healthy" : item.status.toLowerCase() === "failed" ? "risk" : "watch"}
+                >
+                  {localizeStatus(item.status)}
                 </StatusBadge>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--ink-soft)]">
-              <span>{item.date ?? "нет данных"}</span>
-              <span>{item.size ?? "Размер появится после сборки"}</span>
+              <span>{item.date ?? "Нет данных"}</span>
+              <span>{item.size ?? "Размер появится после выгрузки"}</span>
             </div>
           </div>
         ))}

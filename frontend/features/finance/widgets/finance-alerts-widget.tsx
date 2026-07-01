@@ -1,5 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
-import { localizeKnownText, localizeSourceName } from "@/shared/ui/status-labels";
+import { localizeKnownText } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { FinanceAlert } from "@/features/finance/types";
 
@@ -15,7 +15,7 @@ export function FinanceAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Финансовые предупреждения появятся здесь после получения актуальных сигналов."
+      emptyMessage="Финансовые предупреждения появятся после получения актуальных сигналов."
       error={error}
       loading={loading}
       subtitle="Сигналы и предупреждения"
@@ -31,9 +31,6 @@ export function FinanceAlertsWidget({
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
               {localizeKnownText(alert.description, "Подробности появятся после обновления данных.")}
             </p>
-            <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Источник: {localizeSourceName(alert.source)}
-            </div>
           </div>
         ))}
       </div>

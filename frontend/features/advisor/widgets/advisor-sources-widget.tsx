@@ -15,11 +15,11 @@ export function AdvisorSourcesWidget({
   return (
     <WidgetCard
       empty={sources.length === 0}
-      emptyMessage="Источники советника появятся здесь, когда backend вернет статусы по модулям."
+      emptyMessage="Статусы модулей появятся после синхронизации данных."
       error={error}
       loading={loading}
-      subtitle="Источники разделов"
-      title="Источники советника"
+      subtitle="Состояние разделов"
+      title="Доступность данных"
     >
       <div className="space-y-3">
         {sources.map((source) => (
@@ -30,7 +30,6 @@ export function AdvisorSourcesWidget({
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="watch">{localizeStatus(source.health)}</StatusBadge>
-              <StatusBadge tone="accent">{source.source}</StatusBadge>
               <StatusBadge tone="neutral">{formatOptionalValue(source.lastUpdated)}</StatusBadge>
             </div>
           </div>

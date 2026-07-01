@@ -10,6 +10,7 @@ import {
   normalizeRuntimeMetadata,
   requestJson
 } from "@/shared/api";
+import { localizeKnownText, localizeStatus } from "@/shared/ui/status-labels";
 import type {
   InventoryAlert,
   InventoryHistory,
@@ -65,7 +66,7 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       warehouse: "Kazan",
       health: "Risk",
       priority: "Critical",
-      recommendation: "Restock within 3 days",
+      recommendation: "Пополнить запас в течение 3 дней",
       status: {
         label: "Restock needed",
         tone: "risk"
@@ -81,7 +82,7 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       warehouse: "Elektrougli",
       health: "Watch",
       priority: "High",
-      recommendation: "Monitor sell-through and hold replenishment slot",
+      recommendation: "Следить за распродажей и держать слот на пополнение",
       status: {
         label: "Monitor",
         tone: "watch"
@@ -97,7 +98,7 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       warehouse: "Kolедino",
       health: "Strong",
       priority: "Low",
-      recommendation: "Maintain current supply schedule",
+      recommendation: "Сохранить текущий график поставок",
       status: {
         label: "Stable",
         tone: "healthy"
@@ -110,8 +111,8 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       sku: "VOO-HM-203",
       recommendedQuantity: 240,
       priority: "critical",
-      reason: "Low days left with strong forecast demand.",
-      expectedCoverage: "22 days",
+      reason: "Мало дней запаса при сильном прогнозе спроса.",
+      expectedCoverage: "22 дня",
       warehouse: "Kazan"
     },
     {
@@ -119,8 +120,8 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       sku: "VOO-BG-018",
       recommendedQuantity: 120,
       priority: "high",
-      reason: "Protect key assortment from demand spikes.",
-      expectedCoverage: "18 days",
+      reason: "Нужно защитить ключевой ассортимент от скачков спроса.",
+      expectedCoverage: "18 дней",
       warehouse: "Elektrougli"
     }
   ],
@@ -128,14 +129,14 @@ const rawInventorySnapshot: RawInventorySnapshot = {
     {
       id: "supply-1",
       level: "critical",
-      reason: "One fast-growing SKU is close to stockout.",
-      recommendation: "Escalate the next replenishment batch."
+      reason: "Один быстрорастущий SKU близок к out-of-stock.",
+      recommendation: "Ускорьте следующую поставку."
     },
     {
       id: "supply-2",
       level: "high",
-      reason: "A core revenue SKU needs a reserve buffer.",
-      recommendation: "Reserve warehouse capacity for the next inbound."
+      reason: "SKU с высокой выручкой нужен страховой запас.",
+      recommendation: "Зарезервируйте емкость склада под следующую поставку."
     }
   ],
   warehouses: [
@@ -172,39 +173,39 @@ const rawInventorySnapshot: RawInventorySnapshot = {
       period: "today",
       stock: 6520,
       coverage: 82,
-      note: "Current inventory snapshot."
+      note: "Текущий срез по остаткам."
     },
     {
       period: "sevenDays",
       stock: 6710,
       coverage: 85,
-      note: "Seven-day inventory and coverage summary."
+      note: "Сводка по остаткам за 7 дней."
     },
     {
       period: "thirtyDays",
       stock: 7020,
       coverage: 88,
-      note: "Thirty-day inventory rollup."
+      note: "Сводка по остаткам за 30 дней."
     },
     {
       period: "ninetyDays",
       stock: 7450,
       coverage: 91,
-      note: "Ninety-day inventory history snapshot."
+      note: "Длинный тренд по запасам за 90 дней."
     }
   ],
   alerts: [
     {
       id: "inventory-alert-1",
-      title: "Out-of-stock risk on critical SKU",
-      description: "At least one SKU is likely to run out before the next safe restock window.",
+      title: "Риск out-of-stock по критичному SKU",
+      description: "Минимум один SKU может закончиться раньше следующего безопасного пополнения.",
       severity: "high",
       source: "backend"
     },
     {
       id: "inventory-alert-2",
-      title: "Forecast coverage weakened",
-      description: "Coverage remains usable, but not all high-volume items have comfortable runway.",
+      title: "Покрытие прогноза снизилось",
+      description: "Высокооборачиваемые товары уже не везде обеспечены комфортным запасом.",
       severity: "medium",
       source: "backend"
     }
@@ -212,24 +213,24 @@ const rawInventorySnapshot: RawInventorySnapshot = {
   timeline: [
     {
       id: "inventory-timeline-1",
-      title: "Latest inventory import completed",
-      description: "Warehouse stock snapshot has been refreshed from backend-ready analytics.",
+      title: "Импорт остатков завершен",
+      description: "Текущие складские данные загружены в рабочее пространство.",
       period: "import",
       severity: "info",
       source: "backend"
     },
     {
       id: "inventory-timeline-2",
-      title: "Latest forecast refreshed",
-      description: "Forecast values were updated for current replenishment planning.",
+      title: "Прогноз пополнения обновлен",
+      description: "Актуализированы ориентиры по следующему циклу пополнения.",
       period: "forecast",
       severity: "low",
       source: "backend"
     },
     {
       id: "inventory-timeline-3",
-      title: "Latest restock plan generated",
-      description: "Backend restock plan is available for operational review.",
+      title: "План пополнения сформирован",
+      description: "Появились приоритеты по SKU и складам для следующей поставки.",
       period: "restock",
       severity: "medium",
       source: "backend"
@@ -237,27 +238,27 @@ const rawInventorySnapshot: RawInventorySnapshot = {
   ],
   metrics: [
     {
-      label: "Inventory Health",
+      label: "Состояние остатков",
       value: "WATCH",
-      note: "Overall inventory health from backend-ready analytics.",
+      note: "Общая оценка состояния остатков.",
       tone: "watch"
     },
     {
-      label: "Forecast Coverage",
+      label: "Покрытие прогноза",
       value: formatPercent(82, 0),
-      note: "Coverage percentage supplied by backend analytics.",
+      note: "Насколько текущие запасы покрывают спрос.",
       tone: "accent"
     },
     {
-      label: "Days Left Average",
-      value: "14 days",
-      note: "Average days-left measure from backend snapshot.",
+      label: "Средний запас в днях",
+      value: "14 дней",
+      note: "Среднее количество дней до исчерпания запаса.",
       tone: "watch"
     },
     {
-      label: "Warehouse Count",
+      label: "Складов в отчете",
       value: "3",
-      note: "Warehouses currently represented in this snapshot.",
+      note: "Сколько складов учтено в текущих данных.",
       tone: "neutral"
     }
   ],
@@ -271,13 +272,13 @@ function emptyInventorySku(): InventorySku {
     reserved: null,
     available: null,
     daysLeft: null,
-    forecast: "No forecast yet",
-    warehouse: "n/a",
+    forecast: "Прогноз появится после синхронизации",
+    warehouse: "Нет данных",
     health: "Unknown",
     priority: "Pending",
-    recommendation: "Placeholder row keeps the inventory UI ready for direct backend integration.",
+    recommendation: "Показатели появятся после загрузки данных по складам.",
     status: {
-      label: "Pending",
+      label: "Нет данных",
       tone: "neutral"
     }
   };
@@ -295,17 +296,17 @@ export function normalizeInventorySnapshot(
       criticalSku: raw.summary?.criticalSku ?? null,
       daysLeftAverage: raw.summary?.daysLeftAverage ?? null,
       forecastCoverage: raw.summary?.forecastCoverage ?? null,
-      inventoryHealth: raw.summary?.inventoryHealth ?? "Unknown",
+      inventoryHealth: localizeStatus(raw.summary?.inventoryHealth ?? "Unknown"),
       warehouseCount: raw.summary?.warehouseCount ?? null,
       lastUpdated: raw.summary?.lastUpdated ?? raw.lastUpdated ?? null
     },
     health: {
-      inventoryHealth: raw.health?.inventoryHealth ?? "Unknown",
+      inventoryHealth: localizeStatus(raw.health?.inventoryHealth ?? "Unknown"),
       coverage: raw.health?.coverage ?? null,
-      forecastConfidence: raw.health?.forecastConfidence ?? "Unknown",
+      forecastConfidence: localizeKnownText(raw.health?.forecastConfidence ?? "Unknown"),
       criticalStock: raw.health?.criticalStock ?? null,
       lowStock: raw.health?.lowStock ?? null,
-      warehouseStatus: raw.health?.warehouseStatus ?? "No warehouse status available."
+      warehouseStatus: localizeKnownText(raw.health?.warehouseStatus ?? "No warehouse status available.")
     },
     items: raw.items?.length ? raw.items : [fallbackSku],
     restockPlan:
@@ -314,12 +315,12 @@ export function normalizeInventorySnapshot(
         : [
             {
               id: "restock-fallback",
-              sku: "No restock plan yet",
+              sku: "План пополнения пока не сформирован",
               recommendedQuantity: null,
               priority: "info",
-              reason: "No backend restock plan was returned in the current snapshot.",
-              expectedCoverage: "n/a",
-              warehouse: "n/a"
+              reason: "Система пока не вернула рекомендации по пополнению.",
+              expectedCoverage: "Нет данных",
+              warehouse: "Нет данных"
             }
           ],
     supplyPriority:
@@ -329,8 +330,8 @@ export function normalizeInventorySnapshot(
             {
               id: "supply-fallback",
               level: "low",
-              reason: "No supply priority payload is available yet.",
-              recommendation: "Keep placeholder architecture ready for future backend priority data."
+              reason: "Приоритет поставок появится после синхронизации.",
+              recommendation: "Проверьте данные склада позже."
             }
           ],
     warehouses:
@@ -339,12 +340,12 @@ export function normalizeInventorySnapshot(
         : [
             {
               id: "warehouse-fallback",
-              warehouse: "Warehouse data pending",
+              warehouse: "Данные по складам появятся после синхронизации",
               currentStock: null,
               criticalSku: null,
-              forecast: "n/a",
+              forecast: "Нет данных",
               health: "Unknown",
-              status: "Pending backend data"
+              status: "Нет данных"
             }
           ],
     history:
@@ -355,7 +356,7 @@ export function normalizeInventorySnapshot(
               period: "today",
               stock: null,
               coverage: null,
-              note: "Historical inventory data is not available yet."
+              note: "История остатков появится после загрузки данных."
             }
           ],
     alerts:
@@ -364,8 +365,8 @@ export function normalizeInventorySnapshot(
         : [
             {
               id: "inventory-alert-fallback",
-              title: "No inventory alerts available",
-              description: "Backend did not return inventory alerts for the current snapshot.",
+              title: "Сигналы по остаткам пока не поступали",
+              description: "После синхронизации здесь появятся предупреждения по остаткам.",
               severity: "info",
               source: "placeholder"
             }
@@ -376,8 +377,8 @@ export function normalizeInventorySnapshot(
         : [
             {
               id: "inventory-timeline-fallback",
-              title: "Inventory timeline is waiting for backend events",
-              description: "No inventory timeline entries are available yet.",
+              title: "Лента остатков обновится после синхронизации",
+              description: "События по складам и пополнению появятся автоматически.",
               period: "sync",
               severity: "info",
               source: "placeholder"
@@ -388,9 +389,9 @@ export function normalizeInventorySnapshot(
         ? raw.metrics
         : [
             {
-              label: "Inventory metrics pending",
-              value: "n/a",
-              note: "No backend inventory metrics are available yet.",
+              label: "Метрики остатков появятся после синхронизации",
+              value: "Нет данных",
+              note: "Показатели будут доступны после загрузки данных.",
               tone: "neutral"
             }
           ],
