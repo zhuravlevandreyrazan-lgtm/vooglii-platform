@@ -13,7 +13,7 @@ export function NotificationsOverviewWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Notification overview" title="Overview">
+    <WidgetCard error={error} loading={loading} subtitle="Состояние доставки и правил" title="Обзор уведомлений">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {quickStats.map((item) => (
           <div key={item.label} className="rounded-[22px] bg-[var(--panel-strong)] p-4">
@@ -23,7 +23,7 @@ export function NotificationsOverviewWidget({
         ))}
       </div>
       <div className="mt-4 rounded-[22px] border border-[var(--line)] bg-white/70 p-4 text-sm leading-7 text-[var(--ink-soft)]">
-        Last delivery: {overview.lastDelivery ?? "No delivery yet"}.
+        Последняя доставка: {overview.lastDelivery ?? "отправок пока не было"}.
       </div>
     </WidgetCard>
   );

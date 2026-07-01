@@ -21,21 +21,14 @@ export function WorkspacePlaceholder({
 }) {
   return (
     <div className="space-y-6">
-      <PageHeader
-        breadcrumb={breadcrumb}
-        subtitle={description}
-        title={title}
-      />
+      <PageHeader breadcrumb={breadcrumb} subtitle={description} title={title} />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <ChartPlaceholder
-          subtitle="Раздел подготовлен для подключения реальных виджетов и бизнес-сигналов."
-          title={`${title}: обзор сигналов`}
+          subtitle="После подключения раздела здесь появится визуальная сводка по ключевым показателям."
+          title={`${title}: обзор`}
         />
-        <WidgetCard
-          subtitle="Раздел в подготовке"
-          title={`${title}: рабочая область`}
-        >
+        <WidgetCard subtitle="Что появится в разделе" title={`${title}: возможности`}>
           <div className="space-y-3">
             {widgets.map((widget) => (
               <div key={widget.title} className="rounded-[22px] bg-[var(--panel-strong)] p-4">
@@ -49,7 +42,7 @@ export function WorkspacePlaceholder({
 
       <TablePlaceholder
         columns={["Приоритет", "Сигнал", "Ответственный", "Статус"]}
-        title={`${title}: очередь действий`}
+        title={`${title}: план действий`}
       />
     </div>
   );

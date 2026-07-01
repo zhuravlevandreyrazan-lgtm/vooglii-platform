@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/shared/status";
+import { localizeStatus, localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { NotificationHistoryItem } from "@/features/notifications/types";
 
@@ -15,11 +16,11 @@ export function NotificationHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="История уведомлений появится здесь после загрузки событий доставки."
+      emptyMessage="История уведомлений появится после загрузки событий доставки."
       error={error}
       loading={loading}
-      subtitle="Delivery history"
-      title="History"
+      subtitle="Последние отправки"
+      title="История уведомлений"
     >
       <div className="space-y-3">
         {history.map((item) => (
@@ -32,19 +33,19 @@ export function NotificationHistoryWidget({
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone="neutral">{item.channel}</StatusBadge>
                 <StatusBadge tone={item.status === "sent" ? "healthy" : item.status === "failed" ? "risk" : "watch"}>
-                  {item.status}
+                  {localizeStatus(item.status)}
                 </StatusBadge>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--ink-soft)]">
               <span>{item.time}</span>
-              <span>{item.relatedWorkspace ?? "n/a"}</span>
+              <span>{item.relatedWorkspace ? localizeWorkspaceLabel(item.relatedWorkspace) : "Нет данных"}</span>
               {item.organizationName || item.cabinetName ? <span>{[item.organizationName, item.cabinetName].filter(Boolean).join(" • ")}</span> : null}
             </div>
             {item.error ? <p className="mt-3 text-sm leading-6 text-[var(--danger)]">{item.error}</p> : null}
             {item.deepLink ? (
               <Link className="mt-3 inline-flex text-sm font-semibold text-[var(--accent-strong)]" href={item.deepLink}>
-                Open related workspace
+                Открыть связанный раздел
               </Link>
             ) : null}
           </div>

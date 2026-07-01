@@ -10,6 +10,7 @@ import {
   normalizeRuntimeMetadata,
   requestJson
 } from "@/shared/api";
+import { localizeKnownText, localizeStatus } from "@/shared/ui/status-labels";
 import type {
   FinanceAlert,
   FinanceDifference,
@@ -36,11 +37,11 @@ const rawFinanceSnapshot: RawFinanceSnapshot = {
     difference: 110805,
     health: "DEGRADED",
     trustScore: 35,
-    status: "Attention required"
+    status: "Требуется внимание"
   },
   quality: {
     coverage: 81,
-    residualUsage: "Residual bridge active",
+    residualUsage: "Используется резервная модель расчета",
     trustScore: 35,
     confidence: "Low",
     health: "DEGRADED"
@@ -50,93 +51,93 @@ const rawFinanceSnapshot: RawFinanceSnapshot = {
     officialProfit: null,
     difference: 110805,
     differencePercent: 125.6,
-    reason: "Finance components overlap and official profit cannot yet be confirmed row-by-row.",
-    explanation: "Operating profit remains the recommended management metric until a fuller finance report is available."
+    reason: "Компоненты финансового отчета частично пересекаются, поэтому официальная прибыль пока не подтверждена построчно.",
+    explanation: "Пока безопаснее использовать операционную прибыль как основной управленческий показатель."
   },
   metrics: [
     {
       key: "operatingProfit",
-      label: "Operating Profit",
+      label: "Операционная прибыль",
       value: formatCurrency(105690),
-      note: "Primary management profit metric from the safe operating model.",
+      note: "Основной управленческий показатель прибыли.",
       tone: "healthy"
     },
     {
       key: "officialProfit",
-      label: "Official Profit",
-      value: "Unavailable",
-      note: "Backend flags official profit as not fully confirmed by Finance API coverage.",
+      label: "Официальная прибыль",
+      value: "Нет данных",
+      note: "Официальная прибыль пока не подтверждена полностью.",
       tone: "neutral"
     },
     {
       key: "profitDifference",
-      label: "Profit Difference",
+      label: "Расхождение",
       value: formatCurrency(110805),
-      note: "Difference between operating and backend-official finance representations.",
+      note: "Разница между управленческой и официальной прибылью.",
       tone: "watch"
     },
     {
       key: "financeHealth",
-      label: "Finance Health",
+      label: "Состояние финансов",
       value: "DEGRADED",
-      note: "Finance model is safe, but not yet ideal for official-profit confirmation.",
+      note: "Финансовые данные доступны частично и требуют проверки.",
       tone: "watch"
     },
     {
       key: "trustScore",
-      label: "Trust Score",
+      label: "Надежность",
       value: "35/100",
-      note: "Lower trust means stronger caution for official finance interpretation.",
+      note: "Чем ниже значение, тем осторожнее нужно трактовать показатели.",
       tone: "risk"
     },
     {
       key: "coverage",
-      label: "Coverage",
+      label: "Покрытие",
       value: formatPercent(81, 0),
-      note: "Coverage of compatible finance data available for reconciliation.",
+      note: "Доля финансовых данных, доступных для сверки.",
       tone: "accent"
     },
     {
       key: "confidence",
-      label: "Confidence",
+      label: "Уверенность",
       value: "Low",
-      note: "Confidence is inherited from the current finance health and trust status.",
+      note: "Уровень уверенности зависит от полноты и качества данных.",
       tone: "watch"
     },
     {
       key: "residualModel",
-      label: "Residual Model",
-      value: "Residual bridge active",
-      note: "Residual model is used as a safe bridge for incomplete finance coverage.",
+      label: "Модель расчета",
+      value: "Используется резервная модель расчета",
+      note: "Применяется безопасная логика для неполного покрытия данных.",
       tone: "neutral"
     },
     {
       key: "income",
-      label: "Income",
+      label: "Доходы",
       value: formatCurrency(311708),
-      note: "Income-side figure received from the prepared finance snapshot.",
+      note: "Доходная часть финансовой сводки.",
       tone: "healthy"
     },
     {
       key: "expenses",
-      label: "Expenses",
+      label: "Расходы",
       value: formatCurrency(206018),
-      note: "Expense-side figure prepared in the normalized finance snapshot.",
+      note: "Расходная часть финансовой сводки.",
       tone: "watch"
     }
   ],
   alerts: [
     {
       id: "finance-alert-1",
-      title: "Official profit is not fully confirmed",
-      description: "Finance API coverage is not yet sufficient for a row-compatible official profit confirmation.",
+      title: "Официальная прибыль пока не подтверждена",
+      description: "Покрытия Finance API пока недостаточно для полной сверки официальной прибыли.",
       severity: "high",
       source: "backend"
     },
     {
       id: "finance-alert-2",
-      title: "Difference remains overexplained",
-      description: "Current finance explanations exceed 100% coverage, which points to overlapping components.",
+      title: "Финансовые компоненты требуют проверки",
+      description: "Некоторые показатели пересекаются и влияют на итоговое расхождение.",
       severity: "medium",
       source: "backend"
     }
@@ -144,24 +145,24 @@ const rawFinanceSnapshot: RawFinanceSnapshot = {
   timeline: [
     {
       id: "finance-timeline-1",
-      title: "Latest finance snapshot updated",
-      description: "The finance workspace has received the latest normalized finance snapshot.",
+      title: "Финансовая сводка обновлена",
+      description: "В разделе появились последние финансовые показатели.",
       period: "latest",
       severity: "info",
       source: "backend"
     },
     {
       id: "finance-timeline-2",
-      title: "Latest profit audit recorded",
-      description: "Safe reconciliation confirms operational profit as the preferred management metric.",
+      title: "Проведена сверка прибыли",
+      description: "Операционная прибыль остается основным управленческим ориентиром.",
       period: "audit",
       severity: "medium",
       source: "backend"
     },
     {
       id: "finance-timeline-3",
-      title: "Latest finance sync finished",
-      description: "Finance sync completed with degraded but usable coverage.",
+      title: "Синхронизация финансов завершена",
+      description: "Данные обновлены, но покрытие пока неполное.",
       period: "sync",
       severity: "low",
       source: "backend"
@@ -173,9 +174,9 @@ const rawFinanceSnapshot: RawFinanceSnapshot = {
 function normalizeMetric(metric: Partial<FinanceMetric>, index: number): FinanceMetric {
   return {
     key: metric.key ?? "operatingProfit",
-    label: metric.label ?? `Metric ${index + 1}`,
-    value: metric.value ?? "n/a",
-    note: metric.note ?? "No detail is available for this finance metric yet.",
+    label: localizeKnownText(metric.label, `Показатель ${index + 1}`),
+    value: localizeKnownText(metric.value, "Нет данных"),
+    note: localizeKnownText(metric.note, "Показатель появится после обновления данных."),
     tone: metric.tone ?? "neutral"
   };
 }
@@ -189,24 +190,24 @@ export function normalizeFinanceSnapshot(
       operatingProfit: raw.summary?.operatingProfit ?? null,
       officialProfit: raw.summary?.officialProfit ?? null,
       difference: raw.summary?.difference ?? null,
-      health: raw.summary?.health ?? "Unknown",
+      health: localizeStatus(raw.summary?.health ?? "Unknown"),
       trustScore: raw.summary?.trustScore ?? null,
-      status: raw.summary?.status ?? "Pending"
+      status: localizeKnownText(raw.summary?.status ?? "Pending")
     },
     quality: {
       coverage: raw.quality?.coverage ?? null,
-      residualUsage: raw.quality?.residualUsage ?? "No residual usage detail available.",
+      residualUsage: localizeKnownText(raw.quality?.residualUsage ?? "Нет данных по модели расчета."),
       trustScore: raw.quality?.trustScore ?? null,
-      confidence: raw.quality?.confidence ?? "Unknown",
-      health: raw.quality?.health ?? "Unknown"
+      confidence: localizeKnownText(raw.quality?.confidence ?? "Unknown"),
+      health: localizeStatus(raw.quality?.health ?? "Unknown")
     },
     difference: {
       operatingProfit: raw.difference?.operatingProfit ?? raw.summary?.operatingProfit ?? null,
       officialProfit: raw.difference?.officialProfit ?? raw.summary?.officialProfit ?? null,
       difference: raw.difference?.difference ?? raw.summary?.difference ?? null,
       differencePercent: raw.difference?.differencePercent ?? null,
-      reason: raw.difference?.reason ?? "Difference explanation is not available from backend yet.",
-      explanation: raw.difference?.explanation ?? null
+      reason: localizeKnownText(raw.difference?.reason, "Расшифровка расхождения появится позже."),
+      explanation: raw.difference?.explanation ? localizeKnownText(raw.difference.explanation) : null
     },
     metrics: (raw.metrics ?? []).map(normalizeMetric),
     alerts:
@@ -215,8 +216,8 @@ export function normalizeFinanceSnapshot(
         : [
             {
               id: "finance-alert-fallback",
-              title: "No finance alerts available",
-              description: "Backend did not return finance alerts for the current snapshot.",
+              title: "Финансовые сигналы пока не поступали",
+              description: "После синхронизации здесь появятся важные финансовые предупреждения.",
               severity: "info",
               source: "placeholder"
             }
@@ -227,8 +228,8 @@ export function normalizeFinanceSnapshot(
         : [
             {
               id: "finance-timeline-fallback",
-              title: "Finance timeline is waiting for backend events",
-              description: "No finance timeline entries are available yet.",
+              title: "Лента финансов обновится после синхронизации",
+              description: "События по финансам появятся автоматически.",
               period: "latest",
               severity: "info",
               source: "placeholder"

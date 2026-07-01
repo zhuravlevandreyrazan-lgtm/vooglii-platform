@@ -15,11 +15,11 @@ export function InventoryTableWidget({
   return (
     <WidgetCard
       empty={items.length === 0}
-      emptyMessage="Таблица остатков появится здесь после загрузки складской аналитики."
+      emptyMessage="Таблица остатков появится после загрузки складской аналитики."
       error={error}
       loading={loading}
-      subtitle="Main inventory table"
-      title="Inventory Table"
+      subtitle="Список SKU по остаткам"
+      title="Остатки по товарам"
     >
       <div className="space-y-3">
         {items.map((item) => (
@@ -37,27 +37,27 @@ export function InventoryTableWidget({
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Stock</div>
-                <div className="mt-1 text-sm font-semibold">{item.stock ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Остаток</div>
+                <div className="mt-1 text-sm font-semibold">{item.stock ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Reserved</div>
-                <div className="mt-1 text-sm font-semibold">{item.reserved ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Резерв</div>
+                <div className="mt-1 text-sm font-semibold">{item.reserved ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Available</div>
-                <div className="mt-1 text-sm font-semibold">{item.available ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Доступно</div>
+                <div className="mt-1 text-sm font-semibold">{item.available ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Days Left</div>
-                <div className="mt-1 text-sm font-semibold">{item.daysLeft ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Запас в днях</div>
+                <div className="mt-1 text-sm font-semibold">{item.daysLeft ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Warehouse</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Склад</div>
                 <div className="mt-1 text-sm font-semibold">{item.warehouse}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Priority</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Приоритет</div>
                 <div className="mt-1 text-sm font-semibold">{item.priority}</div>
               </div>
             </div>

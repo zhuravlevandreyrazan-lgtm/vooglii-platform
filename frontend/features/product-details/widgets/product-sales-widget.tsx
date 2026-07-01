@@ -29,9 +29,9 @@ export function ProductSalesWidget({
         <ProductDetailMetric label="Средняя цена" value={formatMoney(sales.averagePrice)} />
         <div className="sm:col-span-2">
           <ProductDetailMetric
-            label="Тренд"
+            label="Динамика"
             value={formatOptionalValue(sales.trend)}
-            hint="Краткая динамика из backend."
+            hint="Краткая оценка тренда по товару."
           />
         </div>
       </div>

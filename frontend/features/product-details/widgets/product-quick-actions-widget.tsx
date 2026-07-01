@@ -18,7 +18,7 @@ export function ProductQuickActionsWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Quick Actions" title="Operator shortcuts">
+    <WidgetCard error={error} loading={loading} subtitle="Быстрые переходы" title="Действия">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {actions.map((action) =>
           action.type === "link" && action.href ? (

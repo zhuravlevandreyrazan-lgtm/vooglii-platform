@@ -14,11 +14,11 @@ export function InventorySupplyPriorityWidget({
   return (
     <WidgetCard
       empty={priorities.length === 0}
-      emptyMessage="Приоритеты поставок появятся здесь после загрузки рекомендаций."
+      emptyMessage="Приоритеты поставок появятся после загрузки рекомендаций."
       error={error}
       loading={loading}
-      subtitle="Supply priority"
-      title="Supply Priority"
+      subtitle="Что важно пополнить в первую очередь"
+      title="Приоритет поставок"
     >
       <div className="space-y-3">
         {priorities.map((item) => (

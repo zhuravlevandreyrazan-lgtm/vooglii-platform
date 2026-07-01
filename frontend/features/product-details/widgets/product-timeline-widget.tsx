@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizePeriodLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ProductTimeline } from "@/features/product-details/types";
 
@@ -12,14 +13,14 @@ export function ProductDetailsTimelineWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Timeline" title="Latest changes">
+    <WidgetCard error={error} loading={loading} subtitle="Последние изменения" title="Лента изменений">
       <div className="space-y-4">
         {timeline.map((item) => (
           <div key={item.id} className="rounded-[22px] border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="flex flex-wrap items-center gap-3">
               <SeverityBadge severity={item.severity} />
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-soft)]">
-                {item.period}
+                {localizePeriodLabel(item.period)}
               </span>
             </div>
             <p className="mt-3 text-sm font-semibold">{item.title}</p>

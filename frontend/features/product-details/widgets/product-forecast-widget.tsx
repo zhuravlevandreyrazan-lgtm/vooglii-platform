@@ -18,12 +18,12 @@ export function ProductForecastWidget({
           <ProductDetailMetric
             label="Сводка"
             value={forecast.summary}
-            hint="Текст прогноза приходит с backend и готов к будущему расширению графиками."
+            hint="Прогноз обновится после следующей синхронизации данных."
           />
         </div>
         <ProductDetailMetric label="Уверенность" value={forecast.confidence} />
         <ProductDetailMetric
-          label="Следующая дата пополнения"
+          label="Следующее пополнение"
           value={forecast.nextReorderDate ?? "Ждем данные"}
         />
       </div>

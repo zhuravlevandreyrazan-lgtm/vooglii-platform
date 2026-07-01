@@ -6,13 +6,13 @@ import type { InventoryHistory } from "@/features/inventory/types";
 function periodLabel(period: InventoryHistory["period"]) {
   switch (period) {
     case "today":
-      return "Today";
+      return "Сегодня";
     case "sevenDays":
-      return "7 Days";
+      return "7 дней";
     case "thirtyDays":
-      return "30 Days";
+      return "30 дней";
     default:
-      return "90 Days";
+      return "90 дней";
   }
 }
 
@@ -28,11 +28,11 @@ export function InventoryHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="История по остаткам появится здесь после загрузки накопленных данных."
+      emptyMessage="История по остаткам появится после накопления данных."
       error={error}
       loading={loading}
-      subtitle="Historical inventory"
-      title="Historical Inventory"
+      subtitle="Динамика запасов"
+      title="История остатков"
     >
       <SimpleTrend
         className="mb-4"
@@ -47,9 +47,9 @@ export function InventoryHistoryWidget({
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
               {periodLabel(item.period)}
             </div>
-            <div className="mt-3 text-sm font-semibold">Stock {item.stock ?? "n/a"}</div>
+            <div className="mt-3 text-sm font-semibold">Остаток: {item.stock ?? "Нет данных"}</div>
             <div className="mt-2 text-sm font-semibold">
-              Coverage {item.coverage === null ? "n/a" : formatPercent(item.coverage, 0)}
+              Покрытие: {item.coverage === null ? "Нет данных" : formatPercent(item.coverage, 0)}
             </div>
             <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{item.note}</p>
           </div>

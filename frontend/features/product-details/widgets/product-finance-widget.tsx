@@ -3,7 +3,7 @@ import { WidgetCard } from "@/shared/widgets";
 import type { ProductFinance } from "@/features/product-details/types";
 
 function formatMoney(value: number | null) {
-  return typeof value === "number" ? `в‚Ѕ${value.toLocaleString("en-US")}` : "Нет данных";
+  return typeof value === "number" ? `₽${value.toLocaleString("ru-RU")}` : "Нет данных";
 }
 
 function formatPercent(value: number | null) {
@@ -30,7 +30,7 @@ export function ProductFinanceWidget({
           <ProductDetailMetric
             label="Расхождение"
             value={formatMoney(finance.difference)}
-            hint="Расхождение появится после получения полного backend-сравнения официальной и управленческой прибыли."
+            hint="Расхождение появится после полной финансовой сверки."
           />
         </div>
       </div>
