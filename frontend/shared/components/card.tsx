@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-card)] border p-5 shadow-[var(--shadow-soft)]",
+        "rounded-[var(--radius-card)] border p-4 shadow-[var(--shadow-soft)] lg:p-5",
         surfaceClass[surface],
         className
       )}

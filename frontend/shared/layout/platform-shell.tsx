@@ -49,11 +49,11 @@ export function PlatformShell({ children }: { children: ReactNode }) {
                 title={meta.title}
               />
 
-              <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+              <main className="mx-auto flex-1 w-full max-w-[1680px] px-4 py-5 lg:px-8 lg:py-6">{children}</main>
 
               <footer className="border-t border-[var(--line)] px-4 py-4 text-sm text-[var(--ink-soft)] lg:px-8">
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                  <span>VOOGLII Platform</span>
+                <div className="mx-auto flex max-w-[1680px] flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
+                  <span className="font-semibold text-[var(--ink)]">VOOGLII Platform</span>
                   <span>Платформа для управления бизнесом, финансами, рекламой и аналитикой Wildberries.</span>
                 </div>
               </footer>

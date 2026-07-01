@@ -29,13 +29,13 @@ function CompactSignalCard({
       error={error}
       loading={loading}
       status={item ? { label: localizeStatus(item.tone), tone: item.tone } : undefined}
+      subtitle={item ? item.title : "Сигнал появится после синхронизации"}
       title={title}
     >
       {item ? (
-        <div>
-          <div className="text-base font-semibold">{item.title}</div>
-          <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.summary}</p>
-          <div className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+        <div className="space-y-3">
+          <p className="text-sm leading-6 text-[var(--ink-soft)]">{item.summary}</p>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
             Основание: {localizeKnownText(localizeSourceName(item.source), "данные кабинета")}
           </div>
         </div>
@@ -51,7 +51,7 @@ export function RiskOpportunityPanel({
   error = null
 }: RiskOpportunityPanelProps) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid gap-4 xl:grid-cols-2">
       <CompactSignalCard
         emptyMessage="Сейчас нет подтвержденного критичного риска."
         error={error}

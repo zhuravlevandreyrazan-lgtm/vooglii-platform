@@ -12,14 +12,14 @@ export function WorkspaceHeader({
   status: string;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-panel)] border border-[var(--line)] bg-white/60 px-6 py-6 shadow-[var(--shadow-soft)] lg:flex-row lg:items-end lg:justify-between">
-      <div className="space-y-3">
+    <div className="flex flex-col gap-4 rounded-[28px] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(255,253,252,0.88)_0%,rgba(251,246,239,0.9)_100%)] px-5 py-5 shadow-[var(--shadow-soft)] lg:flex-row lg:items-end lg:justify-between">
+      <div className="space-y-2.5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent-strong)]">
           {eyebrow}
         </p>
         <div>
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
+          <h1 className="text-[2rem] font-semibold tracking-[-0.045em]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">
             {description}
           </p>
         </div>

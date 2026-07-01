@@ -7,18 +7,18 @@ export function KpiCard({ metric }: { metric: HealthMetric }) {
   const hasValue = metric.value && metric.value !== "Нет данных";
 
   return (
-    <Card className="min-h-44 overflow-hidden">
+    <Card className="min-h-[168px] overflow-hidden rounded-[22px]">
       <div className="flex items-start justify-between gap-3">
-        <p className="pr-3 text-sm font-semibold text-[var(--ink-soft)]">{metric.label}</p>
-        <StatusBadge className="max-w-[9rem] shrink-0" tone={metric.tone}>
+        <p className="pr-3 text-[13px] font-semibold leading-5 text-[var(--ink-soft)]">{metric.label}</p>
+        <StatusBadge className="max-w-[8.5rem] shrink-0" tone={metric.tone}>
           {formatOptionalValue(metric.delta, "Ожидаем обновление")}
         </StatusBadge>
       </div>
-      <div className="mt-6 text-3xl font-semibold tracking-[-0.04em]">
-        {formatOptionalValue(metric.value, "Показатель появится после загрузки кабинета")}
+      <div className="mt-5 text-[1.85rem] font-semibold tracking-[-0.05em]">
+        {formatOptionalValue(metric.value, "Нет данных")}
       </div>
-      <p className="mt-3 max-w-[32ch] text-sm leading-6 text-[var(--ink-soft)]">
-        {hasValue ? metric.note : "Данные для этого показателя появятся после первой синхронизации кабинета."}
+      <p className="mt-2 max-w-[28ch] text-sm leading-6 text-[var(--ink-soft)]">
+        {hasValue ? metric.note : "Появится после синхронизации кабинета."}
       </p>
     </Card>
   );
