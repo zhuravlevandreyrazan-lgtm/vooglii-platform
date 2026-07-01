@@ -21,6 +21,11 @@ def _first_number(*values: Any) -> float | None:
     return None
 
 
+def _is_absent_business_value(value: Any) -> bool:
+    parsed = safe_float(value)
+    return parsed in (None, 0, 0.0)
+
+
 def _today_iso() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
@@ -171,10 +176,10 @@ def normalize_business_payload(payload: dict[str, Any]) -> dict[str, Any]:
     health_status = str(result.get("healthStatus") or "").strip() or NO_BUSINESS_DATA_STATUS
 
     no_summary_data = (
-        summary.get("revenue") is None
-        and summary.get("profit") is None
-        and summary.get("orders") is None
-        and summary.get("unitsSold") is None
+        _is_absent_business_value(summary.get("revenue"))
+        and _is_absent_business_value(summary.get("profit"))
+        and _is_absent_business_value(summary.get("orders"))
+        and _is_absent_business_value(summary.get("unitsSold"))
     )
     no_business_data = health_status == NO_BUSINESS_DATA_STATUS or (no_summary_data and not top_products)
 
