@@ -72,9 +72,46 @@ function mapTimelineSeverityTone(severity: ExecutiveTimelineEvent["severity"]): 
   }
 }
 
+function resolveSourceLabel(source: CommandCenterScreenData["source"], runtimeSource?: CommandCenterScreenData["runtimeSource"]) {
+  if (source === "demo") {
+    return "DEMO MODE";
+  }
+  if (source === "mock_fallback") {
+    return "MOCK DATA FALLBACK";
+  }
+  if (runtimeSource === "cache") {
+    return "LIVE CACHE";
+  }
+  if (runtimeSource === "degraded" || runtimeSource === "stale_cache" || runtimeSource === "fallback") {
+    return "DEGRADED";
+  }
+  return "LIVE BACKEND";
+}
+
+function dataRuntimeTone(
+  source: CommandCenterScreenData["source"],
+  snapshot: CommandCenterScreenData["snapshot"],
+  runtimeSource?: CommandCenterScreenData["runtimeSource"]
+): StatusTone {
+  if (source === "demo") {
+    return "accent";
+  }
+  if (source === "mock_fallback") {
+    return "watch";
+  }
+  if (runtimeSource === "cache") {
+    return "accent";
+  }
+  if (runtimeSource === "degraded" || runtimeSource === "stale_cache" || runtimeSource === "fallback") {
+    return "watch";
+  }
+  return snapshot.businessHealth?.status === "GOOD" ? "healthy" : "accent";
+}
+
 export function CommandCenterScreen({
   snapshot,
   source,
+  runtimeSource,
   fallbackReason,
   executiveBrief,
   executiveTimeline,
@@ -85,9 +122,8 @@ export function CommandCenterScreen({
   reload,
   lastUpdated
 }: CommandCenterScreenProps) {
-  const sourceTone = source === "real" ? "healthy" : "accent";
-  const sourceLabel =
-    source === "real" ? "LIVE DATA" : source === "demo" ? "DEMO MODE" : "MOCK DATA FALLBACK";
+  const runtimeTone = dataRuntimeTone(source, snapshot, runtimeSource);
+  const sourceLabel = resolveSourceLabel(source, runtimeSource);
   const alerts = snapshot?.alerts ?? [];
   const workspaces = snapshot?.workspaces ?? [];
   const sharedWidgetError =
@@ -112,7 +148,7 @@ export function CommandCenterScreen({
       <div className="flex justify-end">
         <div className="flex flex-wrap items-center gap-3">
           <OpenAutomationLink format="PDF" workspace="executive" />
-          <StatusBadge tone={sourceTone}>{sourceLabel}</StatusBadge>
+          <StatusBadge tone={runtimeTone}>{sourceLabel}</StatusBadge>
         </div>
       </div>
 

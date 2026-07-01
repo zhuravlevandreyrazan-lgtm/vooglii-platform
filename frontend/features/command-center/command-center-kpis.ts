@@ -148,11 +148,11 @@ function buildDerivedMetric(
     value: state === "ready" ? sourceMetric.value : UNKNOWN_VALUE,
     numericValue: parseNumericValue(sourceMetric.value),
     unit,
-    state,
-    tone: sourceMetric.tone,
-    note: sourceMetric.note || fallbackNote,
-    trend: parseTrend(sourceMetric.delta),
-    source: sourceMetric.note || "snapshot.kpis"
+      state,
+      tone: sourceMetric.tone,
+      note: sourceMetric.note || fallbackNote,
+      trend: parseTrend(sourceMetric.delta),
+      source: sourceMetric.note || "api.kpis"
   } satisfies KpiMetric;
 }
 
@@ -173,7 +173,7 @@ function buildBusinessHealthMetric(snapshot: CommandCenterSnapshot): KpiMetric {
       direction: "flat",
       summary: snapshot.businessHealth.status || "Business status is unavailable."
     },
-    source: "snapshot.businessHealth"
+    source: "api.businessHealth"
   };
 }
 
@@ -189,7 +189,7 @@ function pickTopRisk(
       title: riskAlert.title,
       summary: riskAlert.detail,
       tone: riskAlert.tone,
-      source: "snapshot.alerts"
+      source: "api.alerts"
     };
   }
 
@@ -201,7 +201,7 @@ function pickTopRisk(
       title: riskEvent.title,
       summary: riskEvent.detail,
       tone: riskEvent.tone,
-      source: "snapshot.timeline"
+      source: "api.timeline"
     };
   }
 
@@ -213,33 +213,33 @@ function pickTopRisk(
       title: riskAction.title,
       summary: `Owner: ${riskAction.owner}. ETA: ${riskAction.eta}.`,
       tone: riskAction.tone,
-      source: "snapshot.actions"
+      source: "api.actions"
     };
   }
 
   return null;
 }
 
-function pickTopOpportunity(snapshot: CommandCenterSnapshot): KpiOpportunity | null {
+function pickTopOpportunity(commandCenter: CommandCenterSnapshot): KpiOpportunity | null {
   const opportunityAction =
-    snapshot.actions.find((item) => item.tone === "accent") ??
-    snapshot.actions.find((item) => item.tone === "healthy");
+    commandCenter.actions.find((item) => item.tone === "accent") ??
+    commandCenter.actions.find((item) => item.tone === "healthy");
 
   if (opportunityAction) {
     return {
       title: opportunityAction.title,
       summary: `Owner: ${opportunityAction.owner}. ETA: ${opportunityAction.eta}.`,
       tone: opportunityAction.tone,
-      source: "snapshot.actions"
+      source: "api.actions"
     };
   }
 
-  if (snapshot.executiveBrief?.title) {
+  if (commandCenter.executiveBrief?.title) {
     return {
-      title: snapshot.executiveBrief.title,
-      summary: snapshot.executiveBrief.summary,
-      tone: snapshot.executiveBrief.tone,
-      source: "snapshot.executiveBrief"
+      title: commandCenter.executiveBrief.title,
+      summary: commandCenter.executiveBrief.summary,
+      tone: commandCenter.executiveBrief.tone,
+      source: "api.executiveBrief"
     };
   }
 
@@ -266,59 +266,59 @@ function buildCards(snapshot: CommandCenterSnapshot, metrics: KpiMetric[]) {
   return cards;
 }
 
-export function buildCommandCenterKpis(snapshot: CommandCenterSnapshot): CommandCenterKpis {
+export function buildCommandCenterKpis(commandCenter: CommandCenterSnapshot): CommandCenterKpis {
   const revenue = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "revenue",
     "Revenue",
     "currency",
-    "Revenue is not available in the current snapshot."
+    "Revenue is not available in the current API response."
   );
   const profit = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "profit",
     "Profit",
     "currency",
-    "Profit is not available in the current snapshot."
+    "Profit is not available in the current API response."
   );
   const margin = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "margin",
     "Margin",
     "percent",
-    "Margin is not available in the current snapshot."
+    "Margin is not available in the current API response."
   );
   const orders = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "orders",
     "Orders",
     "count",
-    "Orders are not available in the current snapshot."
+    "Orders are not available in the current API response."
   );
   const advertisingSpend = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "advertisingSpend",
     "Advertising Spend",
     "currency",
-    "Advertising spend is not available in the current snapshot."
+    "Advertising spend is not available in the current API response."
   );
   const roas = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "roas",
     "ROAS",
     "ratio",
-    "ROAS is not available in the current snapshot."
+    "ROAS is not available in the current API response."
   );
   const acos = buildDerivedMetric(
-    snapshot,
+    commandCenter,
     "acos",
     "ACOS",
     "percent",
-    "ACOS is not available in the current snapshot."
+    "ACOS is not available in the current API response."
   );
-  const businessHealth = buildBusinessHealthMetric(snapshot);
+  const businessHealth = buildBusinessHealthMetric(commandCenter);
 
-  const cards = buildCards(snapshot, [
+  const cards = buildCards(commandCenter, [
     businessHealth,
     revenue,
     profit,
@@ -338,8 +338,8 @@ export function buildCommandCenterKpis(snapshot: CommandCenterSnapshot): Command
     roas,
     acos,
     businessHealth,
-    topRisk: pickTopRisk(snapshot.alerts, snapshot.timeline, snapshot.actions),
-    topOpportunity: pickTopOpportunity(snapshot),
+    topRisk: pickTopRisk(commandCenter.alerts, commandCenter.timeline, commandCenter.actions),
+    topOpportunity: pickTopOpportunity(commandCenter),
     cards
   };
 }

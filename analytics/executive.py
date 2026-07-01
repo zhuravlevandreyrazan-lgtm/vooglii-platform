@@ -14,6 +14,7 @@ from analytics.common import (
     format_confidence,
     now_iso,
     safe_call,
+    safe_float,
     safe_int,
     safe_list,
     safe_text,
@@ -24,6 +25,52 @@ from analytics.finance import get_finance_payload
 from analytics.inventory import get_inventory_payload
 from analytics.performance import get_performance_snapshot
 from analytics.products import get_products_payload
+
+
+def _first_number(*values: Any) -> float | None:
+    for value in values:
+        parsed = safe_float(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _format_metric_value(value: float | None, fallback: str = "UNKNOWN") -> str:
+    if value is None:
+        return fallback
+    rounded = round(value, 2)
+    if float(rounded).is_integer():
+        return str(int(rounded))
+    return str(rounded)
+
+
+def _executive_summary(
+    business_summary: dict[str, Any],
+    finance_summary: dict[str, Any],
+    finance_difference: dict[str, Any],
+    advertising_summary: dict[str, Any],
+) -> str:
+    revenue = _first_number(
+        business_summary.get("revenue"),
+        finance_difference.get("revenue"),
+    )
+    profit = _first_number(
+        business_summary.get("profit"),
+        finance_summary.get("operatingProfit"),
+        finance_summary.get("officialProfit"),
+    )
+    finance_health = safe_text(finance_summary.get("health"), "UNKNOWN")
+    ads_health = safe_text(advertising_summary.get("adsHealth"), "UNKNOWN")
+
+    summary_parts = []
+    if revenue is not None:
+        summary_parts.append(f"Revenue {_format_metric_value(revenue)}")
+    if profit is not None:
+        summary_parts.append(f"operating profit {_format_metric_value(profit)}")
+    if summary_parts:
+        headline = " and ".join(summary_parts)
+        return f"{headline}. Finance health is {finance_health}; ads health is {ads_health}."
+    return f"Finance health is {finance_health}; ads health is {ads_health}."
 
 
 def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
@@ -295,6 +342,7 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     business_summary = dict(business.get("summary") or {})
     finance_summary = dict(finance.get("summary") or {})
     finance_quality = dict(finance.get("quality") or {})
+    finance_difference = dict(finance.get("difference") or {})
     advertising_summary = dict(advertising.get("summary") or {})
     products_summary = dict(products.get("summary") or {})
     inventory_summary = dict(inventory.get("summary") or {})
@@ -309,7 +357,7 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     executive_summary = safe_text(
         (system.get("controlCenter") or {}).get("summary")
         or (advisor.get("insights") or [{}])[0].get("summary")
-        or f"Revenue {business_summary.get('revenue', 0)} and operating profit {business_summary.get('profit', 0)} were assembled from live backend analytics.",
+        or _executive_summary(business_summary, finance_summary, finance_difference, advertising_summary),
         "Executive overview is waiting for backend analytics to become available.",
     )
     what_happened = [
@@ -339,23 +387,77 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
         if item not in actions:
             actions.append(item)
     actions = actions[:5]
+    revenue_value = _first_number(business_summary.get("revenue"), finance_difference.get("revenue"))
+    profit_value = _first_number(
+        business_summary.get("profit"),
+        finance_summary.get("operatingProfit"),
+        finance_summary.get("officialProfit"),
+    )
+    margin_value = _first_number(
+        business_summary.get("margin"),
+        ((profit_value / revenue_value) * 100) if (revenue_value and profit_value is not None) else None,
+    )
+    orders_value = _first_number(business_summary.get("orders"))
+    ad_spend_value = _first_number(advertising_summary.get("advertisingSpend"))
+    roas_value = _first_number(advertising_summary.get("roas"))
+    acos_value = _first_number(advertising_summary.get("acos"))
 
     kpis = [
         {
             "id": "revenue",
             "title": "Revenue",
-            "value": safe_text(business_summary.get("revenue"), "n/a"),
-            "delta": "Business",
+            "value": _format_metric_value(revenue_value),
+            "delta": safe_text(business.get("healthStatus"), "Business"),
             "status": status_to_api(business.get("healthStatus")),
             "source": "business",
         },
         {
             "id": "profit",
             "title": "Operating Profit",
-            "value": safe_text(business_summary.get("profit"), "n/a"),
-            "delta": "Finance-aligned",
+            "value": _format_metric_value(profit_value),
+            "delta": safe_text(finance_summary.get("status"), "Finance-aligned"),
             "status": status_to_api(finance_summary.get("health")),
             "source": "finance",
+        },
+        {
+            "id": "margin",
+            "title": "Margin",
+            "value": f"{_format_metric_value(margin_value)}%" if margin_value is not None else "UNKNOWN",
+            "delta": safe_text(business.get("healthStatus"), "Business"),
+            "status": status_to_api(business.get("healthStatus")),
+            "source": "business",
+        },
+        {
+            "id": "orders",
+            "title": "Orders",
+            "value": _format_metric_value(orders_value),
+            "delta": safe_text(business.get("healthStatus"), "Business"),
+            "status": status_to_api(business.get("healthStatus")),
+            "source": "business",
+        },
+        {
+            "id": "advertising-spend",
+            "title": "Advertising Spend",
+            "value": _format_metric_value(ad_spend_value),
+            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "status": status_to_api(advertising_summary.get("adsHealth")),
+            "source": "advertising",
+        },
+        {
+            "id": "roas",
+            "title": "ROAS",
+            "value": _format_metric_value(roas_value),
+            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "status": status_to_api(advertising_summary.get("adsHealth")),
+            "source": "advertising",
+        },
+        {
+            "id": "acos",
+            "title": "ACOS",
+            "value": f"{_format_metric_value(acos_value)}%" if acos_value is not None else "UNKNOWN",
+            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "status": status_to_api(advertising_summary.get("adsHealth")),
+            "source": "advertising",
         },
         {
             "id": "trust-score",
@@ -364,14 +466,6 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
             "delta": safe_text(finance_quality.get("confidence"), "Unknown"),
             "status": status_to_api(finance_summary.get("health")),
             "source": "finance",
-        },
-        {
-            "id": "ads-health",
-            "title": "Ads Health",
-            "value": safe_text(advertising_summary.get("adsHealth"), "UNKNOWN"),
-            "delta": safe_text(advertising_summary.get("status"), "Pending"),
-            "status": status_to_api(advertising_summary.get("adsHealth")),
-            "source": "advertising",
         },
         {
             "id": "inventory-health",

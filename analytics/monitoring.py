@@ -38,7 +38,7 @@ def get_memory_usage_mb() -> float | None:
         return None
 
 
-def get_health_snapshot(runtime_mode: str = "read_only", backend_status: str = "ok") -> dict[str, Any]:
+def get_health_snapshot(runtime_mode: str = "live", backend_status: str = "ok") -> dict[str, Any]:
     build_info = get_build_info()
     env_snapshot = get_environment_snapshot()
     return {

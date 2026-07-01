@@ -12,6 +12,7 @@ export type WorkspaceKey =
 export type StatusTone = "healthy" | "watch" | "risk" | "neutral" | "accent";
 
 export type CommandCenterDataSource = "real" | "mock_fallback" | "demo";
+export type CommandCenterRuntimeSource = "live" | "cache" | "stale_cache" | "degraded" | "fallback" | "demo" | "dev";
 
 export type NavItem = {
   label: string;
@@ -93,6 +94,7 @@ export type CommandCenterSnapshot = {
 export type CommandCenterScreenData = {
   snapshot: CommandCenterSnapshot;
   source: CommandCenterDataSource;
+  runtimeSource?: CommandCenterRuntimeSource;
   apiBaseUrl: string;
   fallbackReason?: string;
 };

@@ -127,7 +127,7 @@ from analytics.multi_tenant import (
     set_active_cabinet_connection,
 )
 
-READ_ONLY_MODE = "read_only"
+LIVE_RUNTIME_MODE = "live"
 DEFAULT_API_HOST = "0.0.0.0"
 DEFAULT_API_PORT = 8000
 EXPORT_COUNTER = 3
@@ -493,11 +493,11 @@ async def api_exception_handler(request: Request, exc: Exception):
 @app.get("/api/health", response_model=HealthResponse, responses={500: {"model": ApiErrorResponse}})
 def api_health() -> dict[str, str]:
     started_at = now_monotonic_ms()
-    health = get_health_snapshot(runtime_mode=READ_ONLY_MODE, backend_status="ok")
+    health = get_health_snapshot(runtime_mode=LIVE_RUNTIME_MODE, backend_status="ok")
     payload = {
         "status": "ok",
         "product": PRODUCT_NAME,
-        "mode": READ_ONLY_MODE,
+        "mode": LIVE_RUNTIME_MODE,
         **health,
         "startup": STARTUP_VALIDATION,
         "runtime": build_runtime_metadata(

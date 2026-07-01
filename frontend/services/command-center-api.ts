@@ -4,10 +4,12 @@ import {
   ApiError,
   getApiBaseUrl,
   normalizeApiBaseUrl,
+  normalizeRuntimeMetadata,
   requestJson
 } from "@/shared/api";
 import type {
   CommandCenterScreenData,
+  CommandCenterRuntimeSource,
   CommandCenterSnapshot,
   StatusTone
 } from "@/types/platform";
@@ -76,6 +78,12 @@ export type ApiCommandCenterResponse = {
     last_updated?: string;
     degraded?: boolean;
     degraded_notes?: string[];
+  };
+  runtime?: {
+    source?: string;
+    degraded?: boolean;
+    cached?: boolean;
+    stale?: boolean;
   };
 };
 
@@ -243,7 +251,7 @@ export function mapCommandCenterApiResponseToSnapshot(
       },
       {
         id: "api-period",
-        title: payload.period?.label === "current_month" ? "Current month snapshot" : "Snapshot window",
+        title: payload.period?.label === "current_month" ? "Current month window" : "Reporting window",
         description: `${payload.period?.date_from ?? "?"} to ${payload.period?.date_to ?? "?"}`,
         tone: "neutral"
       }
@@ -255,6 +263,7 @@ export function getCommandCenterMockSnapshot(): CommandCenterScreenData {
   return {
     snapshot: commandCenterMock,
     source: "mock_fallback",
+    runtimeSource: "fallback",
     apiBaseUrl: getApiBaseUrl()
   };
 }
@@ -288,9 +297,11 @@ export async function fetchCommandCenterApiSnapshot(
     );
   }
 
+  const runtime = normalizeRuntimeMetadata(payload as Record<string, unknown>);
   return {
     snapshot,
     source: "real",
+    runtimeSource: runtime?.source as CommandCenterRuntimeSource | undefined,
     apiBaseUrl: getApiBaseUrl()
   };
 }

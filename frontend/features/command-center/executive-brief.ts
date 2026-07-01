@@ -7,7 +7,7 @@ import type {
   ExecutiveStatus
 } from "@/features/command-center/executive-brief-types";
 
-const FALLBACK_SUMMARY = "Недостаточно данных для формирования рекомендаций.";
+const FALLBACK_SUMMARY = "Not enough live metrics are available yet to form a confident recommendation.";
 
 function hasReadableMetric(value: CommandCenterKpis[keyof Omit<CommandCenterKpis, "topRisk" | "topOpportunity" | "cards">]) {
   return value.state === "ready";
@@ -43,16 +43,17 @@ function resolveOverallStatus(kpis: CommandCenterKpis): ExecutiveStatus {
 function resolveConfidence(kpis: CommandCenterKpis): ExecutiveConfidence {
   const readyCount = [
     kpis.businessHealth,
+    kpis.revenue,
     kpis.profit,
     kpis.margin,
     kpis.roas,
     kpis.acos
   ].filter(hasReadableMetric).length;
 
-  if (readyCount >= 5) {
+  if (readyCount >= 6) {
     return "high";
   }
-  if (readyCount >= 3) {
+  if (readyCount >= 4) {
     return "medium";
   }
   return "low";
@@ -60,37 +61,35 @@ function resolveConfidence(kpis: CommandCenterKpis): ExecutiveConfidence {
 
 function resolveGreeting(status: ExecutiveStatus) {
   if (status === "Business Stable") {
-    return "Картина бизнеса выглядит устойчиво.";
+    return "Business performance looks stable.";
   }
   if (status === "Attention Required") {
-    return "Сегодня бизнесу требуется управленческое внимание.";
+    return "Business performance needs management attention today.";
   }
-  return "Сводка сформирована с ограниченным набором данных.";
+  return "This brief was assembled from a limited set of live metrics.";
 }
 
 function resolveSummary(kpis: CommandCenterKpis, status: ExecutiveStatus) {
   const signals: string[] = [];
 
+  if (hasReadableMetric(kpis.revenue)) {
+    signals.push(`Revenue: ${kpis.revenue.value}.`);
+  }
   if (hasReadableMetric(kpis.profit)) {
     signals.push(`Profit: ${kpis.profit.value}.`);
   }
-
   if (hasReadableMetric(kpis.margin)) {
     signals.push(`Margin: ${kpis.margin.value}.`);
   }
-
   if (hasReadableMetric(kpis.roas)) {
     signals.push(`ROAS: ${kpis.roas.value}.`);
   }
-
   if (hasReadableMetric(kpis.acos)) {
     signals.push(`ACOS: ${kpis.acos.value}.`);
   }
-
   if (kpis.topRisk?.title) {
     signals.push(`Top risk: ${kpis.topRisk.title}.`);
   }
-
   if (kpis.topOpportunity?.title) {
     signals.push(`Top opportunity: ${kpis.topOpportunity.title}.`);
   }
@@ -100,20 +99,20 @@ function resolveSummary(kpis: CommandCenterKpis, status: ExecutiveStatus) {
   }
 
   if (status === "Attention Required") {
-    return `Ключевые сигналы указывают на давление на результат. ${signals.join(" ")}`;
+    return `Key live metrics point to pressure on results. ${signals.join(" ")}`;
   }
 
   if (status === "Business Stable") {
-    return `Основные KPI выглядят стабильно. ${signals.join(" ")}`;
+    return `Core KPIs look stable. ${signals.join(" ")}`;
   }
 
-  return `Доступные KPI позволяют сформировать частичную картину. ${signals.join(" ")}`;
+  return `Available live KPIs provide a partial operating picture. ${signals.join(" ")}`;
 }
 
 function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus): ExecutiveRecommendation {
   if (kpis.topRisk) {
     return {
-      title: "Сфокусируйтесь на главном риске.",
+      title: "Focus on the primary risk.",
       detail: kpis.topRisk.summary || FALLBACK_SUMMARY,
       priority: "high"
     };
@@ -121,7 +120,7 @@ function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus)
 
   if (kpis.topOpportunity) {
     return {
-      title: "Используйте выявленную возможность.",
+      title: "Use the strongest opportunity.",
       detail: kpis.topOpportunity.summary,
       priority: "medium"
     };
@@ -129,14 +128,14 @@ function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus)
 
   if (status === "Business Stable") {
     return {
-      title: "Поддерживайте текущий темп.",
-      detail: "Существенных негативных сигналов не обнаружено. Сохраняйте контроль над маржой и рекламной эффективностью.",
+      title: "Maintain the current operating pace.",
+      detail: "No major negative signals were detected. Keep monitoring margin and advertising efficiency.",
       priority: "low"
     };
   }
 
   return {
-    title: "Соберите больше данных.",
+    title: "Collect more live data.",
     detail: FALLBACK_SUMMARY,
     priority: "high"
   };

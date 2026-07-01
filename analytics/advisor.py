@@ -397,7 +397,7 @@ def get_advisor_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             {
                 "id": "advisor-rec-fallback",
                 "title": "Refresh stable workspaces to warm advisor cache",
-                "reason": "Advisor fast mode builds from the latest cached workspace snapshots.",
+                "reason": "Advisor fast mode builds from the latest cached workspace analytics.",
                 "priority": "low",
                 "confidence": "Low",
                 "source": "executive",
