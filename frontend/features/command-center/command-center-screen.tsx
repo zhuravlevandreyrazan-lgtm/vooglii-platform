@@ -300,11 +300,11 @@ export function CommandCenterScreen({
           title="Ключевые события"
         >
           <div className="space-y-4">
-            {executiveTimeline.map((event) => (
-              <div
-                key={event.id}
-                className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-white/70 p-4 md:grid-cols-[110px_1fr]"
-              >
+        {executiveTimeline.map((event) => (
+          <div
+            key={event.id}
+            className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-white/70 p-4 md:grid-cols-[110px_1fr]"
+          >
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ink-soft)]">
                     <Clock3 size={14} />
@@ -317,9 +317,6 @@ export function CommandCenterScreen({
                 <div>
                   <h3 className="text-base font-semibold">{event.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{event.description}</p>
-                  <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                    Основание: {localizeKnownText(event.source, "данные системы")}
-                  </div>
                 </div>
               </div>
             ))}
@@ -350,9 +347,6 @@ export function CommandCenterScreen({
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{action.description}</p>
                 <p className="mt-3 text-sm font-semibold">{action.recommendation}</p>
-                <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Основание: {localizeKnownText(action.source, "данные системы")}
-                </div>
               </div>
             ))}
           </div>

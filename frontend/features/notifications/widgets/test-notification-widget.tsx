@@ -19,11 +19,11 @@ export function TestNotificationWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Safe delivery simulation" title="Test Notification">
+    <WidgetCard error={error} loading={loading} subtitle="Проверка каналов доставки" title="Тест уведомлений">
       <div className="space-y-4">
         <p className="text-sm leading-7 text-[var(--ink-soft)]">
-          Test notifications use fake delivery results in dev and demo mode. No real Telegram,
-          email, or webhook delivery happens from the frontend.
+          Проверка уведомлений работает в безопасном режиме. Реальная отправка в Telegram, email и webhook
+          выполняется только на серверной стороне после подключения рабочих каналов.
         </p>
         <div className="flex flex-wrap gap-3">
           {channels.map((item) => (
@@ -33,7 +33,7 @@ export function TestNotificationWidget({
               onClick={() => void onSendTest(item.type)}
               variant={item.type === "in_app" ? "secondary" : "ghost"}
             >
-              Send Test {item.type}
+              Проверить {item.type}
             </Button>
           ))}
         </div>

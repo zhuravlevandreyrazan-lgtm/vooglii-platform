@@ -69,6 +69,17 @@ const KNOWN_TEXT_LABELS: Record<string, string> = {
   DEGRADED: "Данные частично недоступны",
   "No business data available": "Нет данных за выбранный период",
   "Finance requires attention": "Требуется внимание к финансам",
+  "Management attention is required": "Требуется управленческое внимание",
+  "Inventory pressure detected": "Требуется внимание к остаткам",
+  "Review inventory pressure before scaling demand": "Проверьте остатки перед масштабированием продаж",
+  Healthy: "Норма",
+  Watch: "Наблюдать",
+  Ready: "Готово",
+  Today: "Сегодня",
+  Tomorrow: "Завтра",
+  Week: "Неделя",
+  "Executive Brief": "Краткий вывод",
+  Difference: "Расхождение",
   "Backend is unreachable.": "Не удалось загрузить данные. Попробуйте обновить страницу позже.",
   "Unable to load data": "Не удалось загрузить данные",
   "Empty state": "Нет данных",
@@ -189,13 +200,16 @@ export function localizeSourceName(value?: string | null) {
     return mapped.toLowerCase();
   }
   if (normalized === "backend") {
-    return "сервер";
+    return "данные кабинета";
   }
   if (normalized === "placeholder") {
-    return "временный слой";
+    return "временный источник";
   }
   if (normalized === "system") {
     return "система";
+  }
+  if (normalized === "executivebrief" || normalized === "priorityactions" || normalized === "api.alerts" || normalized === "api.actions") {
+    return "данные кабинета";
   }
   return value ?? "источник не указан";
 }

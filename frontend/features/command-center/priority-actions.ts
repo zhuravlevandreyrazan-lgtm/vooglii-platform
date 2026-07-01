@@ -77,11 +77,11 @@ export function buildPriorityActions(
         id: "priority-risk",
         type: "risk",
         severity: riskSeverityFromTone(kpis.topRisk),
-        title: kpis.topRisk.title,
+        title: "Главный риск",
         description: kpis.topRisk.summary,
         impact: "stability",
         recommendation:
-          executiveBrief.recommendation.detail || "Проверьте источник риска и подготовьте план снижения давления на результат.",
+          "Проверьте финансовые данные и подключение кабинета Wildberries. Затем повторите обновление показателей.",
         status: "ready",
         source: "executiveBrief"
       })
@@ -94,10 +94,10 @@ export function buildPriorityActions(
         id: "priority-growth",
         type: "growth",
         severity: kpis.businessHealth.numericValue >= 75 ? "medium" : "low",
-        title: kpis.topOpportunity.title,
-        description: kpis.topOpportunity.summary,
+        title: "Возможность роста",
+        description: "Проверьте остатки перед масштабированием продаж.",
         impact: "revenue",
-        recommendation: "Проверьте потенциал роста и при подтверждении аккуратно масштабируйте рабочий сценарий.",
+        recommendation: "Убедитесь, что остатки и рекламные расходы позволяют безопасно нарастить продажи.",
         status: "review",
         source: "kpi"
       })
@@ -110,10 +110,10 @@ export function buildPriorityActions(
         id: "priority-profit-recovery",
         type: "profit",
         severity: "high",
-        title: "Снизить давление на прибыль",
+        title: "Проверить финансовые данные",
         description: "Индекс здоровья бизнеса опустился ниже комфортного уровня.",
         impact: "profit",
-        recommendation: "Проверьте прибыль, рекламу и остатки по проблемным SKU.",
+        recommendation: "Проверьте прибыль, рекламные расходы и остатки по проблемным товарам.",
         status: "ready",
         source: "kpi"
       })
@@ -129,7 +129,7 @@ export function buildPriorityActions(
         title: "Сохранить стабильный темп роста",
         description: "Здоровье бизнеса остается в устойчивой зоне.",
         impact: "revenue",
-        recommendation: "Сохраняйте текущий режим и ищите аккуратные точки масштабирования.",
+        recommendation: "Сохраняйте текущий режим и ищите аккуратные точки масштабирования без перегрузки запасов.",
         status: "review",
         source: "kpi"
       })
@@ -142,7 +142,7 @@ export function buildPriorityActions(
         id: "priority-ads-efficiency",
         type: "ads",
         severity: "medium",
-        title: "Проверить эффективность рекламы",
+        title: "Проверить рекламные расходы",
         description: "Расходы на рекламу есть, но KPI кампаний пока не подтверждают достаточную эффективность.",
         impact: "efficiency",
         recommendation: "Проверьте кампании, ставки и связку рекламы с продажами.",
@@ -160,7 +160,7 @@ export function buildPriorityActions(
         id: "priority-data-fallback",
         type: "data",
         severity: "medium",
-        title: "Обновить данные бизнеса",
+        title: "Обновить данные кабинета",
         description: "Для уверенного списка действий пока недостаточно подтвержденных сигналов.",
         impact: "visibility",
         recommendation: "Обновите данные и проверьте подключение кабинета Wildberries.",

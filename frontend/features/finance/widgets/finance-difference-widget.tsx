@@ -15,29 +15,29 @@ export function FinanceDifferenceWidget({
     <WidgetCard
       error={error}
       loading={loading}
-      status={{ label: "Difference", tone: "watch" }}
-      subtitle="Difference Panel"
-      title="Finance Difference"
+      status={{ label: "Расхождение", tone: "watch" }}
+      subtitle="Сравнение финансовых показателей"
+      title="Финансовое расхождение"
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Operating Profit</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Операционная прибыль</div>
           <div className="mt-2 text-lg font-semibold">{formatCurrency(difference.operatingProfit)}</div>
         </div>
         <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Official Profit</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Официальная прибыль</div>
           <div className="mt-2 text-lg font-semibold">
-            {difference.officialProfit === null ? "Unavailable" : formatCurrency(difference.officialProfit)}
+            {difference.officialProfit === null ? "Нет данных" : formatCurrency(difference.officialProfit)}
           </div>
         </div>
         <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Difference</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Разница</div>
           <div className="mt-2 text-lg font-semibold">{formatCurrency(difference.difference)}</div>
         </div>
         <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Difference %</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Разница, %</div>
           <div className="mt-2 text-lg font-semibold">
-            {difference.differencePercent === null ? "n/a" : formatPercent(difference.differencePercent)}
+            {difference.differencePercent === null ? "Нет данных" : formatPercent(difference.differencePercent)}
           </div>
         </div>
       </div>

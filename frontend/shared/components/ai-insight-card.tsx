@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { Card } from "@/shared/components/card";
 import { StatusBadge } from "@/shared/components/status-badge";
+import { localizeKnownText, localizeSourceName } from "@/shared/ui/status-labels";
 import type { InsightItem } from "@/types/platform";
 
 export function AiInsightCard({ insight }: { insight: InsightItem }) {
@@ -27,7 +28,7 @@ export function AiInsightCard({ insight }: { insight: InsightItem }) {
               key={source}
               className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs font-medium text-white/74"
             >
-              {source}
+              {localizeKnownText(localizeSourceName(source), "данные кабинета")}
             </span>
           ))}
         </div>

@@ -21,10 +21,10 @@ type RawBusinessSnapshot = {
 };
 
 const PERIOD_LABELS: Record<BusinessPeriodKey, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  sevenDays: "7 Days",
-  thirtyDays: "30 Days"
+  today: "Сегодня",
+  yesterday: "Вчера",
+  sevenDays: "7 дней",
+  thirtyDays: "30 дней"
 };
 
 const rawBusinessSnapshot: RawBusinessSnapshot = {
@@ -86,27 +86,27 @@ const rawBusinessSnapshot: RawBusinessSnapshot = {
   topProducts: [
     {
       sku: "VOO-TS-001",
-      title: "Thermal Bottle 750ml",
+      title: "Термобутылка 750 мл",
       revenue: 82340,
       profit: 29120,
       margin: 35.4,
-      status: "Stable"
+      status: "Стабильно"
     },
     {
       sku: "VOO-BG-018",
-      title: "Travel Organizer Set",
+      title: "Набор дорожных органайзеров",
       revenue: 69480,
       profit: 20660,
       margin: 29.7,
-      status: "Margin pressure"
+      status: "Требуется внимание к марже"
     },
     {
       sku: "VOO-HM-203",
-      title: "Kitchen Storage Bundle",
+      title: "Набор для хранения на кухне",
       revenue: 51420,
       profit: 19410,
       margin: 37.7,
-      status: "Scaling"
+      status: "Есть потенциал роста"
     }
   ],
   generatedAt: "2026-06-30T12:00:00.000Z"
@@ -169,7 +169,7 @@ export function normalizeBusinessSnapshot(
       returns: raw.trends?.returns ?? null
     },
     healthScore: raw.healthScore ?? undefined,
-    healthStatus: raw.healthStatus ?? "Unknown",
+    healthStatus: raw.healthStatus ?? "Нет данных",
     periods: {
       today: normalizeTrend("today", raw.periods?.today),
       yesterday: normalizeTrend("yesterday", raw.periods?.yesterday),

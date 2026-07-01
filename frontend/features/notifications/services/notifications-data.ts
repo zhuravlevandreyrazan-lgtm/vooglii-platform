@@ -46,8 +46,8 @@ const MOCK_CHANNELS: NotificationChannelItem[] = [
     status: "pending",
     connected: false,
     lastTestAt: null,
-    deliveryHealth: "Placeholder",
-    setupAction: "Connect backend-side bot credentials"
+    deliveryHealth: "Ожидает настройки",
+    setupAction: "Подключите Telegram-канал уведомлений"
   },
   {
     id: "channel-email",
@@ -55,8 +55,8 @@ const MOCK_CHANNELS: NotificationChannelItem[] = [
     status: "pending",
     connected: false,
     lastTestAt: null,
-    deliveryHealth: "Placeholder",
-    setupAction: "Configure backend SMTP transport"
+    deliveryHealth: "Ожидает настройки",
+    setupAction: "Настройте email-канал уведомлений"
   },
   {
     id: "channel-webhook",
@@ -64,8 +64,8 @@ const MOCK_CHANNELS: NotificationChannelItem[] = [
     status: "disabled",
     connected: false,
     lastTestAt: null,
-    deliveryHealth: "Idle",
-    setupAction: "Register backend-side webhook secret"
+    deliveryHealth: "Неактивно",
+    setupAction: "Настройте webhook для уведомлений"
   },
   {
     id: "channel-in-app",
@@ -73,8 +73,8 @@ const MOCK_CHANNELS: NotificationChannelItem[] = [
     status: "enabled",
     connected: true,
     lastTestAt: "2026-06-30T11:20:00Z",
-    deliveryHealth: "Healthy",
-    setupAction: "Open notifications center"
+    deliveryHealth: "Норма",
+    setupAction: "Откройте центр уведомлений"
   }
 ];
 

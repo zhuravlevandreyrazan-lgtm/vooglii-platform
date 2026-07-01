@@ -68,7 +68,7 @@ export function WorkspaceSidebar({
 
         {!collapsed ? (
           <div className="mt-8 rounded-[28px] border border-[var(--line)] bg-[linear-gradient(180deg,#fff8ed_0%,#f6efe2_100%)] p-4 shadow-[var(--shadow-soft)]">
-            <StatusBadge tone="accent">SaaS-платформа</StatusBadge>
+            <StatusBadge tone="accent">Панель продавца</StatusBadge>
             <h2 className="mt-4 text-xl font-semibold tracking-[-0.04em]">Единый центр управления</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
               Все основные разделы бизнеса Wildberries собраны в одном интерфейсе.

@@ -25,10 +25,6 @@ export function WorkspaceTopBar({
   const { cabinet, organization, user, loading } = useAuth();
   const workspace = useWorkspaceContext();
   const notificationSummary = useNotificationSummary();
-  const clockLabel = new Intl.DateTimeFormat("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date());
   const initials = (user?.name ?? "Пользователь")
     .split(" ")
     .map((part) => part[0] ?? "")
@@ -57,13 +53,12 @@ export function WorkspaceTopBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-[220px] items-center gap-2 rounded-full border border-[var(--line)] bg-white/60 px-4 py-2.5 shadow-[var(--shadow-soft)]">
+          <div className="flex min-w-[240px] items-center gap-2 rounded-full border border-[var(--line)] bg-white/70 px-4 py-2.5 shadow-[var(--shadow-soft)]">
             <Search size={16} className="text-[var(--ink-soft)]" />
-            <span className="text-sm text-[var(--ink-soft)]">Поиск по разделам, отчетам и подсказкам</span>
+            <span className="text-sm text-[var(--ink-soft)]">Поиск по разделам и отчетам</span>
           </div>
-          {lastUpdated ? <StatusBadge tone="neutral">Обновлено {lastUpdated}</StatusBadge> : null}
+          {lastUpdated ? <span className="text-sm text-[var(--ink-soft)]">Обновлено {lastUpdated}</span> : null}
           {enabled ? <StatusBadge tone="accent">Демо-режим</StatusBadge> : null}
-          {workspace.organization ? <StatusBadge tone="neutral">{workspace.organization.name}</StatusBadge> : null}
           {workspace.cabinet ? (
             <StatusBadge tone={workspace.cabinet.connected ? "healthy" : "watch"}>
               {workspace.cabinet.connected ? "Кабинет подключен" : "Кабинет не подключен"}
@@ -120,7 +115,6 @@ export function WorkspaceTopBar({
               </option>
             ))}
           </select>
-          <StatusBadge tone="healthy">{clockLabel}</StatusBadge>
           <Button aria-label="Обновить страницу" variant="ghost">
             <RefreshCcw size={16} />
           </Button>

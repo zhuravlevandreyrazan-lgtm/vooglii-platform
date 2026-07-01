@@ -30,51 +30,51 @@ type RawReportsSnapshot = {
 const rawReportsSnapshot: RawReportsSnapshot = {
   summary: {
     reportCount: 11,
-    latestReport: "Advisor Snapshot",
+    latestReport: "Снимок советника",
     latestSync: "2026-06-30 14:30",
-    latestCeoReport: "CEO Report",
-    latestProfitAudit: "Profit Audit",
-    systemStatus: "Operational"
+    latestCeoReport: "Отчет руководителя",
+    latestProfitAudit: "Аудит прибыли",
+    systemStatus: "Работает"
   },
   catalog: [
     {
       id: "report-ceo",
-      name: "CEO Report",
-      description: "Leadership-facing report from the analytics engine.",
+      name: "Отчет руководителя",
+      description: "Ключевые показатели и сигналы для владельца бизнеса.",
       category: "executive",
-      status: { label: "Ready", tone: "healthy" },
+      status: { label: "Готово", tone: "healthy" },
       updatedAt: "2026-06-30T14:20:00.000Z",
-      source: "Analytics Engine",
+      source: "Система аналитики",
       href: "/executive"
     },
     {
       id: "report-profit-audit",
-      name: "Profit Audit",
-      description: "Finance-safe profit audit and reconciliation report.",
+      name: "Аудит прибыли",
+      description: "Проверка прибыли и расхождений по финансовым данным.",
       category: "finance",
-      status: { label: "Ready", tone: "watch" },
+      status: { label: "Готово", tone: "watch" },
       updatedAt: "2026-06-30T14:12:00.000Z",
-      source: "Finance Engine",
+      source: "Финансовый модуль",
       href: "/finance"
     },
     {
       id: "report-ads",
-      name: "Advertising Analytics",
-      description: "Campaign efficiency, linkability, and ads health analytics.",
+      name: "Аналитика рекламы",
+      description: "Эффективность кампаний и состояние рекламных расходов.",
       category: "advertising",
-      status: { label: "Ready", tone: "healthy" },
+      status: { label: "Готово", tone: "healthy" },
       updatedAt: "2026-06-30T14:14:00.000Z",
-      source: "Advertising Engine",
+      source: "Рекламный модуль",
       href: "/advertising"
     },
     {
       id: "report-sku",
-      name: "SKU Analytics",
-      description: "Product intelligence and SKU analytics report set.",
+      name: "Аналитика SKU",
+      description: "Отчет по ассортименту, карточкам и SKU.",
       category: "products",
-      status: { label: "Ready", tone: "healthy" },
+      status: { label: "Готово", tone: "healthy" },
       updatedAt: "2026-06-30T14:16:00.000Z",
-      source: "Product Engine",
+      source: "Товарный модуль",
       href: "/products"
     }
   ],
@@ -82,17 +82,17 @@ const rawReportsSnapshot: RawReportsSnapshot = {
     {
       id: "recent-1",
       date: "2026-06-30T14:20:00.000Z",
-      type: "Advisor Snapshot",
-      status: "Generated",
-      source: "Advisor Engine",
+      type: "Снимок советника",
+      status: "Сформирован",
+      source: "Модуль советника",
       href: "/advisor"
     },
     {
       id: "recent-2",
       date: "2026-06-30T14:12:00.000Z",
-      type: "Profit Audit",
-      status: "Generated",
-      source: "Finance Engine",
+      type: "Аудит прибыли",
+      status: "Сформирован",
+      source: "Финансовый модуль",
       href: "/finance"
     }
   ],

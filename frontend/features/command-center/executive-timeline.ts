@@ -149,7 +149,7 @@ export function buildExecutiveTimeline(
       createEvent({
         id: "timeline-stable-business",
         period: "today",
-        title: "Business is operating steadily",
+        title: "Бизнес работает стабильно",
         description: executiveBrief.summary,
         severity: "info",
         source: "executiveBrief"
@@ -162,7 +162,7 @@ export function buildExecutiveTimeline(
       createEvent({
         id: "timeline-attention-required",
         period: "today",
-        title: "Management attention is required",
+        title: "Требуется управленческое внимание",
         description: executiveBrief.recommendation.detail,
         severity: "high",
         source: "executiveBrief"
@@ -177,8 +177,8 @@ export function buildExecutiveTimeline(
       createEvent({
         id: "timeline-fallback",
         period: "today",
-        title: "Data refresh is expected",
-        description: "Not enough confirmed signals are available yet to build an executive timeline.",
+        title: "Ожидается обновление данных",
+        description: "Пока недостаточно подтвержденных сигналов, чтобы собрать полноценную ленту действий.",
         severity: "info",
         source: "fallback"
       })

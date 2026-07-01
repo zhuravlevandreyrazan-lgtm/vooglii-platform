@@ -6,11 +6,11 @@ import type { FinanceTimelineEvent } from "@/features/finance/types";
 function periodLabel(period: FinanceTimelineEvent["period"]) {
   switch (period) {
     case "latest":
-      return "Latest update";
+      return "Последнее обновление";
     case "audit":
-      return "Profit audit";
+      return "Аудит прибыли";
     default:
-      return "Finance sync";
+      return "Синхронизация финансов";
   }
 }
 
@@ -29,8 +29,8 @@ export function FinanceTimelineWidget({
       emptyMessage="События по финансам появятся здесь после синхронизации данных."
       error={error}
       loading={loading}
-      subtitle="Recent finance events"
-      title="Finance Timeline"
+      subtitle="Последние события по финансам"
+      title="Лента финансов"
     >
       <div className="space-y-3">
         {timeline.map((item) => (
