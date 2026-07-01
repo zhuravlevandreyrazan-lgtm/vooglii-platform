@@ -13,7 +13,7 @@ services:
   frontend:
     build:
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.vooglii.ru}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://vooglii.ru:8000}
         NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-production}
     env_file:
       - .env.production

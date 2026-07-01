@@ -3,12 +3,23 @@ import type { ApiRequestJsonOptions } from "@/shared/api/api-types";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
+type RuntimeConfigWindow = Window & {
+  __VOOGLII_RUNTIME_CONFIG__?: {
+    NEXT_PUBLIC_API_BASE_URL?: string | null;
+    NEXT_PUBLIC_APP_ENV?: string | null;
+  };
+};
+
 export function normalizeApiBaseUrl(value?: string | null) {
   const text = (value ?? "").trim();
   return text ? text.replace(/\/+$/, "") : "";
 }
 
 export function getApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return normalizeApiBaseUrl((window as RuntimeConfigWindow).__VOOGLII_RUNTIME_CONFIG__?.NEXT_PUBLIC_API_BASE_URL);
+  }
+
   return normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 }
 

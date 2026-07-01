@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import { PlatformShell } from "@/shared/layout";
 import "@/styles/globals.css";
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Script src="/runtime-config.js" strategy="beforeInteractive" />
         <PlatformShell>{children}</PlatformShell>
       </body>
     </html>
