@@ -50,14 +50,14 @@ export function NotificationsScreen({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Notifications"]}
-        subtitle="A single hub for channels, routing rules, history, test delivery, and future backend-only Telegram, email, webhook, and scheduled report delivery."
-        title="Notifications Hub"
+        breadcrumb={["Платформа", "Уведомления"]}
+        subtitle="Каналы, правила, история, тестовая отправка и доставка отчетов."
+        title="Уведомления"
         updatedAt={lastUpdated ?? undefined}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge tone="accent">Unread {data.unreadCount}</StatusBadge>
+        <StatusBadge tone="accent">Непрочитанные: {data.unreadCount}</StatusBadge>
         {organization ? <StatusBadge tone="neutral">{organization.name}</StatusBadge> : null}
         {user ? <StatusBadge tone="neutral">{user.name}</StatusBadge> : null}
         {actionMessage ? <StatusBadge tone="neutral">{actionMessage}</StatusBadge> : null}
@@ -67,8 +67,8 @@ export function NotificationsScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Notification backend responses are unavailable or invalid, but the safe hub remains usable."
-          title="Fallback notifications snapshot active"
+          detail="Сейчас показываются резервные данные. Основные настройки уведомлений останутся доступны."
+          title="Уведомления временно недоступны"
           tone="watch"
         />
       ) : null}

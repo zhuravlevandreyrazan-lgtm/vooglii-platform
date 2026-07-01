@@ -35,7 +35,7 @@ function CompactSignalCard({
           <div className="text-base font-semibold">{item.title}</div>
           <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.summary}</p>
           <div className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-            Source {item.source}
+            Основание: {item.source}
           </div>
         </div>
       ) : null}
@@ -52,18 +52,18 @@ export function RiskOpportunityPanel({
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <CompactSignalCard
-        emptyMessage="No material risk is available from the current executive signals."
+        emptyMessage="Сейчас нет подтвержденного критичного риска."
         error={error}
         item={topRisk}
         loading={loading}
-        title="Top Risk"
+        title="Главный риск"
       />
       <CompactSignalCard
-        emptyMessage="No confirmed growth opportunity is available from the current executive signals."
+        emptyMessage="Сейчас нет подтвержденной точки роста."
         error={error}
         item={topOpportunity}
         loading={loading}
-        title="Top Opportunity"
+        title="Точка роста"
       />
     </div>
   );

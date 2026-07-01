@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ProductAlert } from "@/features/products/types";
 
@@ -14,11 +15,11 @@ export function ProductAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Product alerts will appear here when backend returns active SKU warnings."
+      emptyMessage="Сигналы по товарам появятся здесь, когда backend вернет предупреждения по SKU."
       error={error}
       loading={loading}
-      subtitle="Backend alerts"
-      title="Product Alerts"
+      subtitle="Сигналы backend"
+      title="Сигналы по товарам"
     >
       <div className="space-y-3">
         {alerts.map((alert) => (
@@ -29,7 +30,7 @@ export function ProductAlertsWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{alert.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {alert.source}
+              Источник: {localizeWorkspaceLabel(alert.source)}
             </div>
           </div>
         ))}

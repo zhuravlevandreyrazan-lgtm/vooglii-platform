@@ -126,23 +126,41 @@ function getEmptyTrend(key: BusinessPeriodKey): BusinessTrend {
   };
 }
 
+function normalizeTrend(key: BusinessPeriodKey, trend?: Partial<BusinessTrend>): BusinessTrend {
+  const empty = getEmptyTrend(key);
+  return {
+    ...empty,
+    ...trend,
+    revenue: trend?.revenue ?? empty.revenue,
+    profit: trend?.profit ?? empty.profit,
+    margin: trend?.margin ?? empty.margin,
+    orders: trend?.orders ?? empty.orders,
+    returns: trend?.returns ?? empty.returns,
+    averageOrderValue: trend?.averageOrderValue ?? empty.averageOrderValue,
+    unitsSold: trend?.unitsSold ?? empty.unitsSold
+  };
+}
+
 export function normalizeBusinessSnapshot(
   raw: RawBusinessSnapshot,
   diagnostics = createFallbackDiagnostics()
 ): BusinessSnapshot {
-  const revenue = raw.summary?.revenue ?? 0;
-  const orders = raw.summary?.orders ?? 0;
-  const profit = raw.summary?.profit ?? 0;
+  const revenue = raw.summary?.revenue ?? null;
+  const orders = raw.summary?.orders ?? null;
+  const profit = raw.summary?.profit ?? null;
+  const margin = raw.summary?.margin ?? (revenue !== null && profit !== null && revenue > 0 ? (profit / revenue) * 100 : null);
+  const averageOrderValue =
+    raw.summary?.averageOrderValue ?? (orders !== null && orders > 0 && revenue !== null ? revenue / orders : null);
 
   return {
     summary: {
       revenue,
       profit,
-      margin: raw.summary?.margin ?? (revenue > 0 ? (profit / revenue) * 100 : 0),
+      margin,
       orders,
-      returns: raw.summary?.returns ?? 0,
-      averageOrderValue: raw.summary?.averageOrderValue ?? (orders > 0 ? revenue / orders : 0),
-      unitsSold: raw.summary?.unitsSold ?? 0
+      returns: raw.summary?.returns ?? null,
+      averageOrderValue,
+      unitsSold: raw.summary?.unitsSold ?? null
     },
     trends: {
       revenue: raw.trends?.revenue ?? 0,
@@ -153,10 +171,10 @@ export function normalizeBusinessSnapshot(
     healthScore: raw.healthScore ?? 0,
     healthStatus: raw.healthStatus ?? "Unknown",
     periods: {
-      today: { ...getEmptyTrend("today"), ...raw.periods?.today },
-      yesterday: { ...getEmptyTrend("yesterday"), ...raw.periods?.yesterday },
-      sevenDays: { ...getEmptyTrend("sevenDays"), ...raw.periods?.sevenDays },
-      thirtyDays: { ...getEmptyTrend("thirtyDays"), ...raw.periods?.thirtyDays }
+      today: normalizeTrend("today", raw.periods?.today),
+      yesterday: normalizeTrend("yesterday", raw.periods?.yesterday),
+      sevenDays: normalizeTrend("sevenDays", raw.periods?.sevenDays),
+      thirtyDays: normalizeTrend("thirtyDays", raw.periods?.thirtyDays)
     },
     topProducts: raw.topProducts ?? [],
     generatedAt: raw.generatedAt ?? null,

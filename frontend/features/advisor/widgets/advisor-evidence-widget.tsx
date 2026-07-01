@@ -15,11 +15,11 @@ export function AdvisorEvidenceWidget({
   return (
     <WidgetCard
       empty={evidence.length === 0}
-      emptyMessage="Recommendation evidence will appear here when backend returns advisor evidence payloads."
+      emptyMessage="Основания рекомендаций появятся после получения данных от backend."
       error={error}
       loading={loading}
-      subtitle="Why this recommendation exists"
-      title="Evidence Panel"
+      subtitle="Почему советник рекомендует именно это"
+      title="Основания"
     >
       <div className="space-y-3">
         {evidence.map((item) => (
@@ -38,7 +38,7 @@ export function AdvisorEvidenceWidget({
             </div>
             <div className="mt-4">
               <Link className="text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>
-                Open {item.workspace}
+                Открыть раздел {item.workspace}
               </Link>
             </div>
           </div>

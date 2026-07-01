@@ -19,8 +19,9 @@ import {
 import type { CommandCenterKpis } from "@/features/command-center/kpi-types";
 import type { PriorityAction } from "@/features/command-center/priority-actions-types";
 import type { CommandCenterScreenData, StatusTone } from "@/types/platform";
+import { localizeConfidence, localizeRuntimeSource, localizeSeverity, localizeStatus } from "@/shared/ui/status-labels";
 
-const FALLBACK_BRIEF_HELP = "Not enough data is available to form a confident recommendation yet.";
+const FALLBACK_BRIEF_HELP = "Пока недостаточно данных, чтобы сделать уверенный вывод.";
 
 type CommandCenterScreenProps = CommandCenterScreenData & {
   executiveBrief: ExecutiveBrief;
@@ -74,18 +75,12 @@ function mapTimelineSeverityTone(severity: ExecutiveTimelineEvent["severity"]): 
 
 function resolveSourceLabel(source: CommandCenterScreenData["source"], runtimeSource?: CommandCenterScreenData["runtimeSource"]) {
   if (source === "demo") {
-    return "DEMO MODE";
+    return "Демо-режим";
   }
   if (source === "mock_fallback") {
-    return "MOCK DATA FALLBACK";
+    return "Показываем резервные данные";
   }
-  if (runtimeSource === "cache") {
-    return "LIVE CACHE";
-  }
-  if (runtimeSource === "degraded" || runtimeSource === "stale_cache" || runtimeSource === "fallback") {
-    return "DEGRADED";
-  }
-  return "LIVE BACKEND";
+  return localizeRuntimeSource(runtimeSource ?? "live");
 }
 
 function dataRuntimeTone(
@@ -127,22 +122,22 @@ export function CommandCenterScreen({
   const alerts = snapshot?.alerts ?? [];
   const workspaces = snapshot?.workspaces ?? [];
   const sharedWidgetError =
-    error ?? fallbackReason ?? (source === "mock_fallback" ? "Displaying fallback snapshot." : null);
+    error ?? fallbackReason ?? (source === "mock_fallback" ? "Сейчас показываются резервные данные." : null);
   const updatedAtLabel = formatDateTime(lastUpdated);
 
   return (
     <div className="space-y-6">
       <WorkspaceHeader
-        description="The first commercial web surface of VOOGLII. This skeleton already mirrors the target command flow: understand business condition, see why it changed, and move into the next workspace with intent."
-        eyebrow="VOOGLII Command Center"
+        description="Ключевые показатели, риски и рекомендации по вашему кабинету Wildberries в одном экране."
+        eyebrow="VOOGLII"
         status={
           source === "real"
-            ? "Live backend data active"
+            ? "Кабинет подключен"
             : source === "demo"
-              ? "Demo snapshot active"
-              : "Mock snapshot active"
+              ? "Включен демо-режим"
+              : "Показываем резервные данные"
         }
-        title="Business Operating System for marketplace sellers"
+        title="Центр управления бизнесом"
       />
 
       <div className="flex justify-end">
@@ -158,11 +153,11 @@ export function CommandCenterScreen({
           error={sharedWidgetError}
           loading={loading}
           status={{
-            label: snapshot.businessHealth?.status ?? "UNKNOWN",
+            label: localizeStatus(snapshot.businessHealth?.status ?? "UNKNOWN"),
             tone: kpis.businessHealth.tone
           }}
           subtitle={formatKpiValue(kpis.businessHealth)}
-          title="Business Health"
+          title="Здоровье бизнеса"
           updatedAt={updatedAtLabel}
         >
           <div className="flex items-baseline gap-2">
@@ -172,28 +167,28 @@ export function CommandCenterScreen({
             <span className="text-lg text-[var(--ink-soft)]">/100</span>
           </div>
           <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
-            {kpis.businessHealth.note || "Business health summary is not available yet."}
+            {kpis.businessHealth.note || "Сводка по состоянию бизнеса пока недоступна."}
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                Daily focus
+                Фокус дня
               </div>
               <div className="mt-2 text-sm font-semibold">
                 {kpis.topOpportunity?.title ??
                   priorityActions[0]?.title ??
-                  "Protect margin before scale masks efficiency drift."}
+                  "Сначала защитите маржинальность, затем масштабируйте рост."}
               </div>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                Readiness
+                Текущее состояние
               </div>
               <div className="mt-2 text-sm font-semibold">
                 {kpis.topRisk?.title ??
                   (source === "real"
                     ? "Connected to the live Command Center backend."
-                    : "Frontend stays available through mock fallback.")}
+                    : "Интерфейс продолжает работать в резервном режиме.")}
               </div>
             </div>
           </div>
@@ -203,11 +198,11 @@ export function CommandCenterScreen({
           error={sharedWidgetError}
           loading={loading}
           status={{
-            label: executiveBrief.overallStatus,
+            label: executiveBrief.overallStatus === "Business Stable" ? "Норма" : executiveBrief.overallStatus === "Attention Required" ? "Требует внимания" : "Нет данных",
             tone: mapExecutiveStatusTone(executiveBrief.overallStatus)
           }}
           subtitle={executiveBrief.greeting}
-          title="Executive Brief"
+          title="Краткий вывод"
           updatedAt={updatedAtLabel}
         >
           <div className="space-y-4">
@@ -215,10 +210,10 @@ export function CommandCenterScreen({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Top risk
+                  Главный риск
                 </div>
                 <div className="mt-2 text-sm font-semibold">
-                  {executiveBrief.topRisk?.title ?? "No material risk was identified from current KPI signals."}
+                  {executiveBrief.topRisk?.title ?? "Сейчас нет подтвержденного критичного риска."}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
                   {executiveBrief.topRisk?.summary ?? FALLBACK_BRIEF_HELP}
@@ -226,10 +221,10 @@ export function CommandCenterScreen({
               </div>
               <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Top opportunity
+                  Возможность роста
                 </div>
                 <div className="mt-2 text-sm font-semibold">
-                  {executiveBrief.topOpportunity?.title ?? "No clear growth opportunity is available yet."}
+                  {executiveBrief.topOpportunity?.title ?? "Сейчас нет подтвержденной точки роста."}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
                   {executiveBrief.topOpportunity?.summary ?? FALLBACK_BRIEF_HELP}
@@ -239,7 +234,7 @@ export function CommandCenterScreen({
             <div className="rounded-[22px] border border-[var(--line)] bg-white/70 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Recommendation
+                  Что сделать сегодня
                 </div>
                 <StatusBadge
                   tone={
@@ -250,7 +245,7 @@ export function CommandCenterScreen({
                         : "neutral"
                   }
                 >
-                  Confidence {executiveBrief.confidence}
+                  Уверенность: {localizeConfidence(executiveBrief.confidence)}
                 </StatusBadge>
               </div>
               <div className="mt-2 text-sm font-semibold">{executiveBrief.recommendation.title}</div>
@@ -265,13 +260,13 @@ export function CommandCenterScreen({
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-              KPI Grid
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+              Ключевые показатели
             </p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Signal at a glance</h2>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Главное по бизнесу</h2>
           </div>
           <Button icon={<Sparkles size={16} />} onClick={reload} variant="secondary">
-            Refresh snapshot
+            Обновить данные
           </Button>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -291,12 +286,12 @@ export function CommandCenterScreen({
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <WidgetCard
           empty={executiveTimeline.length === 0}
-          emptyMessage="Executive timeline will appear here when enough rule-based signals are available."
+          emptyMessage="События и сигналы появятся после загрузки достаточного объема данных."
           error={sharedWidgetError}
           loading={loading}
-          status={{ label: "Rule-based view", tone: "neutral" }}
-          subtitle="What matters next"
-          title="Executive Timeline"
+          status={{ label: "Текущая картина", tone: "neutral" }}
+          subtitle="Что важно дальше"
+          title="Ключевые события"
         >
           <div className="space-y-4">
             {executiveTimeline.map((event) => (
@@ -317,7 +312,7 @@ export function CommandCenterScreen({
                   <h3 className="text-base font-semibold">{event.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{event.description}</p>
                   <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                    Source {event.source}
+                    Основание: {event.source}
                   </div>
                 </div>
               </div>
@@ -327,11 +322,11 @@ export function CommandCenterScreen({
 
         <WidgetCard
           empty={priorityActions.length === 0}
-          emptyMessage="Priority actions will appear here when enough executive signals are available."
+          emptyMessage="Список действий появится, когда будет достаточно подтвержденных сигналов."
           error={sharedWidgetError}
           loading={loading}
-          subtitle="Move from signal to action"
-          title="Today Actions"
+          subtitle="Переход от сигнала к действию"
+          title="План на сегодня"
         >
           <div className="space-y-4">
             {priorityActions.map((action) => (
@@ -339,7 +334,7 @@ export function CommandCenterScreen({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-base font-semibold">{action.title}</h3>
                   <StatusBadge tone={mapActionSeverityTone(action.severity)}>
-                    {formatSeverityLabel(action.severity)}
+                    {localizeSeverity(action.severity)}
                   </StatusBadge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -350,7 +345,7 @@ export function CommandCenterScreen({
                 <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{action.description}</p>
                 <p className="mt-3 text-sm font-semibold">{action.recommendation}</p>
                 <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Source {action.source}
+                  Основание: {action.source}
                 </div>
               </div>
             ))}
@@ -362,9 +357,9 @@ export function CommandCenterScreen({
         <section className="space-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-              Critical Alerts
+              Важные сигналы
             </p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">What needs attention</h2>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Что требует внимания</h2>
           </div>
           {alerts.map((alert) => (
             <Alert key={alert.id} detail={alert.detail} title={alert.title} tone={alert.tone} />
@@ -373,12 +368,12 @@ export function CommandCenterScreen({
 
         <WidgetCard
           empty={workspaces.length === 0}
-          emptyMessage="Workspace routes will appear here when navigation entries are available."
+          emptyMessage="Разделы станут доступны после загрузки маршрутов и данных."
           error={sharedWidgetError}
           loading={loading}
-          status={{ label: "Routing ready", tone: "accent" }}
-          subtitle="Go deeper by function"
-          title="Workspace Navigation"
+          status={{ label: "Навигация готова", tone: "accent" }}
+          subtitle="Перейдите в нужный раздел"
+          title="Разделы платформы"
         >
           <div className="grid gap-4 md:grid-cols-2">
             {workspaces.map((workspace) => (
@@ -397,7 +392,7 @@ export function CommandCenterScreen({
                   <ArrowRight className="mt-1 transition group-hover:translate-x-1" size={18} />
                 </div>
                 <div className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent-strong)]">
-                  {workspace.status}
+                  {localizeStatus(workspace.status)}
                 </div>
               </Link>
             ))}

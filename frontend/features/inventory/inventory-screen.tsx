@@ -38,14 +38,14 @@ export function InventoryScreen({
             <OpenAutomationLink format="CSV" workspace="inventory" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh inventory snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Inventory"]}
-        subtitle="A dedicated inventory intelligence workspace for stock coverage, restock plans, supply priority, warehouse visibility, and backend-ready forecast interpretation."
-        title="Inventory"
+        breadcrumb={["Платформа", "Остатки"]}
+        subtitle="Остатки, пополнение, приоритет поставок и состояние складов."
+        title="Остатки"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -53,8 +53,8 @@ export function InventoryScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Данные по остаткам временно недоступны"
           tone="watch"
         />
       ) : null}

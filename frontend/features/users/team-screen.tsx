@@ -9,10 +9,10 @@ import { WidgetCard } from "@/shared/widgets";
 
 function formatDate(value?: string | null) {
   if (!value) {
-    return "n/a";
+    return "нет данных";
   }
 
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("ru-RU", {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -56,10 +56,10 @@ export function TeamScreen({
 }) {
   if (!canViewUsers) {
     return (
-      <WidgetCard subtitle="Users and audit access are restricted to elevated roles." title="Access denied">
+      <WidgetCard subtitle="Просмотр пользователей и журнала доступен не всем ролям." title="Доступ ограничен">
         <p className="text-sm leading-7 text-[var(--ink-soft)]">
-          This screen is wired to backend permission checks. Once real auth arrives, the same
-          contracts can plug into session-backed identity without changing the page API.
+          Страница уже подключена к backend-проверкам прав. Когда появится полноценная авторизация,
+          этот же контракт продолжит работать без изменения API страницы.
         </p>
       </WidgetCard>
     );
@@ -72,9 +72,9 @@ export function TeamScreen({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Team"]}
-        subtitle="Manage platform roles, review effective permissions, and track backend audit hooks for sensitive user lifecycle changes."
-        title="Users / Team"
+        breadcrumb={["Платформа", "Команда"]}
+        subtitle="Пользователи, роли, права доступа и журнал чувствительных изменений."
+        title="Команда"
       />
 
       {actionMessage ? (
@@ -85,11 +85,11 @@ export function TeamScreen({
 
       <WidgetCard
         title="Directory"
-        subtitle="Users and roles"
+        subtitle="Пользователи и роли"
         loading={loading}
         error={error ?? undefined}
         empty={!loading && !error && users.length === 0}
-        emptyMessage="No platform users are available in the current scaffold."
+        emptyMessage="Список пользователей пока пуст."
       >
         <div className="space-y-4">
           {users.map((user: UserProfile) => {
@@ -101,23 +101,23 @@ export function TeamScreen({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold">{user.name}</p>
                       <StatusBadge tone={roleTone(user.role)}>{user.role}</StatusBadge>
-                      <StatusBadge tone={user.enabled ? "healthy" : "watch"}>{user.enabled ? "Enabled" : "Disabled"}</StatusBadge>
-                      {currentUserId === user.id ? <StatusBadge tone="neutral">Current actor</StatusBadge> : null}
+                      <StatusBadge tone={user.enabled ? "healthy" : "watch"}>{user.enabled ? "Активен" : "Отключен"}</StatusBadge>
+                      {currentUserId === user.id ? <StatusBadge tone="neutral">Вы</StatusBadge> : null}
                     </div>
                     <p className="text-sm text-[var(--ink-soft)]">{user.email}</p>
                     <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-soft)]">
-                      Permissions: {user.permissions.join(", ")}
+                      Права: {user.permissions.join(", ")}
                     </p>
                     <div className="flex flex-wrap gap-4 text-xs text-[var(--ink-soft)]">
-                      <span>Created {formatDate(user.createdAt)}</span>
-                      <span>Last active {formatDate(user.lastActiveAt)}</span>
-                      {user.deactivatedAt ? <span>Disabled {formatDate(user.deactivatedAt)}</span> : null}
+                      <span>Создан: {formatDate(user.createdAt)}</span>
+                      <span>Последняя активность: {formatDate(user.lastActiveAt)}</span>
+                      {user.deactivatedAt ? <span>Отключен: {formatDate(user.deactivatedAt)}</span> : null}
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-3 xl:min-w-[240px]">
                     <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-soft)]">
-                      Role
+                      Роль
                     </label>
                     <select
                       className="rounded-2xl border border-[var(--line)] bg-white px-4 py-2.5 text-sm"
@@ -136,7 +136,7 @@ export function TeamScreen({
                       onClick={() => onToggleUser(user.id, !user.enabled)}
                       variant={user.enabled ? "ghost" : "secondary"}
                     >
-                      {busy ? "Saving..." : user.enabled ? "Disable user" : "Enable user"}
+                      {busy ? "Сохранение..." : user.enabled ? "Отключить пользователя" : "Включить пользователя"}
                     </Button>
                   </div>
                 </div>
@@ -147,12 +147,12 @@ export function TeamScreen({
       </WidgetCard>
 
       <WidgetCard
-        title="Audit"
-        subtitle="Recent RBAC events"
+        title="Журнал действий"
+        subtitle="Последние события RBAC"
         loading={loading}
         error={error ?? undefined}
         empty={!loading && !error && auditEvents.length === 0}
-        emptyMessage="No RBAC events have been recorded yet."
+        emptyMessage="События RBAC пока не записаны."
       >
         <div className="space-y-3">
           {auditEvents.slice(0, 12).map((event) => (
@@ -162,8 +162,8 @@ export function TeamScreen({
                 <p className="text-sm font-semibold">{event.event}</p>
               </div>
               <p className="mt-2 text-sm text-[var(--ink-soft)]">
-                Actor: {event.actorId}
-                {event.targetId ? ` -> Target: ${event.targetId}` : ""}
+                Инициатор: {event.actorId}
+                {event.targetId ? ` -> Цель: ${event.targetId}` : ""}
               </p>
               {event.detail ? <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{event.detail}</p> : null}
               <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[var(--ink-soft)]">{formatDate(event.createdAt)}</p>

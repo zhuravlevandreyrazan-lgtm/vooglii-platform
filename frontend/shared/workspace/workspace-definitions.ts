@@ -10,154 +10,154 @@ export type WorkspaceDefinition = {
 
 export const workspaceDefinitions: Record<string, WorkspaceDefinition> = {
   business: {
-    title: "Business",
-    description: "Business workspace is the operating lens for revenue momentum, commercial health, and daily performance diagnosis.",
-    breadcrumb: ["Platform", "Business"],
+    title: "Бизнес",
+    description: "Раздел бизнеса показывает выручку, коммерческое состояние и ежедневную динамику.",
+    breadcrumb: ["Платформа", "Бизнес"],
     widgets: [
       {
-        title: "Revenue Analytics",
-        subtitle: "Commercial revenue movement, pacing, and trend interpretation will live here."
+        title: "Аналитика выручки",
+        subtitle: "Здесь будут показатели выручки, темпы роста и трактовка динамики."
       },
       {
-        title: "Product KPIs",
-        subtitle: "Key SKU and category metrics will be connected to business health and action signals."
+        title: "KPI по товарам",
+        subtitle: "Ключевые метрики SKU и категорий будут связаны с состоянием бизнеса и действиями."
       },
       {
-        title: "Executive Summary Placeholder",
-        subtitle: "Leadership-focused summary cards will appear here as the workspace expands."
+        title: "Управленческая сводка",
+        subtitle: "По мере развития раздела здесь появятся карточки для руководителя."
       }
     ]
   },
   finance: {
-    title: "Finance",
-    description: "Finance workspace hosts payout quality, margin interpretation, and confidence-aware financial visibility.",
-    breadcrumb: ["Platform", "Finance"],
+    title: "Финансы",
+    description: "Финансовый раздел содержит выплаты, маржинальность и прозрачность расчета прибыли.",
+    breadcrumb: ["Платформа", "Финансы"],
     widgets: [
       {
-        title: "Profit Overview",
-        subtitle: "Operational and official profit views will be presented with trust-aware explanations."
+        title: "Обзор прибыли",
+        subtitle: "Здесь будут управленческая и официальная прибыль с пояснениями по надежности."
       },
       {
-        title: "Reconciliation Status",
-        subtitle: "Bridges, explainability, and finance status blocks will be available here."
+        title: "Статус сверки",
+        subtitle: "Здесь будут блоки сверки, объяснимости и статуса финансов."
       },
       {
-        title: "Finance Actions",
-        subtitle: "Rule-based actions for finance review and exception handling will be added here."
+        title: "Финансовые действия",
+        subtitle: "Здесь появятся действия для проверки финансов и обработки исключений."
       }
     ]
   },
   advertising: {
-    title: "Advertising",
-    description: "Advertising workspace covers spend control, efficiency diagnostics, and campaign decision support.",
-    breadcrumb: ["Platform", "Advertising"],
+    title: "Реклама",
+    description: "Раздел рекламы покрывает расходы, эффективность и решения по кампаниям.",
+    breadcrumb: ["Платформа", "Реклама"],
     widgets: [
       {
-        title: "Spend Monitor",
-        subtitle: "Budget pacing and spend efficiency widgets will appear in this workspace."
+        title: "Контроль расходов",
+        subtitle: "Здесь появятся виджеты темпа расходования бюджета и эффективности."
       },
       {
-        title: "Campaign Priorities",
-        subtitle: "Deterministic campaign review cards and escalation panels will live here."
+        title: "Приоритеты кампаний",
+        subtitle: "Здесь будут карточки проверки кампаний и эскалации рисков."
       },
       {
-        title: "Growth Signals",
-        subtitle: "ROAS, ACOS, and opportunity-aware growth interpretation will be connected here."
+        title: "Сигналы роста",
+        subtitle: "Здесь будут ROAS, ACOS и интерпретация точек роста."
       }
     ]
   },
   products: {
-    title: "Products",
-    description: "Products workspace focuses on assortment pressure, product readiness, and SKU-level operating actions.",
-    breadcrumb: ["Platform", "Products"],
+    title: "Товары",
+    description: "Раздел товаров посвящен ассортименту, готовности товаров и действиям на уровне SKU.",
+    breadcrumb: ["Платформа", "Товары"],
     widgets: [
       {
-        title: "SKU Scoreboard",
-        subtitle: "Product-level KPIs and category movement widgets will be available here."
+        title: "Панель SKU",
+        subtitle: "Здесь будут KPI по товарам и движение по категориям."
       },
       {
-        title: "Assortment Watch",
-        subtitle: "Pressure points in assortment and lifecycle decisions will surface here."
+        title: "Контроль ассортимента",
+        subtitle: "Здесь будут узкие места ассортимента и решения по жизненному циклу товаров."
       },
       {
-        title: "Product Actions",
-        subtitle: "Operational product recommendations and ownership tracking will be connected here."
+        title: "Действия по товарам",
+        subtitle: "Здесь появятся рекомендации и ответственность по товарным действиям."
       }
     ]
   },
   inventory: {
-    title: "Inventory",
-    description: "Inventory workspace will manage stock coverage, replenishment timing, and supply stability signals.",
-    breadcrumb: ["Platform", "Inventory"],
+    title: "Остатки",
+    description: "Раздел остатков отвечает за покрытие запасов, пополнение и стабильность поставок.",
+    breadcrumb: ["Платформа", "Остатки"],
     widgets: [
       {
-        title: "Coverage Radar",
-        subtitle: "Stock coverage and days-of-supply widgets will appear in this workspace."
+        title: "Покрытие остатков",
+        subtitle: "Здесь будут показатели покрытия и запаса в днях."
       },
       {
-        title: "Replenishment Queue",
-        subtitle: "Priority replenishment recommendations and supply coordination will live here."
+        title: "Очередь пополнения",
+        subtitle: "Здесь появятся приоритеты пополнения и координация поставок."
       },
       {
-        title: "Risk Buffer",
-        subtitle: "Critical stock gaps and operational buffers will be summarized here."
+        title: "Буфер риска",
+        subtitle: "Здесь будут собраны критичные разрывы по остаткам и страховые буферы."
       }
     ]
   },
   reports: {
-    title: "Reports",
-    description: "Reports workspace will bundle exports, executive packs, and historical business reporting.",
-    breadcrumb: ["Platform", "Reports"],
+    title: "Отчеты",
+    description: "Раздел отчетов объединяет экспорт, управленческие подборки и историческую отчетность.",
+    breadcrumb: ["Платформа", "Отчеты"],
     widgets: [
       {
-        title: "Executive Packs",
-        subtitle: "Download-ready leadership reports and summaries will appear here."
+        title: "Подборки для руководителя",
+        subtitle: "Здесь будут доступны готовые к выгрузке отчеты и краткие сводки."
       },
       {
-        title: "Historical Tables",
-        subtitle: "Period comparisons and archived management views will live here."
+        title: "Исторические таблицы",
+        subtitle: "Здесь будут сравнения периодов и архивные управленческие представления."
       },
       {
-        title: "Distribution Queue",
-        subtitle: "Scheduled report generation and delivery status will be tracked here."
+        title: "Очередь отправки",
+        subtitle: "Здесь будет отслеживаться генерация отчетов и статус доставки."
       }
     ]
   },
   advisor: {
-    title: "AI Advisor",
-    description: "AI Advisor workspace will provide explainable decision support and reviewable advisory flows.",
-    breadcrumb: ["Platform", "AI Advisor"],
+    title: "ИИ-советник",
+    description: "Раздел ИИ-советника дает объяснимые рекомендации и сценарии для принятия решений.",
+    breadcrumb: ["Платформа", "ИИ-советник"],
     widgets: [
       {
-        title: "Advice Queue",
-        subtitle: "Deterministic and future AI-assisted recommendations will be reviewed here."
+        title: "Очередь рекомендаций",
+        subtitle: "Здесь будут собраны текущие и будущие рекомендации по бизнесу."
       },
       {
-        title: "Decision Review",
-        subtitle: "Recommendation approval and explanation trails will appear in this workspace."
+        title: "Разбор решений",
+        subtitle: "Здесь появятся согласование рекомендаций и цепочка объяснений."
       },
       {
-        title: "Scenario Builder",
-        subtitle: "Future what-if and simulation cards will be staged here."
+        title: "Конструктор сценариев",
+        subtitle: "Здесь будут сценарии что-если и будущие симуляции."
       }
     ]
   },
   settings: {
-    title: "Settings",
-    description: "Settings workspace contains preferences, integrations, environment controls, and workspace defaults.",
-    breadcrumb: ["Platform", "Settings"],
+    title: "Настройки",
+    description: "Раздел настроек содержит параметры, интеграции и общие настройки рабочего пространства.",
+    breadcrumb: ["Платформа", "Настройки"],
     widgets: [
       {
-        title: "Profile Settings",
-        subtitle: "User and workspace profile controls will be grouped here."
+        title: "Настройки профиля",
+        subtitle: "Здесь будут настройки пользователя и рабочего пространства."
       },
       {
-        title: "Integrations",
-        subtitle: "Connected data sources and environment configuration will live here."
+        title: "Интеграции",
+        subtitle: "Здесь будут подключенные источники данных и конфигурация окружения."
       },
       {
-        title: "Platform Controls",
-        subtitle: "Workspace defaults, feature toggles, and shell options will appear here."
+        title: "Управление платформой",
+        subtitle: "Здесь будут параметры разделов, переключатели функций и общие опции платформы."
       }
     ]
   }

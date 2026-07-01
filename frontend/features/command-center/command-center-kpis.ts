@@ -16,8 +16,8 @@ import type {
   KpiTrendDirection
 } from "@/features/command-center/kpi-types";
 
-const UNKNOWN_VALUE = "Unknown";
-const UNKNOWN_TREND = "No trend";
+const UNKNOWN_VALUE = "Нет данных";
+const UNKNOWN_TREND = "Нет динамики";
 
 const KPI_MATCHERS: Record<Exclude<KpiMetricKey, "businessHealth">, string[]> = {
   revenue: ["revenue", "gmv", "sales", "turnover", "vyru", "vykup"],
@@ -59,7 +59,7 @@ function parseTrend(delta: string | undefined): KpiTrend {
     return {
       value: UNKNOWN_TREND,
       direction: "unknown",
-      summary: "Trend is unavailable in the current snapshot."
+      summary: "Динамика пока недоступна."
     };
   }
 
@@ -161,7 +161,7 @@ function buildBusinessHealthMetric(snapshot: CommandCenterSnapshot): KpiMetric {
 
   return {
     key: "businessHealth",
-    label: "Business Health",
+    label: "Здоровье бизнеса",
     value: `${score}/100`,
     numericValue: score,
     unit: "score",
@@ -171,7 +171,7 @@ function buildBusinessHealthMetric(snapshot: CommandCenterSnapshot): KpiMetric {
     trend: {
       value: snapshot.businessHealth.status || UNKNOWN_TREND,
       direction: "flat",
-      summary: snapshot.businessHealth.status || "Business status is unavailable."
+      summary: snapshot.businessHealth.status || "Статус бизнеса пока недоступен."
     },
     source: "api.businessHealth"
   };
@@ -211,7 +211,7 @@ function pickTopRisk(
   if (riskAction) {
     return {
       title: riskAction.title,
-      summary: `Owner: ${riskAction.owner}. ETA: ${riskAction.eta}.`,
+      summary: `Ответственный: ${riskAction.owner}. Срок: ${riskAction.eta}.`,
       tone: riskAction.tone,
       source: "api.actions"
     };
@@ -228,7 +228,7 @@ function pickTopOpportunity(commandCenter: CommandCenterSnapshot): KpiOpportunit
   if (opportunityAction) {
     return {
       title: opportunityAction.title,
-      summary: `Owner: ${opportunityAction.owner}. ETA: ${opportunityAction.eta}.`,
+      summary: `Ответственный: ${opportunityAction.owner}. Срок: ${opportunityAction.eta}.`,
       tone: opportunityAction.tone,
       source: "api.actions"
     };
@@ -270,51 +270,51 @@ export function buildCommandCenterKpis(commandCenter: CommandCenterSnapshot): Co
   const revenue = buildDerivedMetric(
     commandCenter,
     "revenue",
-    "Revenue",
+    "Выручка",
     "currency",
-    "Revenue is not available in the current API response."
+    "Данные по выручке пока недоступны."
   );
   const profit = buildDerivedMetric(
     commandCenter,
     "profit",
-    "Profit",
+    "Прибыль",
     "currency",
-    "Profit is not available in the current API response."
+    "Данные по прибыли пока недоступны."
   );
   const margin = buildDerivedMetric(
     commandCenter,
     "margin",
-    "Margin",
+    "Маржинальность",
     "percent",
-    "Margin is not available in the current API response."
+    "Данные по маржинальности пока недоступны."
   );
   const orders = buildDerivedMetric(
     commandCenter,
     "orders",
-    "Orders",
+    "Заказы",
     "count",
-    "Orders are not available in the current API response."
+    "Данные по заказам пока недоступны."
   );
   const advertisingSpend = buildDerivedMetric(
     commandCenter,
     "advertisingSpend",
-    "Advertising Spend",
+    "Расходы на рекламу",
     "currency",
-    "Advertising spend is not available in the current API response."
+    "Данные по расходам на рекламу пока недоступны."
   );
   const roas = buildDerivedMetric(
     commandCenter,
     "roas",
-    "ROAS",
+    "Окупаемость рекламы",
     "ratio",
-    "ROAS is not available in the current API response."
+    "Данные по окупаемости рекламы пока недоступны."
   );
   const acos = buildDerivedMetric(
     commandCenter,
     "acos",
-    "ACOS",
+    "Доля рекламных расходов",
     "percent",
-    "ACOS is not available in the current API response."
+    "Данные по доле рекламных расходов пока недоступны."
   );
   const businessHealth = buildBusinessHealthMetric(commandCenter);
 

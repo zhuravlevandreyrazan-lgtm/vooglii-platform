@@ -36,14 +36,14 @@ export function AdvertisingScreen({
             <OpenAutomationLink format="CSV" workspace="advertising" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh advertising snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Advertising"]}
-        subtitle="A dedicated workspace for backend-driven advertising analytics, campaign efficiency, spend attribution, and recommendation review."
-        title="Advertising"
+        breadcrumb={["Платформа", "Реклама"]}
+        subtitle="Расходы, эффективность кампаний, атрибуция и рекомендации по рекламе."
+        title="Реклама"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -51,8 +51,8 @@ export function AdvertisingScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Рекламные данные временно недоступны"
           tone="watch"
         />
       ) : null}
@@ -66,8 +66,8 @@ export function AdvertisingScreen({
 
       <section className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Metrics Grid</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Advertising metrics from backend-ready analytics snapshot</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Показатели рекламы</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Главное по рекламным кампаниям</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {data.metrics.map((metric) => (

@@ -1,5 +1,6 @@
 import { formatCurrency, formatPercent } from "@/features/command-center/formatters";
 import { StatusBadge } from "@/shared/status";
+import { localizeStatus } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { AdvertisingCampaign } from "@/features/advertising/types";
 
@@ -29,11 +30,11 @@ export function AdvertisingCampaignsWidget({
   return (
     <WidgetCard
       empty={campaigns.length === 0}
-      emptyMessage="Campaign table will appear here when backend returns campaign-level advertising rows."
+      emptyMessage="Таблица кампаний появится здесь, когда backend начнет отдавать построчные данные по рекламе."
       error={error}
       loading={loading}
-      subtitle="Campaign table"
-      title="Campaigns"
+      subtitle="Таблица кампаний"
+      title="Кампании"
     >
       <div className="space-y-3">
         {campaigns.map((campaign) => (
@@ -43,27 +44,27 @@ export function AdvertisingCampaignsWidget({
                 <div className="text-base font-semibold">{campaign.campaign}</div>
                 <div className="mt-1 text-sm text-[var(--ink-soft)]">{campaign.recommendation}</div>
               </div>
-              <StatusBadge tone={toneForStatus(campaign.status)}>{campaign.status}</StatusBadge>
+              <StatusBadge tone={toneForStatus(campaign.status)}>{localizeStatus(campaign.status)}</StatusBadge>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Spend</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Расход</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(campaign.spend)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Revenue</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Выручка</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(campaign.revenue)}</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">ROAS</div>
-                <div className="mt-1 text-sm font-semibold">{campaign.roas === null ? "n/a" : `${campaign.roas.toFixed(1)}x`}</div>
+                <div className="mt-1 text-sm font-semibold">{campaign.roas === null ? "Нет данных" : `${campaign.roas.toFixed(1)}x`}</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">ACOS</div>
-                <div className="mt-1 text-sm font-semibold">{campaign.acos === null ? "n/a" : formatPercent(campaign.acos)}</div>
+                <div className="mt-1 text-sm font-semibold">{campaign.acos === null ? "Нет данных" : formatPercent(campaign.acos)}</div>
               </div>
               <div className="md:col-span-2">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Recommendation</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Рекомендация</div>
                 <div className="mt-1 text-sm font-semibold">{campaign.recommendation}</div>
               </div>
             </div>

@@ -9,10 +9,10 @@ import { WidgetCard } from "@/shared/widgets";
 
 function formatDate(value?: string | null) {
   if (!value) {
-    return "Not synced yet";
+    return "Еще не синхронизировано";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("ru-RU", {
     month: "short",
     day: "2-digit",
     year: "numeric",
@@ -41,19 +41,19 @@ export default function SettingsProfilePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Settings", "Profile"]}
-        subtitle="A compact identity, organization, and Wildberries cabinet summary for beta onboarding and operator checks."
-        title="Profile"
+        breadcrumb={["Платформа", "Настройки", "Профиль"]}
+        subtitle="Краткая сводка по пользователю, организации и кабинету Wildberries."
+        title="Профиль"
       />
 
       <SettingsNav />
 
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone={authenticated ? "healthy" : "watch"}>
-          {authenticated ? "Authenticated" : "Guest"}
+          {authenticated ? "Выполнен вход" : "Гостевой режим"}
         </StatusBadge>
-        {context ? <StatusBadge tone="accent">Mode {context.mode}</StatusBadge> : null}
-        {diagnostics ? <StatusBadge tone="neutral">Source {diagnostics.source}</StatusBadge> : null}
+        {context ? <StatusBadge tone="accent">Режим: {context.mode}</StatusBadge> : null}
+        {diagnostics ? <StatusBadge tone="neutral">Данные обновлены</StatusBadge> : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -61,16 +61,16 @@ export default function SettingsProfilePage() {
           error={error}
           loading={loading}
           status={user ? { label: user.role, tone: "accent" } : undefined}
-          subtitle={user?.name ?? "Account profile"}
-          title="User"
+          subtitle={user?.name ?? "Профиль пользователя"}
+          title="Пользователь"
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Email</p>
-              <p className="mt-2 text-sm font-semibold">{user?.email ?? "n/a"}</p>
+              <p className="mt-2 text-sm font-semibold">{user?.email ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Created</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Создан</p>
               <p className="mt-2 text-sm font-semibold">{formatDate(user?.createdAt)}</p>
             </div>
           </div>
@@ -79,16 +79,16 @@ export default function SettingsProfilePage() {
         <WidgetCard
           loading={loading}
           status={organization ? { label: organization.plan, tone: "healthy" } : undefined}
-          subtitle={organization?.name ?? "Organization profile"}
-          title="Organization"
+          subtitle={organization?.name ?? "Профиль организации"}
+          title="Организация"
         >
           <div className="space-y-4">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Status</p>
-              <p className="mt-2 text-sm font-semibold">{organization?.status ?? "n/a"}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Статус</p>
+              <p className="mt-2 text-sm font-semibold">{organization?.status ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Created</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Создана</p>
               <p className="mt-2 text-sm font-semibold">{formatDate(organization?.createdAt)}</p>
             </div>
           </div>
@@ -97,37 +97,37 @@ export default function SettingsProfilePage() {
 
       <WidgetCard
         loading={loading}
-        status={cabinet ? { label: cabinet.connected ? "Connected" : "Disconnected", tone: cabinet.connected ? "healthy" : "watch" } : undefined}
-        subtitle={cabinet?.name ?? "WB cabinet profile"}
-        title="Wildberries Cabinet"
+        status={cabinet ? { label: cabinet.connected ? "Подключен" : "Не подключен", tone: cabinet.connected ? "healthy" : "watch" } : undefined}
+        subtitle={cabinet?.name ?? "Профиль кабинета WB"}
+        title="Кабинет Wildberries"
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Seller ID</p>
-            <p className="mt-2 text-sm font-semibold">{cabinet?.sellerId ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">ID продавца</p>
+            <p className="mt-2 text-sm font-semibold">{cabinet?.sellerId ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Token Status</p>
-            <p className="mt-2 text-sm font-semibold">{cabinet?.tokenStatus ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Статус токена</p>
+            <p className="mt-2 text-sm font-semibold">{cabinet?.tokenStatus ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Last Sync</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Последняя синхронизация</p>
             <p className="mt-2 text-sm font-semibold">{formatDate(cabinet?.lastSyncAt)}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Cabinet Status</p>
-            <p className="mt-2 text-sm font-semibold">{cabinet?.status ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Статус кабинета</p>
+            <p className="mt-2 text-sm font-semibold">{cabinet?.status ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Data Quality</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Качество данных</p>
             <div className="mt-2">
-              <HealthBadge label={cabinet?.dataQuality ?? "Unknown"} score={mapQualityScore(cabinet?.dataQuality)} />
+              <HealthBadge label={cabinet?.dataQuality ?? "Нет данных"} score={mapQualityScore(cabinet?.dataQuality)} />
             </div>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Workspace Context</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Контекст рабочего пространства</p>
             <p className="mt-2 text-sm font-semibold">
-              {context?.organizationId ?? "n/a"} / {context?.cabinetId ?? "n/a"}
+              {context?.organizationId ?? "нет данных"} / {context?.cabinetId ?? "нет данных"}
             </p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function SettingsProfilePage() {
             className="inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/settings/wb-cabinet"
           >
-            Open WB Cabinet Controls
+            Открыть управление кабинетом
           </Link>
         </div>
       </WidgetCard>

@@ -49,13 +49,13 @@ export type BusinessProduct = {
 
 export type BusinessSnapshot = {
   summary: {
-    revenue: number;
-    profit: number;
-    margin?: number;
-    orders: number;
-    returns: number;
-    averageOrderValue?: number;
-    unitsSold: number;
+    revenue: number | null;
+    profit: number | null;
+    margin?: number | null;
+    orders: number | null;
+    returns: number | null;
+    averageOrderValue?: number | null;
+    unitsSold: number | null;
   };
   trends: {
     revenue: number;

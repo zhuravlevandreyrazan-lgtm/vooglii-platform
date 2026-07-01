@@ -14,11 +14,11 @@ export function InventoryAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Inventory alerts will appear here when backend returns current supply warnings."
+      emptyMessage="Сигналы по остаткам появятся после получения предупреждений от backend."
       error={error}
       loading={loading}
-      subtitle="Backend alerts"
-      title="Inventory Alerts"
+      subtitle="Сигналы по остаткам"
+      title="Предупреждения"
     >
       <div className="space-y-3">
         {alerts.map((alert) => (
@@ -29,7 +29,7 @@ export function InventoryAlertsWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{alert.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {alert.source}
+              Источник: {alert.source}
             </div>
           </div>
         ))}

@@ -5,7 +5,7 @@ import { cn } from "@/shared/lib/cn";
 
 export function OpenAutomationLink({
   workspace,
-  label = "Open in Automation",
+  label = "Открыть в автоматизации",
   format,
   sku,
   className

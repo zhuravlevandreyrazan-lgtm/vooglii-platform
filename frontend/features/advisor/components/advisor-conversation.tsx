@@ -11,11 +11,11 @@ import type { AdvisorQueryContext, AdvisorQueryMessage } from "@/features/adviso
 
 const QUICK_PROMPTS = [
   "Что делать сегодня?",
-  "Почему прибыль изменилась?",
+  "Почему изменилась прибыль?",
   "Какие SKU в риске?",
   "Где реклама сжигает деньги?",
   "Что пополнить в первую очередь?",
-  "Какие товары масштабировать?"
+  "Какие товары можно масштабировать?"
 ];
 
 function formatConfidence(value: number) {
@@ -36,7 +36,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
       <div className="space-y-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-            Advisor answer
+            Ответ советника
           </p>
           <p className="mt-3 text-sm leading-7 text-[var(--ink)]">{message.text}</p>
         </div>
@@ -45,7 +45,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
           <>
             <div className="rounded-[20px] border border-[var(--line)] bg-white px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                Summary
+                Кратко
               </p>
               <p className="mt-3 text-sm leading-6 text-[var(--ink)]">{message.response.summary}</p>
             </div>
@@ -53,18 +53,18 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
             {message.response.recommendations.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Recommendations
+                  Рекомендации
                 </p>
                 {message.response.recommendations.map((item) => (
                   <div key={item.id} className="rounded-[20px] border border-[var(--line)] bg-white px-4 py-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <SeverityBadge severity={item.priority} />
-                      <StatusBadge tone="neutral">{item.confidence} confidence</StatusBadge>
+                      <StatusBadge tone="neutral">Уверенность: {item.confidence}</StatusBadge>
                     </div>
                     <p className="mt-3 text-sm font-semibold">{item.title}</p>
                     <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.reason}</p>
                     <Link className="mt-3 inline-flex text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>
-                      Open workspace
+                      Открыть раздел
                     </Link>
                   </div>
                 ))}
@@ -74,7 +74,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
             {message.response.evidence.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Evidence
+                  Основания
                 </p>
                 {message.response.evidence.map((item) => (
                   <div key={item.id} className="rounded-[20px] border border-[var(--line)] bg-white px-4 py-4">
@@ -90,7 +90,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
                       </div>
                     ) : null}
                     <Link className="mt-3 inline-flex text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>
-                      Open source
+                      Открыть источник
                     </Link>
                   </div>
                 ))}
@@ -115,7 +115,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
             {message.response.related.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Related
+                  Связанные объекты
                 </p>
                 <div className="grid gap-3 md:grid-cols-2">
                   {message.response.related.map((item) => (
@@ -129,7 +129,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
                       ) : null}
                       {item.href ? (
                         <Link className="mt-3 inline-flex text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>
-                          Open
+                          Открыть
                         </Link>
                       ) : null}
                     </div>
@@ -143,7 +143,7 @@ function MessageBubble({ message }: { message: AdvisorQueryMessage }) {
                 {message.response.status}
               </StatusBadge>
               <StatusBadge tone="neutral">
-                Confidence {formatConfidence(message.response.confidence)}
+                Уверенность: {formatConfidence(message.response.confidence)}
               </StatusBadge>
               <RuntimeBadge diagnostics={message.response.diagnostics} />
             </div>
@@ -172,7 +172,7 @@ export function AdvisorConversationCard({
   const helperText =
     error ??
     prompt ??
-    "Ask the advisor about finance, advertising, SKU risk, stock coverage, or what to do next.";
+    "Спросите советника о финансах, рекламе, рисках по SKU, остатках или о том, что делать дальше.";
 
   const onSubmit = async () => {
     await sendMessage();
@@ -182,8 +182,8 @@ export function AdvisorConversationCard({
     <WidgetCard
       error={null}
       loading={loading}
-      subtitle="Copilot conversation"
-      title="Advisor Conversation"
+      subtitle="Диалог с советником"
+      title="Разговор с ИИ-советником"
     >
       <div className="space-y-6">
         <div className="rounded-[22px] border border-[var(--line)] bg-white/70 p-4">
@@ -225,13 +225,13 @@ export function AdvisorConversationCard({
             messages.map((message) => <MessageBubble key={message.id} message={message} />)
           ) : (
             <div className="rounded-[24px] border border-dashed border-[var(--line)] bg-[var(--panel)] px-5 py-8 text-sm leading-7 text-[var(--ink-soft)]">
-              Ask a management question to receive an advisor answer, recommendations, evidence, links, related items, and runtime diagnostics.
+              Задайте управленческий вопрос, чтобы получить ответ советника, рекомендации, доказательства и связанные ссылки.
             </div>
           )}
 
           {sending ? (
             <div className="max-w-4xl rounded-[24px] border border-[var(--line)] bg-[var(--panel)] px-5 py-5 text-sm leading-7 text-[var(--ink-soft)]">
-              Advisor is preparing a response...
+              Советник готовит ответ...
             </div>
           ) : null}
         </div>
@@ -241,10 +241,10 @@ export function AdvisorConversationCard({
             className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]"
             htmlFor="advisor-input"
           >
-            Ask the advisor
+            Ваш вопрос
           </label>
           <textarea
-            aria-label="Advisor conversation input"
+            aria-label="Поле ввода для ИИ-советника"
             className="mt-3 min-h-32 w-full rounded-[18px] border border-[var(--line)] bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-[var(--accent)]"
             disabled={disabled}
             id="advisor-input"
@@ -256,7 +256,7 @@ export function AdvisorConversationCard({
                 void onSubmit();
               }
             }}
-            placeholder="Ask what to do today, why profit changed, which SKU is in risk, or where ad spend is leaking."
+            placeholder="Например: что делать сегодня, почему упала прибыль, какой SKU в риске или где реклама теряет деньги?"
             value={input}
           />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -265,13 +265,13 @@ export function AdvisorConversationCard({
             </p>
             <div className="flex flex-wrap gap-3">
               <Button disabled={disabled || messages.length === 0} onClick={clearConversation} type="button" variant="ghost">
-                Clear
+                Очистить
               </Button>
               <Button disabled={disabled || messages.length === 0} onClick={() => void retryLast()} type="button" variant="ghost">
-                Retry
+                Повторить
               </Button>
               <Button disabled={disabled || input.trim().length === 0} onClick={() => void onSubmit()} type="button" variant="secondary">
-                {sending ? "Sending..." : "Send"}
+                {sending ? "Отправка..." : "Отправить"}
               </Button>
             </div>
           </div>

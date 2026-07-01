@@ -1,4 +1,5 @@
 import { SeverityBadge, StatusBadge } from "@/shared/status";
+import { localizeConfidence } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ProductRecommendation } from "@/features/products/types";
 
@@ -14,11 +15,11 @@ export function ProductRecommendationsWidget({
   return (
     <WidgetCard
       empty={recommendations.length === 0}
-      emptyMessage="SKU action plan recommendations will appear here when backend returns product actions."
+      emptyMessage="План действий по SKU появится здесь, когда backend вернет рекомендации по товарам."
       error={error}
       loading={loading}
-      subtitle="SKU action plan"
-      title="Recommendations"
+      subtitle="План действий по SKU"
+      title="Рекомендации"
     >
       <div className="space-y-3">
         {recommendations.map((item) => (
@@ -33,7 +34,7 @@ export function ProductRecommendationsWidget({
             <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{item.reason}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="accent">{item.expectedEffect}</StatusBadge>
-              <StatusBadge tone="neutral">Confidence {item.confidence}</StatusBadge>
+              <StatusBadge tone="neutral">Уверенность: {localizeConfidence(item.confidence)}</StatusBadge>
             </div>
           </div>
         ))}

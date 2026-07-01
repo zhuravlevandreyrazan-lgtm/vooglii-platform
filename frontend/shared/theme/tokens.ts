@@ -1,7 +1,7 @@
 export const theme = {
   brand: {
     name: "VOOGLII",
-    tagline: "Business Operating System for Marketplace Sellers"
+    tagline: "Платформа управления бизнесом на Wildberries"
   },
   colors: {
     ink: "#0F172A",

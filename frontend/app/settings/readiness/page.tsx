@@ -62,21 +62,21 @@ type MetricsPayload = {
 };
 
 const WORKSPACE_READINESS = [
-  "Executive",
-  "Business",
-  "Finance",
-  "Advertising",
-  "Products",
-  "Inventory",
-  "Advisor",
-  "Reports",
-  "Product Drilldown"
+  "Главная",
+  "Бизнес",
+  "Финансы",
+  "Реклама",
+  "Товары",
+  "Остатки",
+  "ИИ-советник",
+  "Отчеты",
+  "Карточка товара"
 ];
 
 const KNOWN_LIMITATIONS = [
-  "Demo Mode is frontend-driven and does not persist server-side state.",
-  "Automation exports, schedules, and notifications use placeholder delivery flows in dev/RC.",
-  "Smoke status is still recorded manually after script execution."
+  "Демо-режим управляется фронтендом и не сохраняет состояние на сервере.",
+  "Выгрузки, расписания и уведомления в dev/RC еще используют безопасные заглушки доставки.",
+  "Статус smoke-проверки по-прежнему фиксируется после ручного запуска скриптов."
 ];
 
 export default function SettingsReadinessPage() {
@@ -111,9 +111,9 @@ export default function SettingsReadinessPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Settings", "Readiness"]}
-        subtitle="A compact release checklist for demo sessions, smoke confidence, backend availability, and current platform mode."
-        title="Release Readiness"
+        breadcrumb={["Платформа", "Настройки", "Готовность"]}
+        subtitle="Краткий чек-лист по доступности платформы, проверкам и текущему режиму работы."
+        title="Готовность к запуску"
       />
 
       <SettingsNav />
@@ -137,170 +137,170 @@ export default function SettingsReadinessPage() {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <WidgetCard error={error} subtitle="Platform mode" title="Environment">
+        <WidgetCard error={error} subtitle="Режим платформы" title="Окружение">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={demoModeEnabled ? "accent" : "healthy"}>
-              {demoModeEnabled ? "DEMO MODE" : "LIVE MODE"}
+              {demoModeEnabled ? "Демо-режим" : "Рабочий режим"}
             </StatusBadge>
-            <StatusBadge tone="neutral">Backend API {statusData?.status ?? "Unknown"}</StatusBadge>
+            <StatusBadge tone="neutral">API: {statusData?.status ?? "Нет данных"}</StatusBadge>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Version</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.version ?? statusData?.version ?? "n/a"}</p>
+              <p className="font-semibold">Версия</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.version ?? statusData?.version ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Build</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.build ?? statusData?.build ?? "n/a"}</p>
+              <p className="font-semibold">Сборка</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.build ?? statusData?.build ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Commit</p>
-              <p className="mt-2 font-mono text-[var(--ink-soft)]">{versionData?.git ?? "unknown"}</p>
+              <p className="font-semibold">Коммит</p>
+              <p className="mt-2 font-mono text-[var(--ink-soft)]">{versionData?.git ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
               <p className="font-semibold">API</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.apiVersion ?? "n/a"}</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.apiVersion ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Environment</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.environment ?? healthData?.environment ?? "n/a"}</p>
+              <p className="font-semibold">Окружение</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.environment ?? healthData?.environment ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Build Type</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.buildType ?? "n/a"}</p>
+              <p className="font-semibold">Тип сборки</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.buildType ?? "нет данных"}</p>
             </div>
           </div>
         </WidgetCard>
 
-        <WidgetCard subtitle="Last smoke status" title="Operational checks">
+        <WidgetCard subtitle="Последние проверки" title="Операционные проверки">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Smoke placeholder</p>
+              <p className="font-semibold">Smoke-проверка</p>
               <p className="mt-2 text-[var(--ink-soft)]">
-                Run `python scripts/smoke_api.py`, `npm.cmd run type-check`, and `npm.cmd run build` before each RC demo.
+                Перед показом запускайте `python scripts/smoke_api.py`, `npm.cmd run type-check` и `npm.cmd run build`.
               </p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Known limitations</p>
-              <p className="mt-2 text-[var(--ink-soft)]">See `KNOWN_LIMITATIONS.md` for the current RC limitation list.</p>
+              <p className="font-semibold">Известные ограничения</p>
+              <p className="mt-2 text-[var(--ink-soft)]">Актуальный список ограничений хранится в `KNOWN_LIMITATIONS.md`.</p>
             </div>
           </div>
         </WidgetCard>
       </div>
 
-      <WidgetCard subtitle="Workspace readiness" title="Showcase coverage">
+      <WidgetCard subtitle="Готовность разделов" title="Покрытие витрины">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {WORKSPACE_READINESS.map((workspace) => (
             <div key={workspace} className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold">{workspace}</p>
-                <StatusBadge tone="healthy">Ready</StatusBadge>
+                <StatusBadge tone="healthy">Готово</StatusBadge>
               </div>
             </div>
           ))}
         </div>
       </WidgetCard>
 
-      <WidgetCard subtitle="Multi-tenant shell context" title="Workspace Context">
+      <WidgetCard subtitle="Контекст рабочего пространства" title="Выбранные организации и кабинеты">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Organization Count</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Количество организаций</p>
             <p className="mt-2 text-sm font-semibold">{workspace.context.organizationCount}</p>
           </div>
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Cabinet Count</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Количество кабинетов</p>
             <p className="mt-2 text-sm font-semibold">{workspace.context.cabinetCount}</p>
           </div>
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Current Organization</p>
-            <p className="mt-2 text-sm font-semibold">{workspace.organization?.name ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущая организация</p>
+            <p className="mt-2 text-sm font-semibold">{workspace.organization?.name ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Current Cabinet</p>
-            <p className="mt-2 text-sm font-semibold">{workspace.cabinet?.name ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущий кабинет</p>
+            <p className="mt-2 text-sm font-semibold">{workspace.cabinet?.name ?? "нет данных"}</p>
           </div>
         </div>
       </WidgetCard>
 
-      <WidgetCard subtitle="Backend API status" title="Connected services">
+      <WidgetCard subtitle="Статус подключенных сервисов" title="Сервисы">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {[
             ["WB API", statusData?.wbApi],
-            ["Database", statusData?.database],
-            ["Analytics", statusData?.analytics],
-            ["Ads", statusData?.ads],
-            ["Finance", statusData?.finance],
-            ["System", statusData?.system]
+            ["База данных", statusData?.database],
+            ["Аналитика", statusData?.analytics],
+            ["Реклама", statusData?.ads],
+            ["Финансы", statusData?.finance],
+            ["Система", statusData?.system]
           ].map(([label, value]) => (
             <div key={label} className="rounded-[22px] bg-[var(--panel-strong)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">{label}</p>
-              <p className="mt-2 text-sm font-semibold">{value ?? "Unknown"}</p>
+              <p className="mt-2 text-sm font-semibold">{value ?? "Нет данных"}</p>
             </div>
           ))}
         </div>
       </WidgetCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <WidgetCard subtitle="Runtime and startup checks" title="Health">
+        <WidgetCard subtitle="Проверки состояния и запуска" title="Состояние">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Uptime</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{typeof healthData?.uptimeSeconds === "number" ? `${healthData.uptimeSeconds}s` : "n/a"}</p>
+              <p className="font-semibold">Время работы</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{typeof healthData?.uptimeSeconds === "number" ? `${healthData.uptimeSeconds} c` : "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
-              <p className="font-semibold">Memory</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{typeof healthData?.memoryUsageMb === "number" ? `${healthData.memoryUsageMb} MB` : "n/a"}</p>
+              <p className="font-semibold">Память</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{typeof healthData?.memoryUsageMb === "number" ? `${healthData.memoryUsageMb} МБ` : "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
               <p className="font-semibold">Python</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{healthData?.pythonVersion ?? "n/a"}</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{healthData?.pythonVersion ?? "нет данных"}</p>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4 text-sm">
               <p className="font-semibold">Frontend</p>
-              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.frontendVersion ?? healthData?.frontendVersion ?? "n/a"}</p>
+              <p className="mt-2 text-[var(--ink-soft)]">{versionData?.frontendVersion ?? healthData?.frontendVersion ?? "нет данных"}</p>
             </div>
           </div>
         </WidgetCard>
 
-        <WidgetCard subtitle="Deployment surface" title="Docker & Startup">
+        <WidgetCard subtitle="Развертывание" title="Docker и запуск">
           <div className="grid gap-3">
             <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4 text-sm">
               <p className="font-semibold">Docker</p>
-              <p className="mt-2 text-[var(--ink-soft)]">Repository now includes multi-stage backend/frontend Dockerfiles and compose definitions.</p>
+              <p className="mt-2 text-[var(--ink-soft)]">В репозитории уже есть multi-stage Dockerfile для backend и frontend, а также compose-конфигурации.</p>
             </div>
             <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4 text-sm">
-              <p className="font-semibold">Startup Validation</p>
+              <p className="font-semibold">Проверка запуска</p>
               <p className="mt-2 text-[var(--ink-soft)]">
-                {metricsData?.startupValidation?.ok ? "Startup validation is passing." : "Startup validation returned warnings."}
+                {metricsData?.startupValidation?.ok ? "Проверка запуска проходит успешно." : "Проверка запуска вернула предупреждения."}
               </p>
             </div>
             <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4 text-sm">
-              <p className="font-semibold">Deployment Status</p>
-              <p className="mt-2 text-[var(--ink-soft)]">Ready for VPS/cloud deployment with environment-specific examples and CI build validation.</p>
+              <p className="font-semibold">Статус развертывания</p>
+              <p className="mt-2 text-[var(--ink-soft)]">Платформа готова к VPS или cloud-развертыванию с отдельными примерами env и CI-проверками сборки.</p>
             </div>
           </div>
         </WidgetCard>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <WidgetCard subtitle="Workspace services" title="Automation">
+        <WidgetCard subtitle="Сервисы платформы" title="Автоматизация">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Exports, schedules, and jobs are present with production-facing container and env preparation.
+            Выгрузки, расписания и фоновые задачи уже подготовлены для production-среды.
           </p>
         </WidgetCard>
-        <WidgetCard subtitle="Workspace services" title="Notifications">
+        <WidgetCard subtitle="Сервисы платформы" title="Уведомления">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Notifications runtime is observable and delivery placeholders remain safely separated from production secrets.
+            Раздел уведомлений отслеживается, а безопасные заглушки доставки остаются отделены от production-секретов.
           </p>
         </WidgetCard>
-        <WidgetCard subtitle="Workspace services" title="Auth">
+        <WidgetCard subtitle="Сервисы платформы" title="Доступ">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Auth, organization, and cabinet context remain available and visible through startup, health, and readiness surfaces.
+            Контекст пользователя, организации и кабинета доступен в проверках запуска, состоянии и разделе готовности.
           </p>
         </WidgetCard>
       </div>
 
-      <WidgetCard subtitle="Release candidate notes" title="Known limitations">
+      <WidgetCard subtitle="Заметки по релизу" title="Известные ограничения">
         <div className="grid gap-3">
           {KNOWN_LIMITATIONS.map((item) => (
             <div key={item} className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4 text-sm text-[var(--ink-soft)]">

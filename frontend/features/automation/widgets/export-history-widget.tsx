@@ -14,11 +14,11 @@ export function ExportHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="Export history will appear here when export records are available."
+      emptyMessage="История выгрузок появится после появления записей об экспорте."
       error={error}
       loading={loading}
-      subtitle="Latest exports"
-      title="Export History"
+      subtitle="Последние выгрузки"
+      title="История выгрузок"
     >
       <div className="space-y-3">
         {history.map((item) => (
@@ -26,10 +26,10 @@ export function ExportHistoryWidget({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-base font-semibold">{item.type}</p>
-                <p className="mt-1 text-sm text-[var(--ink-soft)]">{item.source} • owner {item.owner}</p>
+                <p className="mt-1 text-sm text-[var(--ink-soft)]">{item.source} - владелец: {item.owner}</p>
                 {item.organizationName || item.cabinetName ? (
                   <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                    {[item.organizationName, item.cabinetName].filter(Boolean).join(" • ")}
+                    {[item.organizationName, item.cabinetName].filter(Boolean).join(" - ")}
                   </p>
                 ) : null}
               </div>
@@ -41,8 +41,8 @@ export function ExportHistoryWidget({
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--ink-soft)]">
-              <span>{item.date ?? "n/a"}</span>
-              <span>{item.size ?? "Size pending"}</span>
+              <span>{item.date ?? "нет данных"}</span>
+              <span>{item.size ?? "Размер появится после сборки"}</span>
             </div>
           </div>
         ))}

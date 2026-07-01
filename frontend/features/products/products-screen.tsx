@@ -37,14 +37,14 @@ export function ProductsScreen({
             <OpenAutomationLink format="JSON" workspace="products" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh products snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Products"]}
-        subtitle="A unified product intelligence workspace for SKU analytics, action plans, historical performance, forecast visibility, and stock-aware operating review."
-        title="Products"
+        breadcrumb={["Платформа", "Товары"]}
+        subtitle="SKU-аналитика, рекомендации, история и товарные сигналы по ассортименту."
+        title="Товары"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -52,8 +52,8 @@ export function ProductsScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Товарные данные временно недоступны"
           tone="watch"
         />
       ) : null}

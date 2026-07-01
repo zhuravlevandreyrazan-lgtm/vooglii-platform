@@ -13,6 +13,11 @@ import type {
   CommandCenterSnapshot,
   StatusTone
 } from "@/types/platform";
+import {
+  localizeRuntimeSource,
+  localizeStatus,
+  localizeWorkspaceLabel
+} from "@/shared/ui/status-labels";
 
 type ApiStatus = "GOOD" | "WARNING" | "CRITICAL" | "UNKNOWN";
 
@@ -159,15 +164,15 @@ function statusToTone(status?: string): StatusTone {
 
 function formatConfidence(value?: number) {
   if (typeof value !== "number") {
-    return "Partial confidence";
+    return "Средняя уверенность";
   }
   if (value >= 85) {
-    return "High confidence";
+    return "Высокая уверенность";
   }
   if (value >= 65) {
-    return "Medium confidence";
+    return "Средняя уверенность";
   }
-  return "Low confidence";
+  return "Низкая уверенность";
 }
 
 export function mapCommandCenterApiResponseToSnapshot(
@@ -178,12 +183,12 @@ export function mapCommandCenterApiResponseToSnapshot(
     ...(payload.executive_brief?.why ?? [])
   ].filter(Boolean);
   const systemFinance = payload.system?.finance_api ?? "UNKNOWN";
-  const degraded = payload.system?.degraded ? " Degraded fields are active." : "";
+  const degraded = payload.system?.degraded ? " Часть данных сейчас недоступна." : "";
 
   return {
     businessHealth: {
       score: payload.business_health?.score ?? commandCenterMock.businessHealth.score,
-      status: payload.business_health?.status ?? "UNKNOWN",
+      status: localizeStatus(payload.business_health?.status ?? "UNKNOWN"),
       summary:
         payload.business_health?.summary ??
         summaryBits[0] ??
@@ -191,7 +196,7 @@ export function mapCommandCenterApiResponseToSnapshot(
     },
     executiveBrief: {
       id: "executive-brief",
-      eyebrow: "Executive Brief",
+      eyebrow: "Краткий вывод",
       title: payload.executive_brief?.title ?? commandCenterMock.executiveBrief.title,
       summary:
         summaryBits.join(" ").trim() ||
@@ -206,53 +211,53 @@ export function mapCommandCenterApiResponseToSnapshot(
     },
     kpis:
       payload.kpis?.map((metric) => ({
-        label: metric.title ?? "KPI",
-        value: metric.value ?? "n/a",
-        delta: metric.delta ?? "n/a",
+        label: metric.title ?? "Показатель",
+        value: metric.value ?? "Нет данных",
+        delta: metric.delta ?? "Нет данных",
         tone: statusToTone(metric.status),
-        note: metric.source ?? "Live backend API"
+        note: metric.source ? `Источник: ${metric.source}` : "Данные по текущему периоду"
       })) ?? commandCenterMock.kpis,
     timeline:
       payload.recent_events?.map((event, index) => ({
         id: event.id ?? `timeline-${index + 1}`,
-        time: "Now",
-        title: event.title ?? "Recent event",
-        detail: event.detail ?? "No detail available.",
+        time: "Сейчас",
+        title: event.title ?? "Последнее событие",
+        detail: event.detail ?? "Подробности появятся после обновления данных.",
         tone: statusToTone(event.status)
       })) ?? commandCenterMock.timeline,
     actions:
       payload.today_actions?.map((action, index) => ({
         id: action.id ?? `action-${index + 1}`,
-        title: action.title ?? "Action",
-        owner: action.owner ?? "Command Center",
-        eta: action.eta ?? "Today",
+        title: action.title ?? "Действие",
+        owner: action.owner ?? "Центр управления",
+        eta: action.eta ?? "Сегодня",
         tone: statusToTone(action.status)
       })) ?? commandCenterMock.actions,
     alerts:
       payload.critical_alerts?.map((alert, index) => ({
         id: alert.id ?? `alert-${index + 1}`,
-        title: alert.title ?? "Alert",
-        detail: alert.detail ?? "No detail available.",
+        title: alert.title ?? "Сигнал",
+        detail: alert.detail ?? "Подробности появятся после обновления данных.",
         tone: statusToTone(alert.status)
       })) ?? commandCenterMock.alerts,
     workspaces:
       payload.workspaces?.map((workspace) => ({
-        title: workspace.title ?? "Workspace",
+        title: localizeWorkspaceLabel(workspace.title ?? "workspace"),
         href: workspace.href ?? "/",
-        summary: workspace.summary ?? "Read-only workspace",
-        status: workspace.status ?? "UNKNOWN"
+        summary: workspace.summary ?? "Раздел будет доступен после загрузки данных.",
+        status: localizeStatus(workspace.status ?? "UNKNOWN")
       })) ?? commandCenterMock.workspaces,
     notifications: [
       {
         id: "api-source",
-        title: "Live backend connected",
-        description: `Finance API status: ${systemFinance}.${degraded}`,
+        title: localizeRuntimeSource(payload.runtime?.source ?? "live"),
+        description: `Статус финансовых данных: ${localizeStatus(systemFinance)}.${degraded}`,
         tone: statusToTone(payload.business_health?.status)
       },
       {
         id: "api-period",
-        title: payload.period?.label === "current_month" ? "Current month window" : "Reporting window",
-        description: `${payload.period?.date_from ?? "?"} to ${payload.period?.date_to ?? "?"}`,
+        title: payload.period?.label === "current_month" ? "Текущий месяц" : "Отчетный период",
+        description: `${payload.period?.date_from ?? "?"} - ${payload.period?.date_to ?? "?"}`,
         tone: "neutral"
       }
     ]

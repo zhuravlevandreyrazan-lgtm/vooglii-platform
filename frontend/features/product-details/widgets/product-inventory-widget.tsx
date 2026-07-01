@@ -3,7 +3,7 @@ import { WidgetCard } from "@/shared/widgets";
 import type { ProductInventory } from "@/features/product-details/types";
 
 function formatNumber(value: number | null) {
-  return typeof value === "number" ? value.toLocaleString("en-US") : "n/a";
+  return typeof value === "number" ? value.toLocaleString("en-US") : "Нет данных";
 }
 
 export function ProductInventoryWidget({
@@ -16,17 +16,17 @@ export function ProductInventoryWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Inventory" title="Availability">
+    <WidgetCard error={error} loading={loading} subtitle="Остатки" title="Наличие">
       <div className="grid gap-4 sm:grid-cols-2">
-        <ProductDetailMetric label="Stock" value={formatNumber(inventory.stock)} />
-        <ProductDetailMetric label="Reserved" value={formatNumber(inventory.reserved)} />
-        <ProductDetailMetric label="Available" value={formatNumber(inventory.available)} />
+        <ProductDetailMetric label="Остаток" value={formatNumber(inventory.stock)} />
+        <ProductDetailMetric label="Резерв" value={formatNumber(inventory.reserved)} />
+        <ProductDetailMetric label="Доступно" value={formatNumber(inventory.available)} />
         <ProductDetailMetric
-          label="Days left"
-          value={typeof inventory.daysLeft === "number" ? `${inventory.daysLeft} days` : "n/a"}
+          label="Дней запаса"
+          value={typeof inventory.daysLeft === "number" ? `${inventory.daysLeft} дней` : "Нет данных"}
         />
-        <ProductDetailMetric label="Warehouse" value={inventory.warehouse} />
-        <ProductDetailMetric label="Forecast" value={inventory.forecast} />
+        <ProductDetailMetric label="Склад" value={inventory.warehouse} />
+        <ProductDetailMetric label="Прогноз" value={inventory.forecast} />
       </div>
     </WidgetCard>
   );

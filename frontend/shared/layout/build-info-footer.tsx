@@ -29,8 +29,8 @@ export function BuildInfoFooter() {
   return (
     <span className="text-xs text-[var(--ink-soft)]">
       {version
-        ? `v${version.version ?? "n/a"} • ${version.environment ?? "unknown"} • ${version.buildType ?? "build"} • ${version.git ?? "unknown"}`
-        : "Build info unavailable"}
+        ? `v${version.version ?? "нет данных"} - ${version.environment ?? "среда не указана"} - ${version.buildType ?? "сборка"} - ${version.git ?? "нет git-хеша"}`
+        : "Информация о сборке недоступна"}
     </span>
   );
 }

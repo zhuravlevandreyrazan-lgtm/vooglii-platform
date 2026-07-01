@@ -35,14 +35,14 @@ export function FinanceScreen({
             <OpenAutomationLink format="CSV" workspace="finance" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh finance snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Finance"]}
-        subtitle="A finance workspace for safe operating profit visibility, official profit status, trust, coverage, residual usage, and backend-provided finance quality signals."
-        title="Finance"
+        breadcrumb={["Платформа", "Финансы"]}
+        subtitle="Прибыль, выплаты, расхождения и качество финансовых данных Wildberries."
+        title="Финансы"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -50,8 +50,8 @@ export function FinanceScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Финансовые данные временно недоступны"
           tone="watch"
         />
       ) : null}
@@ -60,8 +60,8 @@ export function FinanceScreen({
 
       <section className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Profit Widgets</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Prepared finance indicators from backend-ready snapshot</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Финансовые показатели</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Ключевые показатели по финансам</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {data.metrics.map((metric) => (

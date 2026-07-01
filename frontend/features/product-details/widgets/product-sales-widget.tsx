@@ -1,13 +1,14 @@
 import { ProductDetailMetric } from "@/features/product-details/components/product-detail-metric";
-import { WidgetCard } from "@/shared/widgets";
 import type { ProductSales } from "@/features/product-details/types";
+import { formatOptionalValue } from "@/shared/ui/status-labels";
+import { WidgetCard } from "@/shared/widgets";
 
 function formatMoney(value: number | null) {
-  return typeof value === "number" ? `₽${value.toLocaleString("en-US")}` : "n/a";
+  return typeof value === "number" ? `₽${value.toLocaleString("ru-RU")}` : "Нет данных";
 }
 
 function formatNumber(value: number | null) {
-  return typeof value === "number" ? value.toLocaleString("en-US") : "n/a";
+  return typeof value === "number" ? value.toLocaleString("ru-RU") : "Нет данных";
 }
 
 export function ProductSalesWidget({
@@ -20,14 +21,18 @@ export function ProductSalesWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Sales" title="Performance">
+    <WidgetCard error={error} loading={loading} subtitle="Продажи" title="Результаты SKU">
       <div className="grid gap-4 sm:grid-cols-2">
-        <ProductDetailMetric label="Revenue" value={formatMoney(sales.revenue)} />
-        <ProductDetailMetric label="Orders" value={formatNumber(sales.orders)} />
-        <ProductDetailMetric label="Units" value={formatNumber(sales.units)} />
-        <ProductDetailMetric label="Average price" value={formatMoney(sales.averagePrice)} />
+        <ProductDetailMetric label="Выручка" value={formatMoney(sales.revenue)} />
+        <ProductDetailMetric label="Заказы" value={formatNumber(sales.orders)} />
+        <ProductDetailMetric label="Штуки" value={formatNumber(sales.units)} />
+        <ProductDetailMetric label="Средняя цена" value={formatMoney(sales.averagePrice)} />
         <div className="sm:col-span-2">
-          <ProductDetailMetric label="Trend" value={sales.trend} hint="Backend-supplied trend summary." />
+          <ProductDetailMetric
+            label="Тренд"
+            value={formatOptionalValue(sales.trend)}
+            hint="Краткая динамика из backend."
+          />
         </div>
       </div>
     </WidgetCard>

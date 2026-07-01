@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/shared/status";
+import { localizeConfidence } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { BusinessInsight } from "@/features/business/types";
 
@@ -18,7 +19,7 @@ export function BusinessInsightWidget({
       error={error}
       loading={loading}
       status={{
-        label: `Confidence ${insight.confidence}`,
+        label: `Уверенность: ${localizeConfidence(insight.confidence)}`,
         tone:
           insight.confidence === "high"
             ? "healthy"
@@ -26,8 +27,8 @@ export function BusinessInsightWidget({
               ? "watch"
               : "neutral"
       }}
-      subtitle="Business Insight"
-      title="Business Insight"
+      subtitle="Ключевой вывод"
+      title="Инсайт по бизнесу"
       updatedAt={updatedAt}
     >
       <div className="space-y-4">
@@ -35,7 +36,7 @@ export function BusinessInsightWidget({
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Strengths
+              Сильные стороны
             </div>
             <div className="mt-3 space-y-2">
               {insight.strengths.slice(0, 2).map((item) => (
@@ -45,7 +46,7 @@ export function BusinessInsightWidget({
           </div>
           <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Weaknesses
+              Зоны риска
             </div>
             <div className="mt-3 space-y-2">
               {insight.weaknesses.slice(0, 2).map((item) => (

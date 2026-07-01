@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ReportTimeline } from "@/features/reports/types";
 
@@ -14,11 +15,11 @@ export function ReportTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Reports timeline will appear here when backend returns report timeline entries."
+      emptyMessage="Лента отчетов появится здесь, когда backend начнет возвращать события."
       error={error}
       loading={loading}
-      subtitle="Reports timeline"
-      title="Reports Timeline"
+      subtitle="Лента отчетов"
+      title="История отчетов"
     >
       <div className="space-y-3">
         {timeline.map((item) => (
@@ -29,7 +30,7 @@ export function ReportTimelineWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {item.source}
+              Источник: {localizeWorkspaceLabel(item.source)}
             </div>
           </div>
         ))}

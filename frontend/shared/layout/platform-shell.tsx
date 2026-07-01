@@ -20,7 +20,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setLastUpdated(
-      new Intl.DateTimeFormat("en-US", {
+      new Intl.DateTimeFormat("ru-RU", {
         month: "short",
         day: "2-digit",
         hour: "2-digit",
@@ -54,8 +54,8 @@ export function PlatformShell({ children }: { children: ReactNode }) {
 
               <footer className="border-t border-[var(--line)] px-4 py-4 text-sm text-[var(--ink-soft)] lg:px-8">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                  <span>VOOGLII Platform Shell</span>
-                  <span>Executive workspace architecture prepared for business, finance, advertising, and AI modules.</span>
+                  <span>VOOGLII Platform</span>
+                  <span>Платформа для управления бизнесом, финансами, рекламой и аналитикой Wildberries.</span>
                   <BuildInfoFooter />
                 </div>
               </footer>

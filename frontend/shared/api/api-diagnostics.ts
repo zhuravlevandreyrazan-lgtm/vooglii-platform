@@ -35,7 +35,7 @@ export function getApiIntegrationDiagnostic({
       status: "using_fallback",
       usingFallback: true,
       requestUrl,
-      message: "Using safe fallback snapshot."
+      message: "Используются резервные данные."
     };
   }
 
@@ -59,7 +59,7 @@ export function getApiIntegrationDiagnostic({
     usingFallback: false,
     requestUrl,
     message: configured
-      ? "Backend base URL is configured."
-      : "Using relative API routes through local proxy."
+      ? "Базовый URL API настроен."
+      : "Используются относительные API-маршруты через локальный прокси."
   };
 }

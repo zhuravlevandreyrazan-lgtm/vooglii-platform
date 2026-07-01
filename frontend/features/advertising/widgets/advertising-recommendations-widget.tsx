@@ -1,4 +1,5 @@
 import { SeverityBadge, StatusBadge } from "@/shared/status";
+import { localizeConfidence } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { AdvertisingRecommendation } from "@/features/advertising/types";
 
@@ -14,11 +15,11 @@ export function AdvertisingRecommendationsWidget({
   return (
     <WidgetCard
       empty={recommendations.length === 0}
-      emptyMessage="Campaign recommendations will appear here when backend returns recommendation payloads."
+      emptyMessage="Рекомендации по кампаниям появятся здесь, когда backend вернет payload с действиями."
       error={error}
       loading={loading}
-      subtitle="Campaign recommendations"
-      title="Campaign Recommendation Panel"
+      subtitle="Рекомендации по кампаниям"
+      title="Панель рекомендаций"
     >
       <div className="space-y-3">
         {recommendations.map((item) => (
@@ -33,7 +34,7 @@ export function AdvertisingRecommendationsWidget({
             <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{item.reason}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="accent">{item.expectedEffect}</StatusBadge>
-              <StatusBadge tone="neutral">Confidence {item.confidence}</StatusBadge>
+              <StatusBadge tone="neutral">Уверенность: {localizeConfidence(item.confidence)}</StatusBadge>
             </div>
           </div>
         ))}

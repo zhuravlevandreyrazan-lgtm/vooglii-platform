@@ -44,14 +44,14 @@ export function AdvisorScreen({
             <OpenAutomationLink format="PDF" workspace="advisor" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh advisor snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "AI Advisor"]}
-        subtitle="A unified management-facing advisor workspace that routes leadership through cross-workspace recommendations, evidence, sources, and action paths."
-        title="AI Advisor"
+        breadcrumb={["Платформа", "ИИ-советник"]}
+        subtitle="Рекомендации, доказательства, связанные сигналы и действия по всем рабочим разделам."
+        title="ИИ-советник"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -59,8 +59,8 @@ export function AdvisorScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Advisor snapshot is unavailable or invalid, but the conversation contract remains usable."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Диалог останется доступным, даже если часть аналитики недоступна."
+          title="Подсказки временно недоступны"
           tone="watch"
         />
       ) : null}
@@ -75,14 +75,13 @@ export function AdvisorScreen({
       <section className="space-y-4">
         <div className="rounded-[28px] border border-[var(--line)] bg-[linear-gradient(135deg,#fff8ed_0%,#f5efe3_55%,#ffffff_100%)] p-6 shadow-[var(--shadow-soft)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-strong)]">
-            AI Copilot MVP
+            ИИ-помощник
           </p>
           <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">
-            Ask the platform what deserves attention next
+            Спросите, на что обратить внимание в первую очередь
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
-            The Copilot routes a management question through backend-ready advisor outputs and returns
-            recommendations, evidence, links, related items, and diagnostics in one place.
+            Помощник собирает рекомендации, доказательства, ссылки и связанные сигналы в одном окне.
           </p>
         </div>
 

@@ -14,44 +14,57 @@ function readyMetrics(kpis: BusinessKpis) {
 }
 
 export function buildBusinessInsights(kpis: BusinessKpis): BusinessInsight {
+  const readyCount = readyMetrics(kpis);
+  if (readyCount === 0) {
+    return {
+      summary: "Данных по бизнесу за выбранный период пока нет. Подключите кабинет и загрузите продажи Wildberries.",
+      strengths: ["Сильные стороны бизнеса появятся после загрузки выручки, заказов и прибыли."],
+      weaknesses: ["По текущему периоду пока нет надежных бизнес-агрегатов."],
+      risks: ["Не стоит принимать управленческие решения, опираясь на отсутствующие данные."],
+      opportunities: ["Загрузите продажи WB Agent, чтобы открыть аналитику Бизнеса и Главной страницы."],
+      confidence: "low",
+      generatedAt: null
+    };
+  }
+
   const strengths: string[] = [];
   const weaknesses: string[] = [];
   const risks: string[] = [];
   const opportunities: string[] = [];
 
   if (kpis.revenueTrend.numericValue > 0) {
-    strengths.push("Revenue is still expanding versus the previous comparison window.");
+    strengths.push("Выручка растет по сравнению с предыдущим периодом.");
   } else {
-    weaknesses.push("Revenue growth is soft and needs closer commercial monitoring.");
+    weaknesses.push("Рост выручки замедляется и требует внимания.");
   }
 
   if (kpis.margin.numericValue >= 25) {
-    strengths.push("Margin remains healthy enough to support stable operating performance.");
+    strengths.push("Маржинальность остается комфортной для стабильной работы.");
   } else {
-    weaknesses.push("Margin is under pressure and may dilute operating profit.");
+    weaknesses.push("Маржинальность под давлением и может снижать итоговую прибыль.");
   }
 
   if (kpis.profit.numericValue > 0) {
-    strengths.push("Business is currently profitable on the active period view.");
+    strengths.push("Бизнес остается прибыльным в текущем периоде.");
   } else {
-    risks.push("Profit is at risk or already below the safe operating threshold.");
+    risks.push("Прибыль находится под риском или уже ниже комфортного уровня.");
   }
 
   if (kpis.returns.numericValue > 45 || kpis.returns.delta.startsWith("+")) {
-    risks.push("Returns are increasing and can erode both margin and order quality.");
+    risks.push("Возвраты растут и могут ухудшить маржинальность и качество заказов.");
   }
 
   if (kpis.averageOrderValue.numericValue >= 240) {
-    opportunities.push("Average order value is high enough to support selective scaling.");
+    opportunities.push("Средний чек позволяет аккуратно масштабировать рост.");
   }
 
   if (kpis.healthScore.numericValue >= 75) {
-    opportunities.push("Business health supports targeted growth experiments.");
+    opportunities.push("Состояние бизнеса позволяет тестировать точки роста.");
   } else {
-    risks.push("Health score signals that leadership attention is needed before scaling.");
+    risks.push("Состояние бизнеса требует внимания перед масштабированием.");
   }
 
-  const confidenceLevel = readyMetrics(kpis);
+  const confidenceLevel = readyCount;
   const confidence =
     confidenceLevel >= 8 ? "high" : confidenceLevel >= 5 ? "medium" : "low";
 
@@ -65,16 +78,16 @@ export function buildBusinessInsights(kpis: BusinessKpis): BusinessInsight {
         ]
           .filter(Boolean)
           .join(" ")
-      : "Not enough business data is available to form a reliable insight summary.";
+      : "Пока недостаточно данных, чтобы собрать надежную бизнес-сводку.";
 
   return {
     summary,
-    strengths: strengths.length ? strengths : ["No clear strength is confirmed by current business signals."],
-    weaknesses: weaknesses.length ? weaknesses : ["No material weakness is confirmed by current business signals."],
-    risks: risks.length ? risks : ["No material business risk is confirmed by current business signals."],
+    strengths: strengths.length ? strengths : ["Явных сильных сторон по текущим сигналам пока не подтверждено."],
+    weaknesses: weaknesses.length ? weaknesses : ["Существенных слабых зон по текущим сигналам не подтверждено."],
+    risks: risks.length ? risks : ["Существенных бизнес-рисков по текущим сигналам не подтверждено."],
     opportunities: opportunities.length
       ? opportunities
-      : ["No clear business opportunity is confirmed by current business signals."],
+      : ["Подтвержденных точек роста по текущим сигналам пока нет."],
     confidence,
     generatedAt: null
   };

@@ -54,15 +54,15 @@ export function AutomationScreen({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Automation"]}
-        subtitle="A single control center for exports, scheduled reports, job visibility, history, and future automation channels such as PDF, Excel, email, and Telegram."
-        title="Export & Automation Center"
+        breadcrumb={["Платформа", "Автоматизация"]}
+        subtitle="Экспорт, расписания, фоновые задачи и подготовка автоматических отчетов."
+        title="Автоматизация"
         updatedAt={lastUpdated ?? undefined}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        {selectedWorkspace ? <StatusBadge tone="accent">Workspace {selectedWorkspace}</StatusBadge> : null}
-        {selectedFormat ? <StatusBadge tone="neutral">Format {selectedFormat}</StatusBadge> : null}
+        {selectedWorkspace ? <StatusBadge tone="accent">Раздел: {selectedWorkspace}</StatusBadge> : null}
+        {selectedFormat ? <StatusBadge tone="neutral">Формат: {selectedFormat}</StatusBadge> : null}
         {actionMessage ? <StatusBadge tone="neutral">{actionMessage}</StatusBadge> : null}
       </div>
 
@@ -70,18 +70,18 @@ export function AutomationScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Automation backend responses are unavailable or invalid, but the placeholder control center remains usable."
-          title="Fallback automation snapshot active"
+          detail="Сейчас показываются резервные данные. Основные сценарии останутся доступны."
+          title="Часть данных по автоматизации временно недоступна"
           tone="watch"
         />
       ) : null}
 
       <AutomationOverviewWidget
-        cabinet={cabinet?.name ?? "No cabinet connected"}
+        cabinet={cabinet?.name ?? "Кабинет не подключен"}
         error={error}
         loading={loading}
-        organization={organization?.name ?? "Organization unavailable"}
-        owner={user?.name ?? "User unavailable"}
+        organization={organization?.name ?? "Организация недоступна"}
+        owner={user?.name ?? "Пользователь недоступен"}
         selectedWorkspace={selectedWorkspace}
         summary={data.summary}
       />
@@ -122,20 +122,19 @@ export function AutomationScreen({
 
       <div className="rounded-[28px] border border-[var(--line)] bg-[linear-gradient(135deg,#fff8ed_0%,#f5efe3_55%,#ffffff_100%)] p-6 shadow-[var(--shadow-soft)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-strong)]">
-          Notification Delivery
+          Доставка уведомлений
         </p>
         <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
-          Scheduled reports will flow through the Notifications Hub
+          Запланированные отчеты будут приходить через раздел уведомлений
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ink-soft)]">
-          Automation owns export and scheduling metadata, while notification routing prepares future
-          Telegram, email, webhook, and in-app delivery without enabling real sends yet.
+          Автоматизация управляет выгрузками и расписаниями, а уведомления готовят доставку в Telegram, почту и другие каналы.
         </p>
         <Link
           className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
           href="/notifications"
         >
-          Open Notifications Hub
+          Открыть уведомления
         </Link>
       </div>
     </div>

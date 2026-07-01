@@ -5,13 +5,13 @@ import type { AdvertisingTimelineEvent } from "@/features/advertising/types";
 function periodLabel(period: AdvertisingTimelineEvent["period"]) {
   switch (period) {
     case "sync":
-      return "Latest sync";
+      return "Последняя синхронизация";
     case "analytics":
-      return "Latest analytics";
+      return "Последняя аналитика";
     case "import":
-      return "Latest import";
+      return "Последняя загрузка";
     default:
-      return "Latest Ads Health";
+      return "Последнее состояние рекламы";
   }
 }
 
@@ -27,11 +27,11 @@ export function AdvertisingTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Advertising timeline entries will appear here when backend sync events are available."
+      emptyMessage="События по рекламе появятся после загрузки синхронизации и аналитики."
       error={error}
       loading={loading}
-      subtitle="Recent advertising events"
-      title="Advertising Timeline"
+      subtitle="Последние события по рекламе"
+      title="Лента рекламы"
     >
       <div className="space-y-3">
         {timeline.map((item) => (

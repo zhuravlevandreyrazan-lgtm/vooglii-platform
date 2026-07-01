@@ -17,6 +17,14 @@ import { OpenAutomationLink } from "@/features/automation/components/open-automa
 import type { ProductDetailsSnapshot } from "@/features/product-details/types";
 import type { WorkspaceDiagnostics } from "@/shared/api";
 
+function formatMoney(value: number | null) {
+  return value === null ? "Нет данных" : `в‚Ѕ${value.toLocaleString("en-US")}`;
+}
+
+function formatCount(value: number | null) {
+  return value === null ? "Нет данных" : value.toLocaleString("en-US");
+}
+
 export function ProductDetailsScreen({
   data,
   diagnostics,
@@ -48,13 +56,13 @@ export function ProductDetailsScreen({
             <OpenAutomationLink format="JSON" sku={data.overview.sku} workspace="products" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh product snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Products", data.overview.sku]}
-        subtitle="A SKU-level operating screen that combines sales, profitability, advertising, inventory, history, recommendations, diagnostics, and backend-ready AI insight in one place."
+        breadcrumb={["Платформа", "Товары", data.overview.sku]}
+        subtitle="Карточка SKU с продажами, прибылью, рекламой, остатками, историей и рекомендациями в одном экране."
         title={data.overview.name}
         updatedAt={lastUpdated ?? undefined}
       />
@@ -64,49 +72,43 @@ export function ProductDetailsScreen({
       {workspaceContext?.organization || workspaceContext?.cabinet ? (
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Organization</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.organization ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Организация</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.organization ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Current Cabinet</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.cabinet ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущий кабинет</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.cabinet ?? "нет данных"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Runtime Context</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.mode ?? "n/a"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Режим работы</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.mode ?? "нет данных"}</p>
           </div>
         </div>
       ) : null}
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable, invalid, or the SKU-level endpoint is not ready yet."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Ответ по SKU временно недоступен или еще не готов."
+          title="Данные по товару временно недоступны"
           tone="watch"
         />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Revenue</p>
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
-            {data.sales.revenue === null ? "n/a" : `₽${data.sales.revenue.toLocaleString("en-US")}`}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Выручка</p>
+          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatMoney(data.sales.revenue)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Profit</p>
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
-            {data.finance.profit === null ? "n/a" : `₽${data.finance.profit.toLocaleString("en-US")}`}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прибыль</p>
+          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatMoney(data.finance.profit)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Stock left</p>
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
-            {data.inventory.stock === null ? "n/a" : data.inventory.stock.toLocaleString("en-US")}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Остаток</p>
+          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatCount(data.inventory.stock)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Ads health</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Состояние рекламы</p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{data.advertising.adsHealth}</p>
         </div>
       </div>
@@ -124,11 +126,7 @@ export function ProductDetailsScreen({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <ProductAdvertisingWidget
-          advertising={data.advertising}
-          error={error}
-          loading={loading}
-        />
+        <ProductAdvertisingWidget advertising={data.advertising} error={error} loading={loading} />
         <ProductInventoryWidget error={error} inventory={data.inventory} loading={loading} />
       </div>
 

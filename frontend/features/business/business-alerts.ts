@@ -22,13 +22,25 @@ export function buildBusinessAlerts(
   kpis: BusinessKpis,
   insight: BusinessInsight
 ): BusinessAlert[] {
+  if (kpis.revenue.state === "unknown" && kpis.profit.state === "unknown" && kpis.orders.state === "unknown") {
+    return [
+      {
+        id: "business-alert-no-data",
+        title: "Нет данных по бизнесу",
+        description: "Раздел подключен, но по выбранному периоду пока нет пригодных бизнес-агрегатов.",
+        severity: "info",
+        source: "fallback"
+      }
+    ];
+  }
+
   const alerts: BusinessAlert[] = [];
 
   if (kpis.profit.numericValue < 80000) {
     alerts.push({
       id: "business-alert-profit",
-      title: "Profit is below the desired operating buffer",
-      description: "Profit is positive, but the current level leaves less room for volatility and marketing pressure.",
+      title: "Прибыль ниже желаемого уровня",
+      description: "Прибыль положительная, но текущего запаса мало для устойчивого роста и рекламы.",
       severity: "high",
       source: "kpi"
     });
@@ -37,8 +49,8 @@ export function buildBusinessAlerts(
   if (kpis.margin.numericValue < 20) {
     alerts.push({
       id: "business-alert-margin",
-      title: "Margin is under pressure",
-      description: "Low margin can quickly compress profitability if revenue growth slows.",
+      title: "Маржинальность под давлением",
+      description: "Низкая маржинальность может быстро ухудшить прибыль при замедлении выручки.",
       severity: "high",
       source: "kpi"
     });
@@ -47,8 +59,8 @@ export function buildBusinessAlerts(
   if (kpis.returns.numericValue > 45 || kpis.returns.delta.startsWith("+")) {
     alerts.push({
       id: "business-alert-returns",
-      title: "Returns are rising",
-      description: "Higher returns can erode net contribution and reduce confidence in product quality.",
+      title: "Возвраты растут",
+      description: "Рост возвратов снижает вклад в прибыль и может сигнализировать о проблемах с товарами.",
       severity: "medium",
       source: "kpi"
     });
@@ -57,8 +69,8 @@ export function buildBusinessAlerts(
   if (kpis.profitTrend.numericValue < 0 && kpis.revenueTrend.numericValue >= 0) {
     alerts.push({
       id: "business-alert-costs",
-      title: "Operating costs may be growing faster than revenue",
-      description: "Profit is weakening while revenue still grows, which usually points to rising cost pressure.",
+      title: "Расходы могут расти быстрее выручки",
+      description: "Прибыль снижается при растущей выручке, что часто указывает на давление со стороны расходов.",
       severity: "medium",
       source: "kpi"
     });
@@ -67,7 +79,7 @@ export function buildBusinessAlerts(
   if (kpis.revenueTrend.numericValue < 0 || kpis.healthScore.numericValue < 60) {
     alerts.push({
       id: "business-alert-dynamics",
-      title: "Business dynamics are weakening",
+      title: "Динамика бизнеса ухудшается",
       description: insight.summary,
       severity: "high",
       source: "insight"
@@ -77,8 +89,8 @@ export function buildBusinessAlerts(
   if (alerts.length === 0) {
     alerts.push({
       id: "business-alert-fallback",
-      title: "Business alerts are waiting for stronger signals",
-      description: "No material business alert is triggered by the current deterministic rules.",
+      title: "Сильных негативных сигналов пока нет",
+      description: "По текущим правилам существенные бизнес-риски не выявлены.",
       severity: "info",
       source: "fallback"
     });

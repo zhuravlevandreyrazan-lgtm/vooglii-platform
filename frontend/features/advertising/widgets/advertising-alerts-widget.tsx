@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { AdvertisingAlert } from "@/features/advertising/types";
 
@@ -14,11 +15,11 @@ export function AdvertisingAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Advertising alerts will appear here when backend returns active campaign warnings."
+      emptyMessage="Предупреждения по рекламе появятся здесь, когда backend вернет активные сигналы."
       error={error}
       loading={loading}
-      subtitle="Backend alerts"
-      title="Campaign Alerts"
+      subtitle="Сигналы backend"
+      title="Сигналы по кампаниям"
     >
       <div className="space-y-3">
         {alerts.map((alert) => (
@@ -29,7 +30,7 @@ export function AdvertisingAlertsWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{alert.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {alert.source}
+              Источник: {localizeWorkspaceLabel(alert.source)}
             </div>
           </div>
         ))}

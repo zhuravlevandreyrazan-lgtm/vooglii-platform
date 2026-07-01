@@ -25,5 +25,5 @@ export function formatApiErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "Unknown API error.";
+  return "Не удалось получить ответ API.";
 }

@@ -9,6 +9,7 @@ import { StatusBadge } from "@/shared/status";
 import { theme } from "@/shared/theme";
 import { cn } from "@/shared/lib/cn";
 import { workspaceNavigation } from "@/shared/layout/platform-shell.config";
+import { localizeStatus } from "@/shared/ui/status-labels";
 import { useWorkspaceContext } from "@/shared/workspace-context";
 
 function isActivePath(pathname: string, href: string) {
@@ -56,10 +57,10 @@ export function WorkspaceSidebar({
             ) : null}
           </Link>
           <div className="flex items-center gap-2">
-            <Button aria-label="Collapse sidebar" className="hidden lg:inline-flex" variant="ghost" onClick={onToggleCollapsed}>
+            <Button aria-label="Свернуть меню" className="hidden lg:inline-flex" variant="ghost" onClick={onToggleCollapsed}>
               <PanelLeftClose size={16} className={cn(collapsed ? "rotate-180" : "")} />
             </Button>
-            <Button aria-label="Close sidebar" className="lg:hidden" variant="ghost" onClick={onClose}>
+            <Button aria-label="Закрыть меню" className="lg:hidden" variant="ghost" onClick={onClose}>
               <PanelLeftClose size={16} />
             </Button>
           </div>
@@ -67,31 +68,31 @@ export function WorkspaceSidebar({
 
         {!collapsed ? (
           <div className="mt-8 rounded-[28px] border border-[var(--line)] bg-[linear-gradient(180deg,#fff8ed_0%,#f6efe2_100%)] p-4 shadow-[var(--shadow-soft)]">
-            <StatusBadge tone="accent">DEV</StatusBadge>
-            <h2 className="mt-4 text-xl font-semibold tracking-[-0.04em]">Commercial platform shell</h2>
+            <StatusBadge tone="accent">SaaS-платформа</StatusBadge>
+            <h2 className="mt-4 text-xl font-semibold tracking-[-0.04em]">Единый центр управления</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-              Shared workspace architecture for leadership, finance, operations, and future AI modules.
+              Все основные разделы бизнеса Wildberries собраны в одном интерфейсе.
             </p>
             <div className="mt-4 space-y-3 rounded-[22px] border border-[var(--line)] bg-white/70 p-4 text-sm">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Organization</p>
-                <p className="mt-1 font-semibold">{workspace.organization?.name ?? "Loading organization"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Организация</p>
+                <p className="mt-1 font-semibold">{workspace.organization?.name ?? "Загрузка организации"}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Cabinet</p>
-                <p className="mt-1 font-semibold">{workspace.cabinet?.name ?? "Loading cabinet"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Кабинет</p>
+                <p className="mt-1 font-semibold">{workspace.cabinet?.name ?? "Загрузка кабинета"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone={workspace.cabinet?.connected ? "healthy" : "watch"}>
-                  {workspace.cabinet?.connected ? "Connected" : "Disconnected"}
+                  {workspace.cabinet?.connected ? "Подключен" : "Не подключен"}
                 </StatusBadge>
-                {workspace.cabinet?.health ? <StatusBadge tone="neutral">{workspace.cabinet.health}</StatusBadge> : null}
+                {workspace.cabinet?.health ? <StatusBadge tone="neutral">{localizeStatus(workspace.cabinet.health)}</StatusBadge> : null}
               </div>
             </div>
           </div>
         ) : null}
 
-        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1" aria-label="Workspace navigation">
+        <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1" aria-label="Навигация по платформе">
           {visibleNavigation.map((item) => {
             const active = isActivePath(pathname, item.href);
             const Icon = item.icon;

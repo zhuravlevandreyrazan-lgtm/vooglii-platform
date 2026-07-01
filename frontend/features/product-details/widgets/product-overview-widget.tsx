@@ -21,7 +21,7 @@ export function ProductOverviewWidget({
       loading={loading}
       status={overview.status}
       subtitle={overview.name}
-      title="Overview"
+      title="Обзор товара"
     >
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -39,9 +39,9 @@ export function ProductOverviewWidget({
                   {overview.brand.slice(0, 1)}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-[var(--ink)]">Preview not available</p>
+                  <p className="text-sm font-semibold text-[var(--ink)]">Изображение недоступно</p>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                    Demo-ready fallback artwork keeps the SKU page presentation polished.
+                    Карточка товара останется аккуратной даже без загруженной фотографии.
                   </p>
                 </div>
               </div>
@@ -50,9 +50,9 @@ export function ProductOverviewWidget({
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <ProductDetailField label="SKU" value={overview.sku} />
-            <ProductDetailField label="Category" value={overview.category} />
-            <ProductDetailField label="Brand" value={overview.brand} />
-            <ProductDetailField label="Vendor code" value={overview.vendorCode} />
+            <ProductDetailField label="Категория" value={overview.category} />
+            <ProductDetailField label="Бренд" value={overview.brand} />
+            <ProductDetailField label="Артикул продавца" value={overview.vendorCode} />
             <ProductDetailField label="ABC" value={overview.abc} />
             <ProductDetailField label="XYZ" value={overview.xyz} />
           </div>

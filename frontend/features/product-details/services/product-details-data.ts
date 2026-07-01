@@ -44,13 +44,13 @@ type RawProductDetailsSnapshot = {
 
 function buildFallbackDeepLinks(sku: string): ProductDeepLink[] {
   return [
-    { id: "advertising", label: "Advertising", href: "/advertising", description: `Campaign context for ${sku}.` },
-    { id: "inventory", label: "Inventory", href: `/inventory/${sku}`, description: `Inventory drilldown for ${sku}.` },
-    { id: "finance", label: "Finance", href: "/finance", description: `Profitability workspace context for ${sku}.` },
-    { id: "advisor", label: "Advisor", href: "/advisor", description: `Advisor recommendations related to ${sku}.` },
-    { id: "reports", label: "Reports", href: "/reports", description: `Exports and report center for ${sku}.` },
-    { id: "executive", label: "Executive", href: "/executive", description: "Executive summary and leadership context." },
-    { id: "business", label: "Business", href: "/business", description: "Business KPI context for this product family." }
+    { id: "advertising", label: "Реклама", href: "/advertising", description: `Контекст рекламных кампаний для ${sku}.` },
+    { id: "inventory", label: "Остатки", href: `/inventory/${sku}`, description: `Детализация остатков для ${sku}.` },
+    { id: "finance", label: "Финансы", href: "/finance", description: `Финансовый контекст и прибыльность для ${sku}.` },
+    { id: "advisor", label: "ИИ-советник", href: "/advisor", description: `Рекомендации советника по ${sku}.` },
+    { id: "reports", label: "Отчеты", href: "/reports", description: `Выгрузки и отчеты по ${sku}.` },
+    { id: "executive", label: "Главная", href: "/executive", description: "Общая управленческая сводка и контекст руководителя." },
+    { id: "business", label: "Бизнес", href: "/business", description: "Бизнес-показатели для этой товарной группы." }
   ];
 }
 
@@ -58,16 +58,16 @@ function createMockProductDetailsSnapshot(sku: string): RawProductDetailsSnapsho
   return {
     overview: {
       sku,
-      name: `Product ${sku}`,
+      name: `Товар ${sku}`,
       imageUrl: null,
-      category: "Marketplace assortment",
+      category: "Ассортимент маркетплейса",
       brand: "VOOGLII",
       vendorCode: `${sku}-VC`,
       status: {
-        label: "Operational review",
+        label: "Рабочий обзор",
         tone: "accent"
       },
-      health: "Watch",
+      health: "Требует внимания",
       healthScore: 72,
       abc: "A",
       xyz: "Y"
@@ -77,7 +77,7 @@ function createMockProductDetailsSnapshot(sku: string): RawProductDetailsSnapsho
       orders: 312,
       units: 338,
       averagePrice: 206,
-      trend: "Stable demand with selective upside."
+      trend: "Спрос остается стабильным с точками роста."
     },
     finance: {
       profit: 20660,
@@ -91,19 +91,19 @@ function createMockProductDetailsSnapshot(sku: string): RawProductDetailsSnapsho
       roas: 3.4,
       acos: 29.4,
       campaignCount: 4,
-      adsHealth: "Watch"
+      adsHealth: "Требует внимания"
     },
     inventory: {
       stock: 186,
       reserved: 19,
       available: 167,
       daysLeft: 11,
-      forecast: "Demand remains stable for the next replenishment window.",
-      warehouse: "Elektrougli"
+      forecast: "Спрос остается стабильным до следующего окна пополнения.",
+      warehouse: "Электроугли"
     },
     forecast: {
-      summary: "Forecast payload is represented as backend-ready summary text without frontend calculations.",
-      confidence: "Medium",
+      summary: "Прогноз пока представлен как краткая backend-сводка без фронтенд-расчетов.",
+      confidence: "Средняя",
       nextReorderDate: null
     },
     history: [
@@ -112,91 +112,91 @@ function createMockProductDetailsSnapshot(sku: string): RawProductDetailsSnapsho
         revenue: 21480,
         profit: 6410,
         orders: 42,
-        note: "Current-day performance snapshot."
+        note: "Показатели за текущий день."
       },
       {
         period: "sevenDays",
         revenue: 148300,
         profit: 42110,
         orders: 211,
-        note: "Seven-day rollup from the current backend-ready snapshot."
+        note: "Сводка за последние 7 дней."
       },
       {
         period: "thirtyDays",
         revenue: 411800,
         profit: 122430,
         orders: 612,
-        note: "Thirty-day product history without frontend chart calculations."
+        note: "История по товару за 30 дней."
       },
       {
         period: "ninetyDays",
         revenue: 1094700,
         profit: 312700,
         orders: 1714,
-        note: "Ninety-day performance history placeholder for future chart expansion."
+        note: "История за 90 дней для будущего расширения графиков."
       }
     ],
     recommendations: [
       {
         id: "rec-1",
         priority: "high",
-        reason: "Margin pressure appears alongside mixed advertising efficiency.",
-        expectedEffect: "Recover contribution profit before the next scale-up cycle.",
-        confidence: "Medium"
+        reason: "Маржинальность находится под давлением на фоне смешанной эффективности рекламы.",
+        expectedEffect: "Поможет восстановить вклад в прибыль перед следующим этапом роста.",
+        confidence: "Средняя"
       },
       {
         id: "rec-2",
         priority: "critical",
-        reason: "Inventory runway is not yet comfortable for a healthy growth buffer.",
-        expectedEffect: "Reduce stockout risk and protect top-line continuity.",
-        confidence: "High"
+        reason: "Запаса товара пока недостаточно для безопасного роста.",
+        expectedEffect: "Снизит риск out-of-stock и защитит выручку.",
+        confidence: "Высокая"
       }
     ],
     timeline: [
       {
         id: "timeline-1",
-        title: "Product snapshot refreshed",
-        description: "Latest SKU snapshot was received from backend-ready workspace payloads.",
+        title: "Карточка товара обновлена",
+        description: "Последний SKU-снимок получен из рабочего backend-потока.",
         period: "sync",
         severity: "info",
         source: "backend"
       },
       {
         id: "timeline-2",
-        title: "Recommendation plan updated",
-        description: "Priority actions were refreshed for the current operating review.",
+        title: "План рекомендаций обновлен",
+        description: "Приоритетные действия были пересчитаны для текущего обзора.",
         period: "advisor",
         severity: "medium",
         source: "backend"
       }
     ],
     insight: {
-      summary: "This SKU is commercially healthy enough to scale, but it still needs tighter margin discipline and safer inventory coverage.",
-      topRisk: "Inventory coverage may become the limiting factor during demand spikes.",
-      topOpportunity: "A healthier ad mix can unlock more profitable growth.",
-      recommendation: "Stabilize inventory runway first, then reallocate spend toward higher-efficiency campaigns.",
+      summary: "SKU выглядит достаточно здоровым для роста, но ему все еще нужна лучшая дисциплина по марже и более безопасный запас остатков.",
+      topRisk: "Остатки могут стать главным ограничением при всплеске спроса.",
+      topOpportunity: "Более качественная рекламная структура может дать более прибыльный рост.",
+      recommendation: "Сначала стабилизируйте запас, затем перераспределите рекламный бюджет в более эффективные кампании.",
       evidence: [
         {
           id: "evidence-1",
-          label: "Inventory runway",
-          detail: "Days left are below the level usually preferred for uninterrupted scaling.",
+          label: "Запас остатков",
+          detail: "Количество дней запаса ниже уровня, который обычно считается комфортным для роста.",
           source: "backend"
         },
         {
           id: "evidence-2",
-          label: "Advertising quality",
-          detail: "ROAS remains workable, but ACOS indicates room for sharper campaign control.",
+          label: "Качество рекламы",
+          detail: "ROAS остается рабочим, но ACOS показывает пространство для более точного управления кампаниями.",
           source: "backend"
         }
       ]
     },
     quickActions: [
-      { id: "open-advertising", label: "Open Advertising", href: "/advertising", type: "link", enabled: true },
-      { id: "open-inventory", label: "Open Inventory", href: `/inventory/${sku}`, type: "link", enabled: true },
-      { id: "open-reports", label: "Open Reports", href: "/reports", type: "link", enabled: true },
-      { id: "open-finance", label: "Open Finance", href: "/finance", type: "link", enabled: true },
-      { id: "copy-sku", label: "Copy SKU", href: null, type: "button", enabled: false },
-      { id: "open-wb-card", label: "Open WB Card", href: null, type: "button", enabled: false }
+      { id: "open-advertising", label: "Открыть рекламу", href: "/advertising", type: "link", enabled: true },
+      { id: "open-inventory", label: "Открыть остатки", href: `/inventory/${sku}`, type: "link", enabled: true },
+      { id: "open-reports", label: "Открыть отчеты", href: "/reports", type: "link", enabled: true },
+      { id: "open-finance", label: "Открыть финансы", href: "/finance", type: "link", enabled: true },
+      { id: "copy-sku", label: "Скопировать SKU", href: null, type: "button", enabled: false },
+      { id: "open-wb-card", label: "Открыть карточку WB", href: null, type: "button", enabled: false }
     ],
     deepLinks: buildFallbackDeepLinks(sku),
     lastUpdated: "2026-06-30T14:20:00.000Z"
@@ -214,7 +214,7 @@ function normalizeHistory(history: ProductHistory[] | undefined): ProductHistory
       revenue: null,
       profit: null,
       orders: null,
-      note: "History is waiting for backend SKU snapshots."
+      note: "История появится после загрузки SKU-данных."
     }
   ];
 }
@@ -227,16 +227,16 @@ export function normalizeProductDetailsSnapshot(
   return {
     overview: {
       sku: raw.overview?.sku ?? sku,
-      name: raw.overview?.name ?? `Product ${sku}`,
+      name: raw.overview?.name ?? `Товар ${sku}`,
       imageUrl: raw.overview?.imageUrl ?? null,
-      category: raw.overview?.category ?? "Unassigned category",
-      brand: raw.overview?.brand ?? "Unknown brand",
+      category: raw.overview?.category ?? "Категория не указана",
+      brand: raw.overview?.brand ?? "Бренд не указан",
       vendorCode: raw.overview?.vendorCode ?? sku,
       status: raw.overview?.status ?? {
-        label: "Pending",
+        label: "Ожидает данные",
         tone: "neutral"
       },
-      health: raw.overview?.health ?? "Unknown",
+      health: raw.overview?.health ?? "Нет данных",
       healthScore: raw.overview?.healthScore ?? null,
       abc: raw.overview?.abc ?? "n/a",
       xyz: raw.overview?.xyz ?? "n/a"
@@ -246,7 +246,7 @@ export function normalizeProductDetailsSnapshot(
       orders: raw.sales?.orders ?? null,
       units: raw.sales?.units ?? null,
       averagePrice: raw.sales?.averagePrice ?? null,
-      trend: raw.sales?.trend ?? "No sales trend provided."
+      trend: raw.sales?.trend ?? "Динамика продаж пока не предоставлена."
     },
     finance: {
       profit: raw.finance?.profit ?? null,
@@ -260,19 +260,19 @@ export function normalizeProductDetailsSnapshot(
       roas: raw.advertising?.roas ?? null,
       acos: raw.advertising?.acos ?? null,
       campaignCount: raw.advertising?.campaignCount ?? null,
-      adsHealth: raw.advertising?.adsHealth ?? "Unknown"
+      adsHealth: raw.advertising?.adsHealth ?? "Нет данных"
     },
     inventory: {
       stock: raw.inventory?.stock ?? null,
       reserved: raw.inventory?.reserved ?? null,
       available: raw.inventory?.available ?? null,
       daysLeft: raw.inventory?.daysLeft ?? null,
-      forecast: raw.inventory?.forecast ?? "No inventory forecast is available.",
-      warehouse: raw.inventory?.warehouse ?? "n/a"
+      forecast: raw.inventory?.forecast ?? "Прогноз по остаткам пока недоступен.",
+      warehouse: raw.inventory?.warehouse ?? "нет данных"
     },
     forecast: {
-      summary: raw.forecast?.summary ?? "SKU forecast payload is not available yet.",
-      confidence: raw.forecast?.confidence ?? "Unknown",
+      summary: raw.forecast?.summary ?? "Прогноз по SKU пока не получен.",
+      confidence: raw.forecast?.confidence ?? "Нет данных",
       nextReorderDate: raw.forecast?.nextReorderDate ?? null
     },
     history: normalizeHistory(raw.history),
@@ -283,9 +283,9 @@ export function normalizeProductDetailsSnapshot(
             {
               id: "recommendation-fallback",
               priority: "info",
-              reason: "No backend SKU recommendation payload is available yet.",
-              expectedEffect: "The widget remains ready for direct backend action plans.",
-              confidence: "Unknown"
+              reason: "Backend пока не вернул рекомендации по SKU.",
+              expectedEffect: "Виджет готов к подключению прямых backend-планов действий.",
+              confidence: "Нет данных"
             }
           ],
     timeline:
@@ -294,26 +294,26 @@ export function normalizeProductDetailsSnapshot(
         : [
             {
               id: "timeline-fallback",
-              title: "Timeline pending",
-              description: "No product timeline entries were returned.",
+              title: "История событий пока недоступна",
+              description: "По товару пока нет событийной ленты.",
               period: "sync",
               severity: "info",
               source: "placeholder"
             }
           ],
     insight: {
-      summary: raw.insight?.summary ?? "AI insight is waiting for backend-ready content.",
-      topRisk: raw.insight?.topRisk ?? "No top risk provided.",
-      topOpportunity: raw.insight?.topOpportunity ?? "No top opportunity provided.",
-      recommendation: raw.insight?.recommendation ?? "No insight recommendation provided.",
+      summary: raw.insight?.summary ?? "Инсайт появится после загрузки backend-аналитики.",
+      topRisk: raw.insight?.topRisk ?? "Главный риск пока не определен.",
+      topOpportunity: raw.insight?.topOpportunity ?? "Точка роста пока не определена.",
+      recommendation: raw.insight?.recommendation ?? "Рекомендация пока не сформирована.",
       evidence:
         raw.insight?.evidence?.length
           ? raw.insight.evidence
           : [
               {
                 id: "insight-evidence-fallback",
-                label: "Placeholder",
-                detail: "Frontend is ready for backend evidence payloads.",
+                label: "Ожидание данных",
+                detail: "Фронтенд готов к приему доказательной базы с backend.",
                 source: "placeholder"
               }
             ]
@@ -322,8 +322,8 @@ export function normalizeProductDetailsSnapshot(
       raw.quickActions?.length
         ? raw.quickActions
         : [
-            { id: "open-advertising", label: "Open Advertising", href: "/advertising", type: "link", enabled: true },
-            { id: "copy-sku", label: "Copy SKU", href: null, type: "button", enabled: false }
+            { id: "open-advertising", label: "Открыть рекламу", href: "/advertising", type: "link", enabled: true },
+            { id: "copy-sku", label: "Скопировать SKU", href: null, type: "button", enabled: false }
           ],
     deepLinks: raw.deepLinks?.length ? raw.deepLinks : buildFallbackDeepLinks(sku),
     lastUpdated: raw.lastUpdated ?? null,
@@ -359,10 +359,10 @@ function isRawProductDetailsSnapshot(value: unknown): value is RawProductDetails
 export async function fetchProductDetailsSnapshot(sku: string, signal?: AbortSignal) {
   const endpoint = `/api/products/${encodeURIComponent(sku)}`;
   const payload = await requestJson<unknown>(endpoint, { signal });
-  const record = assertWorkspacePayload(payload, endpoint, "Product details");
+  const record = assertWorkspacePayload(payload, endpoint, "Карточка товара");
 
   if (!isRawProductDetailsSnapshot(record)) {
-    throw new ApiError("Product details API payload has an invalid shape.", {
+    throw new ApiError("Ответ API по карточке товара имеет некорректный формат.", {
       code: "invalid_shape",
       status: null,
       url: endpoint

@@ -15,11 +15,11 @@ export function AdvisorRecommendationsWidget({
   return (
     <WidgetCard
       empty={recommendations.length === 0}
-      emptyMessage="Advisor recommendations will appear here when backend returns recommendation payloads."
+      emptyMessage="Рекомендации появятся после получения данных от backend."
       error={error}
       loading={loading}
-      subtitle="Backend-ready recommendations"
-      title="Recommendations"
+      subtitle="Рекомендации для действий"
+      title="Рекомендации"
     >
       <div className="space-y-3">
         {recommendations.map((item) => (
@@ -31,13 +31,13 @@ export function AdvisorRecommendationsWidget({
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.reason}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="accent">{item.expectedEffect}</StatusBadge>
-              <StatusBadge tone="neutral">Confidence {item.confidence}</StatusBadge>
-              <StatusBadge tone="watch">Source {item.source}</StatusBadge>
+              <StatusBadge tone="neutral">Уверенность: {item.confidence}</StatusBadge>
+              <StatusBadge tone="watch">Источник: {item.source}</StatusBadge>
               <StatusBadge tone="healthy">{item.status}</StatusBadge>
             </div>
             <div className="mt-4">
               <Link className="text-sm font-semibold text-[var(--accent-strong)]" href={item.href}>
-                Open related workspace
+                Открыть связанный раздел
               </Link>
             </div>
           </div>

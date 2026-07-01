@@ -6,7 +6,7 @@ import type {
   WorkspaceValidationStatus
 } from "@/shared/api/api-types";
 
-export const FALLBACK_DATA_MESSAGE = "Using fallback data. Backend response is unavailable or invalid.";
+export const FALLBACK_DATA_MESSAGE = "Сейчас показываются резервные данные. Основной ответ сервера недоступен или некорректен.";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -31,7 +31,7 @@ export function assertWorkspacePayload(
   workspace: string
 ): Record<string, unknown> {
   if (!isRecord(payload)) {
-    throw new ApiError(`${workspace} API payload has an invalid shape.`, {
+    throw new ApiError(`Ответ API для раздела "${workspace}" имеет некорректный формат.`, {
       code: "invalid_shape",
       status: null,
       url: endpoint

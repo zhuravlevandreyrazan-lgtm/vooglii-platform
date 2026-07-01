@@ -12,19 +12,19 @@ export function ProductForecastWidget({
   error?: string | null;
 }) {
   return (
-    <WidgetCard error={error} loading={loading} subtitle="Forecast" title="Demand outlook">
+    <WidgetCard error={error} loading={loading} subtitle="Прогноз" title="Ожидания по спросу">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <ProductDetailMetric
-            label="Summary"
+            label="Сводка"
             value={forecast.summary}
-            hint="Forecast text is backend-supplied and chart-ready for future expansion."
+            hint="Текст прогноза приходит с backend и готов к будущему расширению графиками."
           />
         </div>
-        <ProductDetailMetric label="Confidence" value={forecast.confidence} />
+        <ProductDetailMetric label="Уверенность" value={forecast.confidence} />
         <ProductDetailMetric
-          label="Next reorder date"
-          value={forecast.nextReorderDate ?? "Pending backend value"}
+          label="Следующая дата пополнения"
+          value={forecast.nextReorderDate ?? "Ждем данные"}
         />
       </div>
     </WidgetCard>

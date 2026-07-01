@@ -56,123 +56,189 @@ function createMetric(
   };
 }
 
+function createUnknownMetric(
+  key: BusinessWidget,
+  label: string,
+  note: string,
+  delta = "No business data available"
+): BusinessMetric {
+  return {
+    key,
+    label,
+    numericValue: 0,
+    value: "UNKNOWN",
+    delta,
+    note,
+    tone: "neutral",
+    state: "unknown"
+  };
+}
+
 export function buildBusinessKpis(snapshot: BusinessSnapshot): BusinessKpis {
   const revenue = snapshot.summary.revenue ?? 0;
   const profit = snapshot.summary.profit ?? 0;
-  const margin = snapshot.summary.margin ?? (revenue > 0 ? (profit / revenue) * 100 : 0);
+  const margin = snapshot.summary.margin ?? (snapshot.summary.revenue !== null && snapshot.summary.profit !== null && revenue > 0 ? (profit / revenue) * 100 : 0);
   const orders = snapshot.summary.orders ?? 0;
   const returns = snapshot.summary.returns ?? 0;
-  const averageOrderValue = snapshot.summary.averageOrderValue ?? (orders > 0 ? revenue / orders : 0);
+  const averageOrderValue =
+    snapshot.summary.averageOrderValue ?? (snapshot.summary.orders !== null && orders > 0 ? revenue / orders : 0);
   const unitsSold = snapshot.summary.unitsSold ?? 0;
   const healthScore = snapshot.healthScore ?? 0;
+  const noData =
+    snapshot.healthStatus === "No business data available" ||
+    (snapshot.summary.revenue === null &&
+      snapshot.summary.profit === null &&
+      snapshot.summary.orders === null &&
+      snapshot.summary.unitsSold === null);
+
+  if (noData) {
+    const revenueMetric = createUnknownMetric("revenue", "Выручка", "За выбранный период данные по выручке пока отсутствуют.");
+    const profitMetric = createUnknownMetric("profit", "Прибыль", "Прибыль появится после загрузки продаж и финансовых данных.");
+    const marginMetric = createUnknownMetric("margin", "Маржинальность", "Маржинальность рассчитывается после появления выручки и прибыли.");
+    const ordersMetric = createUnknownMetric("orders", "Заказы", "Заказы за выбранный период пока недоступны.");
+    const returnsMetric = createUnknownMetric("returns", "Возвраты", "Возвраты появятся после загрузки данных о продажах.");
+    const averageOrderValueMetric = createUnknownMetric("averageOrderValue", "Средний чек", "Средний чек рассчитывается после появления выручки и заказов.");
+    const unitsSoldMetric = createUnknownMetric("unitsSold", "Проданные единицы", "Количество проданных единиц появится после загрузки продаж.");
+    const revenueTrendMetric = createUnknownMetric("revenue", "Динамика выручки", "Для динамики нужны заполненные данные как минимум по двум периодам.");
+    const profitTrendMetric = createUnknownMetric("profit", "Динамика прибыли", "Для динамики нужны заполненные данные как минимум по двум периодам.");
+    const marginTrendMetric = createUnknownMetric("margin", "Динамика маржинальности", "Для динамики нужны заполненные данные как минимум по двум периодам.");
+    const healthMetric = {
+      ...createUnknownMetric("health", "Здоровье бизнеса", "Оценка состояния бизнеса появится после загрузки агрегатов."),
+      delta: snapshot.healthStatus ?? "Нет данных"
+    };
+
+    return {
+      revenue: revenueMetric,
+      profit: profitMetric,
+      margin: marginMetric,
+      orders: ordersMetric,
+      returns: returnsMetric,
+      averageOrderValue: averageOrderValueMetric,
+      unitsSold: unitsSoldMetric,
+      revenueTrend: revenueTrendMetric,
+      profitTrend: profitTrendMetric,
+      marginTrend: marginTrendMetric,
+      healthScore: healthMetric,
+      cards: [
+        revenueMetric,
+        profitMetric,
+        marginMetric,
+        ordersMetric,
+        returnsMetric,
+        averageOrderValueMetric,
+        unitsSoldMetric,
+        healthMetric
+      ]
+    };
+  }
 
   const revenueMetric = createMetric(
     "revenue",
-    "Revenue",
+    "Выручка",
     revenue,
     formatCurrency(revenue),
     `${snapshot.trends.revenue >= 0 ? "+" : ""}${snapshot.trends.revenue.toFixed(1)}%`,
-    "Gross business revenue for the current operating window.",
+    "Общая выручка бизнеса за выбранный период.",
     toneFromTrend(snapshot.trends.revenue)
   );
 
   const profitMetric = createMetric(
     "profit",
-    "Profit",
+    "Прибыль",
     profit,
     formatCurrency(profit),
     `${snapshot.trends.profit >= 0 ? "+" : ""}${snapshot.trends.profit.toFixed(1)}%`,
-    "Profit contribution after current marketplace operating costs.",
+    "Прибыль после текущих расходов маркетплейса.",
     toneFromTrend(snapshot.trends.profit)
   );
 
   const marginMetric = createMetric(
     "margin",
-    "Margin",
+    "Маржинальность",
     margin,
     formatPercent(margin),
     `${snapshot.trends.margin >= 0 ? "+" : ""}${snapshot.trends.margin.toFixed(1)} pp`,
-    "Profit share inside business revenue.",
+    "Доля прибыли в выручке бизнеса.",
     toneFromMargin(margin)
   );
 
   const ordersMetric = createMetric(
     "orders",
-    "Orders",
+    "Заказы",
     orders,
     orders.toLocaleString("en-US"),
-    `${snapshot.periods.today.orders >= snapshot.periods.yesterday.orders ? "+" : ""}${snapshot.periods.today.orders - snapshot.periods.yesterday.orders} d/d`,
-    "Confirmed orders captured in the current period.",
+    `${snapshot.periods.today.orders >= snapshot.periods.yesterday.orders ? "+" : ""}${snapshot.periods.today.orders - snapshot.periods.yesterday.orders} день к дню`,
+    "Подтвержденные заказы за выбранный период.",
     orders > 0 ? "healthy" : "neutral"
   );
 
   const returnsMetric = createMetric(
     "returns",
-    "Returns",
+    "Возвраты",
     returns,
     returns.toLocaleString("en-US"),
     `${snapshot.trends.returns >= 0 ? "+" : ""}${snapshot.trends.returns.toFixed(1)}%`,
-    "Units returned or refunded in the same operating window.",
+    "Возвраты и отмены за тот же период.",
     snapshot.trends.returns > 10 ? "risk" : snapshot.trends.returns > 5 ? "watch" : "neutral"
   );
 
   const averageOrderValueMetric = createMetric(
     "averageOrderValue",
-    "Average Order Value",
+    "Средний чек",
     averageOrderValue,
     formatCurrency(averageOrderValue),
-    `${snapshot.periods.today.averageOrderValue >= snapshot.periods.yesterday.averageOrderValue ? "+" : ""}${(snapshot.periods.today.averageOrderValue - snapshot.periods.yesterday.averageOrderValue).toFixed(0)} d/d`,
-    "Average revenue captured per order.",
+    `${snapshot.periods.today.averageOrderValue >= snapshot.periods.yesterday.averageOrderValue ? "+" : ""}${(snapshot.periods.today.averageOrderValue - snapshot.periods.yesterday.averageOrderValue).toFixed(0)} день к дню`,
+    "Средняя выручка на один заказ.",
     averageOrderValue > 0 ? "accent" : "neutral"
   );
 
   const unitsSoldMetric = createMetric(
     "unitsSold",
-    "Units Sold",
+    "Проданные единицы",
     unitsSold,
     unitsSold.toLocaleString("en-US"),
-    `${snapshot.periods.today.unitsSold >= snapshot.periods.yesterday.unitsSold ? "+" : ""}${snapshot.periods.today.unitsSold - snapshot.periods.yesterday.unitsSold} d/d`,
-    "Total units sold across the current period.",
+    `${snapshot.periods.today.unitsSold >= snapshot.periods.yesterday.unitsSold ? "+" : ""}${snapshot.periods.today.unitsSold - snapshot.periods.yesterday.unitsSold} день к дню`,
+    "Количество проданных единиц за период.",
     unitsSold > 0 ? "healthy" : "neutral"
   );
 
   const revenueTrendMetric = createMetric(
     "revenue",
-    "Revenue Trend",
+    "Динамика выручки",
     snapshot.trends.revenue,
     `${snapshot.trends.revenue >= 0 ? "+" : ""}${snapshot.trends.revenue.toFixed(1)}%`,
-    "vs previous period",
-    "Directional trend for revenue.",
+    "к предыдущему периоду",
+    "Направление изменения выручки.",
     toneFromTrend(snapshot.trends.revenue)
   );
 
   const profitTrendMetric = createMetric(
     "profit",
-    "Profit Trend",
+    "Динамика прибыли",
     snapshot.trends.profit,
     `${snapshot.trends.profit >= 0 ? "+" : ""}${snapshot.trends.profit.toFixed(1)}%`,
-    "vs previous period",
-    "Directional trend for profit.",
+    "к предыдущему периоду",
+    "Направление изменения прибыли.",
     toneFromTrend(snapshot.trends.profit)
   );
 
   const marginTrendMetric = createMetric(
     "margin",
-    "Margin Trend",
+    "Динамика маржинальности",
     snapshot.trends.margin,
     `${snapshot.trends.margin >= 0 ? "+" : ""}${snapshot.trends.margin.toFixed(1)} pp`,
-    "vs previous period",
-    "Directional trend for margin.",
+    "к предыдущему периоду",
+    "Направление изменения маржинальности.",
     toneFromTrend(snapshot.trends.margin)
   );
 
   const healthMetric = createMetric(
     "health",
-    "Health Score",
+    "Здоровье бизнеса",
     healthScore,
     `${healthScore}/100`,
-    snapshot.healthStatus ?? "Unknown",
-    "Aggregate operating health for the business workspace.",
+    snapshot.healthStatus ?? "Нет данных",
+    "Сводная оценка состояния бизнес-раздела.",
     toneFromHealth(healthScore)
   );
 

@@ -2,14 +2,16 @@ import type { ExecutiveTimelinePeriod, ExecutiveTimelineSeverity } from "@/featu
 import type { KpiMetric } from "@/features/command-center/kpi-types";
 import type { PriorityActionSeverity } from "@/features/command-center/priority-actions-types";
 
-const FALLBACK_TEXT = "n/a";
+import { localizePeriodLabel, localizeSeverity } from "@/shared/ui/status-labels";
+
+const FALLBACK_TEXT = "Нет данных";
 
 export function formatCurrency(value?: number | null, currency = "RUB") {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return FALLBACK_TEXT;
   }
 
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency,
     maximumFractionDigits: 0
@@ -35,7 +37,7 @@ export function formatDateTime(value?: string | null) {
     return undefined;
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("ru-RU", {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
@@ -58,18 +60,9 @@ export function formatSeverityLabel(
     return FALLBACK_TEXT;
   }
 
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return localizeSeverity(value);
 }
 
 export function formatPeriodLabel(period: ExecutiveTimelinePeriod) {
-  switch (period) {
-    case "yesterday":
-      return "Yesterday";
-    case "today":
-      return "Today";
-    case "tomorrow":
-      return "Tomorrow";
-    default:
-      return "This week";
-  }
+  return localizePeriodLabel(period);
 }

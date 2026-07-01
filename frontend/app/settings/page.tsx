@@ -7,76 +7,71 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Settings"]}
-        subtitle="Workspace preferences, release controls, profile visibility, and cabinet diagnostics for the closed beta phase."
-        title="Settings"
+        breadcrumb={["Платформа", "Настройки"]}
+        subtitle="Параметры платформы, готовность к показу, профиль и диагностика кабинета."
+        title="Настройки"
       />
 
       <SettingsNav />
 
       <div className="grid gap-6 xl:grid-cols-4">
-        <WidgetCard subtitle="Release Readiness" title="Launch controls">
+        <WidgetCard subtitle="Готовность к запуску" title="Контроль запуска">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Review backend availability, live versus demo mode, version information, and known
-            limitations before showing the platform to new users.
+            Проверьте доступность сервиса, режим работы, версию и известные ограничения перед показом платформы.
           </p>
           <Link
             className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/settings/readiness"
           >
-            Open Readiness Page
+            Открыть раздел готовности
           </Link>
         </WidgetCard>
 
-        <WidgetCard subtitle="User, organization, and cabinet summary" title="Profile">
+        <WidgetCard subtitle="Пользователь, организация и кабинет" title="Профиль">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            See the current dev or demo session, organization plan, seller cabinet, token status,
-            and sync quality in one place.
+            Просматривайте текущую сессию, параметры организации, кабинет продавца и качество синхронизации в одном месте.
           </p>
           <Link
             className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/settings/profile"
           >
-            Open Profile Page
+            Открыть профиль
           </Link>
         </WidgetCard>
 
-        <WidgetCard subtitle="Connection controls and safe placeholders" title="WB Cabinet">
+        <WidgetCard subtitle="Подключение и диагностика" title="Кабинет WB">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Demo Mode can be enabled from the top bar in development, while cabinet connect and
-            disconnect remain UI-safe and backend-owned.
+            Управляйте подключением кабинета и проверяйте его состояние без показа чувствительных данных на фронтенде.
           </p>
           <Link
             className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/settings/wb-cabinet"
           >
-            Open Cabinet Page
+            Открыть кабинет
           </Link>
         </WidgetCard>
 
-        <WidgetCard subtitle="Channels, rules, and safe delivery testing" title="Notifications">
+        <WidgetCard subtitle="Каналы, правила и тестовая отправка" title="Уведомления">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Manage notification routing, in-app delivery visibility, and placeholder test delivery
-            without exposing Telegram, email, or webhook secrets to the frontend.
+            Управляйте маршрутизацией уведомлений и тестовой отправкой без раскрытия секретов Telegram, почты или webhook.
           </p>
           <Link
             className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/notifications"
           >
-            Open Notifications Hub
+            Открыть уведомления
           </Link>
         </WidgetCard>
 
-        <WidgetCard subtitle="Roles, permissions, and audit visibility" title="Team">
+        <WidgetCard subtitle="Роли, права и журнал действий" title="Команда">
           <p className="text-sm leading-7 text-[var(--ink-soft)]">
-            Review platform roles, understand access boundaries, and use backend-owned user
-            lifecycle actions without exposing secrets or deploy-only controls in the frontend.
+            Проверяйте роли и права доступа, а также безопасно управляйте пользователями через backend-контракт.
           </p>
           <Link
             className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
             href="/team"
           >
-            Open Team Page
+            Открыть команду
           </Link>
         </WidgetCard>
       </div>

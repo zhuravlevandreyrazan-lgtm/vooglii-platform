@@ -33,7 +33,7 @@ export function PageHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {updatedAt ? <StatusBadge tone="neutral">Updated {updatedAt}</StatusBadge> : null}
+          {updatedAt ? <StatusBadge tone="neutral">Обновлено {updatedAt}</StatusBadge> : null}
           {actions}
         </div>
       </div>

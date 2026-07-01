@@ -7,6 +7,7 @@ import { useNotificationSummary } from "@/features/notifications/hooks/use-notif
 import { useDemoMode } from "@/shared/demo/demo-provider";
 import { Button } from "@/shared/components/button";
 import { StatusBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { useWorkspaceContext } from "@/shared/workspace-context";
 
 export function WorkspaceTopBar({
@@ -24,11 +25,11 @@ export function WorkspaceTopBar({
   const { cabinet, organization, user, loading } = useAuth();
   const workspace = useWorkspaceContext();
   const notificationSummary = useNotificationSummary();
-  const clockLabel = new Intl.DateTimeFormat("en-US", {
+  const clockLabel = new Intl.DateTimeFormat("ru-RU", {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date());
-  const initials = (user?.name ?? "User")
+  const initials = (user?.name ?? "Пользователь")
     .split(" ")
     .map((part) => part[0] ?? "")
     .join("")
@@ -39,7 +40,7 @@ export function WorkspaceTopBar({
     <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[color:rgba(244,239,231,0.82)] px-4 py-4 backdrop-blur lg:px-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <Button aria-label="Open sidebar" className="lg:hidden" variant="ghost" onClick={onOpenSidebar}>
+          <Button aria-label="Открыть меню" className="lg:hidden" variant="ghost" onClick={onOpenSidebar}>
             <Menu size={16} />
           </Button>
           <div>
@@ -58,19 +59,18 @@ export function WorkspaceTopBar({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex min-w-[220px] items-center gap-2 rounded-full border border-[var(--line)] bg-white/60 px-4 py-2.5 shadow-[var(--shadow-soft)]">
             <Search size={16} className="text-[var(--ink-soft)]" />
-            <span className="text-sm text-[var(--ink-soft)]">Search workspace, report, or insight</span>
+            <span className="text-sm text-[var(--ink-soft)]">Поиск по разделам, отчетам и подсказкам</span>
           </div>
-          {lastUpdated ? <StatusBadge tone="neutral">Updated {lastUpdated}</StatusBadge> : null}
-          {enabled ? <StatusBadge tone="accent">DEMO MODE</StatusBadge> : null}
-          <StatusBadge tone="accent">DEV</StatusBadge>
+          {lastUpdated ? <StatusBadge tone="neutral">Обновлено {lastUpdated}</StatusBadge> : null}
+          {enabled ? <StatusBadge tone="accent">Демо-режим</StatusBadge> : null}
           {workspace.organization ? <StatusBadge tone="neutral">{workspace.organization.name}</StatusBadge> : null}
           {workspace.cabinet ? (
             <StatusBadge tone={workspace.cabinet.connected ? "healthy" : "watch"}>
-              Cabinet {workspace.cabinet.connected ? "connected" : "disconnected"}
+              {workspace.cabinet.connected ? "Кабинет подключен" : "Кабинет не подключен"}
             </StatusBadge>
           ) : null}
           {!loading && cabinet && !cabinet.connected ? (
-            <StatusBadge tone="watch">Connect WB cabinet for live sync</StatusBadge>
+            <StatusBadge tone="watch">Подключите кабинет Wildberries</StatusBadge>
           ) : null}
           {process.env.NODE_ENV === "development" ? (
             <div className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-white/75 p-1 shadow-[var(--shadow-soft)]">
@@ -79,19 +79,19 @@ export function WorkspaceTopBar({
                 onClick={() => enabled && toggleDemoMode()}
                 type="button"
               >
-                Live
+                Рабочий
               </button>
               <button
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${enabled ? "bg-[var(--accent)] text-white" : "text-[var(--ink-soft)] hover:text-[var(--ink)]"}`}
                 onClick={() => !enabled && toggleDemoMode()}
                 type="button"
               >
-                Demo
+                Демо
               </button>
             </div>
           ) : null}
           <select
-            aria-label="Select organization"
+            aria-label="Выбрать организацию"
             className="rounded-full border border-[var(--line)] bg-white/75 px-3 py-2 text-sm outline-none"
             disabled={workspace.loading || workspace.organizations.length === 0}
             onChange={(event) => {
@@ -106,7 +106,7 @@ export function WorkspaceTopBar({
             ))}
           </select>
           <select
-            aria-label="Select WB cabinet"
+            aria-label="Выбрать кабинет Wildberries"
             className="rounded-full border border-[var(--line)] bg-white/75 px-3 py-2 text-sm outline-none"
             disabled={workspace.loading || workspace.cabinets.length === 0}
             onChange={(event) => {
@@ -121,18 +121,18 @@ export function WorkspaceTopBar({
             ))}
           </select>
           <StatusBadge tone="healthy">{clockLabel}</StatusBadge>
-          <Button aria-label="Reload placeholder" variant="ghost">
+          <Button aria-label="Обновить страницу" variant="ghost">
             <RefreshCcw size={16} />
           </Button>
           <Link
-            aria-label="Notifications"
+            aria-label="Уведомления"
             className="relative inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white/60 px-3 py-2 text-sm font-semibold transition hover:bg-white"
             href="/notifications"
           >
             <Bell size={16} />
             {notificationSummary.unreadCount > 0 ? (
               <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--accent)] px-2 py-0.5 text-xs font-semibold text-white">
-                {notificationSummary.unreadCount}
+              {notificationSummary.unreadCount}
               </span>
             ) : null}
           </Link>
@@ -141,8 +141,10 @@ export function WorkspaceTopBar({
               {loading ? <UserCircle2 size={14} /> : initials}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{user?.name ?? "User"}</div>
-              <div className="truncate text-xs text-[var(--ink-soft)]">{workspace.organization?.name ?? organization?.name ?? "Loading organization"}</div>
+              <div className="truncate text-sm font-semibold">{user?.name ?? "Пользователь"}</div>
+              <div className="truncate text-xs text-[var(--ink-soft)]">
+                {workspace.organization?.name ?? organization?.name ?? localizeWorkspaceLabel("platform")}
+              </div>
             </div>
           </div>
         </div>

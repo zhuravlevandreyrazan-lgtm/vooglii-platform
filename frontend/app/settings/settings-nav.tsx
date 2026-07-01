@@ -7,11 +7,11 @@ import { hasAnyPermission } from "@/features/auth/rbac";
 import { cn } from "@/shared/lib/cn";
 
 const SETTINGS_LINKS = [
-  { href: "/settings/readiness", label: "Readiness", requiredPermissions: ["settings:manage"] as const },
-  { href: "/settings/profile", label: "Profile", requiredPermissions: ["dashboard:view"] as const },
-  { href: "/settings/wb-cabinet", label: "WB Cabinet", requiredPermissions: ["settings:manage"] as const },
-  { href: "/team", label: "Team", requiredPermissions: ["users:view"] as const },
-  { href: "/notifications", label: "Notifications", requiredPermissions: ["dashboard:view"] as const }
+  { href: "/settings/readiness", label: "Готовность", requiredPermissions: ["settings:manage"] as const },
+  { href: "/settings/profile", label: "Профиль", requiredPermissions: ["dashboard:view"] as const },
+  { href: "/settings/wb-cabinet", label: "Кабинет WB", requiredPermissions: ["settings:manage"] as const },
+  { href: "/team", label: "Команда", requiredPermissions: ["users:view"] as const },
+  { href: "/notifications", label: "Уведомления", requiredPermissions: ["dashboard:view"] as const }
 ];
 
 export function SettingsNav() {

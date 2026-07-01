@@ -1,6 +1,6 @@
 import type { ExecutiveBrief } from "@/features/command-center/executive-brief-types";
 import type { CommandCenterKpis } from "@/features/command-center/kpi-types";
-import type { PriorityAction, PriorityActionSeverity, PriorityActionType } from "@/features/command-center/priority-actions-types";
+import type { PriorityAction, PriorityActionSeverity } from "@/features/command-center/priority-actions-types";
 
 const SEVERITY_ORDER: Record<PriorityActionSeverity, number> = {
   critical: 0,
@@ -19,11 +19,9 @@ function dedupeActions(actions: PriorityAction[]) {
 
   actions.forEach((action) => {
     const key = `${action.type}:${action.title.trim().toLowerCase()}`;
-
     if (seen.has(key)) {
       return;
     }
-
     seen.add(key);
     unique.push(action);
   });
@@ -34,11 +32,9 @@ function dedupeActions(actions: PriorityAction[]) {
 function sortActions(actions: PriorityAction[]) {
   return [...actions].sort((left, right) => {
     const severityDiff = SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity];
-
     if (severityDiff !== 0) {
       return severityDiff;
     }
-
     return left.title.localeCompare(right.title);
   });
 }
@@ -47,15 +43,12 @@ function riskSeverityFromTone(tone: CommandCenterKpis["topRisk"] extends infer T
   if (!tone || typeof tone !== "object" || !("tone" in tone)) {
     return "high" as PriorityActionSeverity;
   }
-
   if (tone.tone === "risk") {
     return "critical" as PriorityActionSeverity;
   }
-
   if (tone.tone === "watch") {
     return "high" as PriorityActionSeverity;
   }
-
   return "medium" as PriorityActionSeverity;
 }
 
@@ -88,7 +81,7 @@ export function buildPriorityActions(
         description: kpis.topRisk.summary,
         impact: "stability",
         recommendation:
-          executiveBrief.recommendation.detail || "Проверить источник риска и подготовить план снижения давления на результат.",
+          executiveBrief.recommendation.detail || "Проверьте источник риска и подготовьте план снижения давления на результат.",
         status: "ready",
         source: "executiveBrief"
       })
@@ -104,7 +97,7 @@ export function buildPriorityActions(
         title: kpis.topOpportunity.title,
         description: kpis.topOpportunity.summary,
         impact: "revenue",
-        recommendation: "Проверить возможность и при подтверждении аккуратно масштабировать рабочий сценарий.",
+        recommendation: "Проверьте потенциал роста и при подтверждении аккуратно масштабируйте рабочий сценарий.",
         status: "review",
         source: "kpi"
       })
@@ -118,9 +111,9 @@ export function buildPriorityActions(
         type: "profit",
         severity: "high",
         title: "Снизить давление на прибыль",
-        description: "Индикатор business health опустился ниже безопасного уровня.",
+        description: "Индекс здоровья бизнеса опустился ниже комфортного уровня.",
         impact: "profit",
-        recommendation: "Проверить прибыль, рекламу и остатки по проблемным SKU.",
+        recommendation: "Проверьте прибыль, рекламу и остатки по проблемным SKU.",
         status: "ready",
         source: "kpi"
       })
@@ -133,10 +126,10 @@ export function buildPriorityActions(
         id: "priority-growth-mode",
         type: "growth",
         severity: "low",
-        title: "Удерживать стабильный режим роста",
-        description: "Business health остаётся в устойчивой зоне.",
+        title: "Сохранить стабильный темп роста",
+        description: "Здоровье бизнеса остается в устойчивой зоне.",
         impact: "revenue",
-        recommendation: "Сохранить текущий режим и искать точки масштабирования.",
+        recommendation: "Сохраняйте текущий режим и ищите аккуратные точки масштабирования.",
         status: "review",
         source: "kpi"
       })
@@ -150,9 +143,9 @@ export function buildPriorityActions(
         type: "ads",
         severity: "medium",
         title: "Проверить эффективность рекламы",
-        description: "Расходы на рекламу есть, но эффективность кампаний недостаточно подтверждена KPI.",
+        description: "Расходы на рекламу есть, но KPI кампаний пока не подтверждают достаточную эффективность.",
         impact: "efficiency",
-        recommendation: "Проверить эффективность рекламных кампаний.",
+        recommendation: "Проверьте кампании, ставки и связку рекламы с продажами.",
         status: "review",
         source: "kpi"
       })
@@ -167,10 +160,10 @@ export function buildPriorityActions(
         id: "priority-data-fallback",
         type: "data",
         severity: "medium",
-        title: "Обновить управленческие данные",
-        description: "Для уверенного списка действий пока недостаточно подтверждённых сигналов.",
+        title: "Обновить данные бизнеса",
+        description: "Для уверенного списка действий пока недостаточно подтвержденных сигналов.",
         impact: "visibility",
-        recommendation: "Обновить данные и проверить подключение источников.",
+        recommendation: "Обновите данные и проверьте подключение кабинета Wildberries.",
         status: "new",
         source: "fallback"
       })

@@ -3,33 +3,33 @@ import type { CommandCenterSnapshot, NavItem } from "@/types/platform";
 export const primaryNavigation: NavItem[] = [
   {
     key: "command-center",
-    label: "Command Center",
+    label: "Главная",
     href: "/",
-    description: "Executive view, health, priorities, and cross-workspace routing."
+    description: "Главная сводка, здоровье бизнеса, приоритеты и навигация по разделам."
   },
   {
     key: "business",
-    label: "Business",
+    label: "Бизнес",
     href: "/business",
-    description: "Operating condition, trend diagnostics, and action signals."
+    description: "Состояние бизнеса, динамика и сигналы для действий."
   },
   {
     key: "finance",
-    label: "Finance",
+    label: "Финансы",
     href: "/finance",
-    description: "Payout clarity, margin discipline, and trusted financial status."
+    description: "Выплаты, маржинальность и надежность финансовых данных."
   },
   {
     key: "products",
-    label: "Products",
+    label: "Товары",
     href: "/products",
-    description: "SKU pressure, assortment movement, and stock-aware actions."
+    description: "SKU, ассортимент и действия с учетом остатков."
   },
   {
     key: "advertising",
-    label: "Advertising",
+    label: "Реклама",
     href: "/advertising",
-    description: "Spend efficiency, risk control, and campaign direction."
+    description: "Эффективность расходов, контроль рисков и направление кампаний."
   },
   {
     key: "analytics",
@@ -45,15 +45,15 @@ export const primaryNavigation: NavItem[] = [
   },
   {
     key: "system",
-    label: "System",
+    label: "Система",
     href: "/system",
-    description: "Source status, sync readiness, and platform diagnostics."
+    description: "Состояние синхронизаций, готовность данных и диагностика платформы."
   },
   {
     key: "settings",
-    label: "Settings",
+    label: "Настройки",
     href: "/settings",
-    description: "Account, integrations, and workspace preferences."
+    description: "Аккаунт, интеграции и настройки рабочего пространства."
   }
 ];
 

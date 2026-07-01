@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/shared/status";
 import type { WorkspaceDiagnostics } from "@/shared/api/api-types";
+import { localizeDiagnosticsLabel } from "@/shared/ui/status-labels";
 
 type RuntimeContext = {
   organization?: string | null;
@@ -34,26 +35,18 @@ export function RuntimeBadge({
   diagnostics?: WorkspaceDiagnostics;
   context?: RuntimeContext;
 }) {
-  if (process.env.NODE_ENV !== "development" || !diagnostics) {
+  if (!diagnostics) {
     return null;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <StatusBadge tone={toneForSource(diagnostics.source)}>
-        source {diagnostics.source}
+        {localizeDiagnosticsLabel(diagnostics)}
       </StatusBadge>
-      {typeof diagnostics.durationMs === "number" ? (
-        <StatusBadge tone="neutral">{Math.round(diagnostics.durationMs)} ms</StatusBadge>
-      ) : null}
-      <StatusBadge tone={diagnostics.degraded ? "watch" : "healthy"}>
-        degraded {diagnostics.degraded ? "true" : "false"}
-      </StatusBadge>
-      {diagnostics.cached ? <StatusBadge tone="accent">cached</StatusBadge> : null}
-      {diagnostics.stale ? <StatusBadge tone="watch">stale</StatusBadge> : null}
       {context?.organization ? <StatusBadge tone="neutral">{context.organization}</StatusBadge> : null}
       {context?.cabinet ? <StatusBadge tone="neutral">{context.cabinet}</StatusBadge> : null}
-      {context?.mode ? <StatusBadge tone="accent">mode {context.mode}</StatusBadge> : null}
+      {context?.mode === "demo" ? <StatusBadge tone="accent">Демо-режим</StatusBadge> : null}
     </div>
   );
 }

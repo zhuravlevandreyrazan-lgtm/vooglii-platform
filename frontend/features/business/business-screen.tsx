@@ -41,14 +41,14 @@ export function BusinessScreen({
             <OpenAutomationLink format="JSON" workspace="business" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh business snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Business"]}
-        subtitle="A dedicated operating workspace for revenue, profit, margin, order quality, and product-level business visibility."
-        title="Business"
+        breadcrumb={["Платформа", "Бизнес"]}
+        subtitle="Выручка, прибыль, заказы и основные бизнес-показатели по вашему кабинету Wildberries."
+        title="Бизнес"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -56,8 +56,8 @@ export function BusinessScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Backend response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Основные данные временно недоступны"
           tone="watch"
         />
       ) : null}
@@ -67,7 +67,7 @@ export function BusinessScreen({
       <section className="space-y-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">KPI Grid</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Commercial performance at a glance</h2>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Ключевые показатели бизнеса</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {kpis.cards.map((metric) => (
@@ -80,7 +80,7 @@ export function BusinessScreen({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Trend Section</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Period comparison</h2>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Сравнение периодов</h2>
           </div>
           <StatusBadge tone={kpis.healthScore.tone}>{kpis.healthScore.value}</StatusBadge>
         </div>
@@ -97,7 +97,7 @@ export function BusinessScreen({
       <BusinessAlertsWidget alerts={alerts} error={error} loading={loading} />
 
       <div className="text-sm text-[var(--ink-soft)]">
-        Last Updated: {lastUpdated ?? "n/a"}
+        Последнее обновление: {lastUpdated ?? "нет данных"}
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import type {
   ExecutiveStatus
 } from "@/features/command-center/executive-brief-types";
 
-const FALLBACK_SUMMARY = "Not enough live metrics are available yet to form a confident recommendation.";
+const FALLBACK_SUMMARY = "Пока недостаточно данных, чтобы дать уверенную рекомендацию.";
 
 function hasReadableMetric(value: CommandCenterKpis[keyof Omit<CommandCenterKpis, "topRisk" | "topOpportunity" | "cards">]) {
   return value.state === "ready";
@@ -61,37 +61,37 @@ function resolveConfidence(kpis: CommandCenterKpis): ExecutiveConfidence {
 
 function resolveGreeting(status: ExecutiveStatus) {
   if (status === "Business Stable") {
-    return "Business performance looks stable.";
+    return "Бизнес работает стабильно.";
   }
   if (status === "Attention Required") {
-    return "Business performance needs management attention today.";
+    return "Показатели требуют внимания сегодня.";
   }
-  return "This brief was assembled from a limited set of live metrics.";
+  return "Сводка собрана на основе ограниченного набора данных.";
 }
 
 function resolveSummary(kpis: CommandCenterKpis, status: ExecutiveStatus) {
   const signals: string[] = [];
 
   if (hasReadableMetric(kpis.revenue)) {
-    signals.push(`Revenue: ${kpis.revenue.value}.`);
+    signals.push(`Выручка: ${kpis.revenue.value}.`);
   }
   if (hasReadableMetric(kpis.profit)) {
-    signals.push(`Profit: ${kpis.profit.value}.`);
+    signals.push(`Прибыль: ${kpis.profit.value}.`);
   }
   if (hasReadableMetric(kpis.margin)) {
-    signals.push(`Margin: ${kpis.margin.value}.`);
+    signals.push(`Маржинальность: ${kpis.margin.value}.`);
   }
   if (hasReadableMetric(kpis.roas)) {
-    signals.push(`ROAS: ${kpis.roas.value}.`);
+    signals.push(`Окупаемость рекламы: ${kpis.roas.value}.`);
   }
   if (hasReadableMetric(kpis.acos)) {
-    signals.push(`ACOS: ${kpis.acos.value}.`);
+    signals.push(`Доля рекламных расходов: ${kpis.acos.value}.`);
   }
   if (kpis.topRisk?.title) {
-    signals.push(`Top risk: ${kpis.topRisk.title}.`);
+    signals.push(`Главный риск: ${kpis.topRisk.title}.`);
   }
   if (kpis.topOpportunity?.title) {
-    signals.push(`Top opportunity: ${kpis.topOpportunity.title}.`);
+    signals.push(`Точка роста: ${kpis.topOpportunity.title}.`);
   }
 
   if (signals.length === 0) {
@@ -99,20 +99,20 @@ function resolveSummary(kpis: CommandCenterKpis, status: ExecutiveStatus) {
   }
 
   if (status === "Attention Required") {
-    return `Key live metrics point to pressure on results. ${signals.join(" ")}`;
+    return `Текущие показатели указывают на давление на результат. ${signals.join(" ")}`;
   }
 
   if (status === "Business Stable") {
-    return `Core KPIs look stable. ${signals.join(" ")}`;
+    return `Ключевые показатели выглядят стабильно. ${signals.join(" ")}`;
   }
 
-  return `Available live KPIs provide a partial operating picture. ${signals.join(" ")}`;
+  return `Доступные показатели дают частичную картину бизнеса. ${signals.join(" ")}`;
 }
 
 function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus): ExecutiveRecommendation {
   if (kpis.topRisk) {
     return {
-      title: "Focus on the primary risk.",
+      title: "Сфокусируйтесь на главном риске.",
       detail: kpis.topRisk.summary || FALLBACK_SUMMARY,
       priority: "high"
     };
@@ -120,7 +120,7 @@ function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus)
 
   if (kpis.topOpportunity) {
     return {
-      title: "Use the strongest opportunity.",
+      title: "Используйте самую сильную точку роста.",
       detail: kpis.topOpportunity.summary,
       priority: "medium"
     };
@@ -128,14 +128,14 @@ function resolveRecommendation(kpis: CommandCenterKpis, status: ExecutiveStatus)
 
   if (status === "Business Stable") {
     return {
-      title: "Maintain the current operating pace.",
-      detail: "No major negative signals were detected. Keep monitoring margin and advertising efficiency.",
+      title: "Сохраняйте текущий темп.",
+      detail: "Критичных негативных сигналов не обнаружено. Продолжайте следить за маржинальностью и рекламой.",
       priority: "low"
     };
   }
 
   return {
-    title: "Collect more live data.",
+    title: "Соберите больше данных.",
     detail: FALLBACK_SUMMARY,
     priority: "high"
   };

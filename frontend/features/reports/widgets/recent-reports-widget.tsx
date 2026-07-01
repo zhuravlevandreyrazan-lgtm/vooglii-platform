@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatOptionalValue, localizeStatus } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { ReportHistory } from "@/features/reports/types";
 
@@ -14,11 +15,11 @@ export function RecentReportsWidget({
   return (
     <WidgetCard
       empty={recent.length === 0}
-      emptyMessage="Recent reports will appear here when backend returns report history rows."
+      emptyMessage="Последние отчеты появятся здесь, когда backend начнет возвращать историю генерации."
       error={error}
       loading={loading}
-      subtitle="Recent reports"
-      title="Recent Reports"
+      subtitle="Последние отчеты"
+      title="Недавние отчеты"
     >
       <div className="space-y-3">
         {recent.map((item) => (
@@ -28,12 +29,12 @@ export function RecentReportsWidget({
                 <div className="text-base font-semibold">{item.type}</div>
                 <div className="mt-1 text-sm text-[var(--ink-soft)]">{item.source}</div>
               </div>
-              <div className="text-sm font-semibold">{item.status}</div>
+              <div className="text-sm font-semibold">{localizeStatus(item.status)}</div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-[var(--ink-soft)]">
-              <span>{item.date ?? "n/a"}</span>
+              <span>{formatOptionalValue(item.date)}</span>
               <Link className="font-semibold text-[var(--accent-strong)]" href={item.href}>
-                Open related workspace
+                Открыть связанный раздел
               </Link>
             </div>
           </div>

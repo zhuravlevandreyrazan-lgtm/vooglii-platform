@@ -25,86 +25,86 @@ export type WorkspaceNavItem = {
 
 export const workspaceNavigation: WorkspaceNavItem[] = [
   {
-    label: "Executive",
+    label: "Главная",
     href: "/executive",
-    description: "Leadership view, KPIs, risks, actions, and timeline.",
+    description: "Ключевые показатели, риски, задачи и общая картина по кабинету.",
     icon: LayoutDashboard,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Business",
+    label: "Бизнес",
     href: "/business",
-    description: "Business health, revenue movement, and operating signals.",
+    description: "Выручка, прибыль, маржинальность и бизнес-сигналы.",
     icon: BriefcaseBusiness,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Finance",
+    label: "Финансы",
     href: "/finance",
-    description: "Profit quality, payout clarity, and finance explainability.",
+    description: "Качество прибыли, выплаты и финансовая прозрачность.",
     icon: BarChart3,
     requiredPermissions: ["finance:view"]
   },
   {
-    label: "Advertising",
+    label: "Реклама",
     href: "/advertising",
-    description: "Spend efficiency, campaigns, and growth control.",
+    description: "Расходы, эффективность кампаний и контроль роста.",
     icon: Megaphone,
     requiredPermissions: ["ads:view"]
   },
   {
-    label: "Products",
+    label: "Товары",
     href: "/products",
-    description: "SKU pressure, assortment movement, and readiness.",
+    description: "SKU, ассортимент, риски и готовность к росту.",
     icon: Boxes,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Inventory",
+    label: "Остатки",
     href: "/inventory",
-    description: "Stock coverage, replenishment, and supply stability.",
+    description: "Покрытие остатков, пополнение и стабильность поставок.",
     icon: Blocks,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Automation",
+    label: "Автоматизация",
     href: "/automation",
-    description: "Exports, schedules, jobs, and automation control.",
+    description: "Выгрузки, расписания, фоновые задачи и автоматизация.",
     icon: Cable,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Notifications",
+    label: "Уведомления",
     href: "/notifications",
-    description: "Channels, rules, history, and delivery testing.",
+    description: "Каналы, правила, история и контроль доставки.",
     icon: Bell,
     requiredPermissions: ["dashboard:view"]
   },
   {
-    label: "Reports",
+    label: "Отчеты",
     href: "/reports",
-    description: "Exports, executive packs, and historical reporting.",
+    description: "Экспорт, подборки для руководителя и история отчетов.",
     icon: FileText,
     requiredPermissions: ["reports:view"]
   },
   {
-    label: "AI Advisor",
+    label: "ИИ-советник",
     href: "/advisor",
-    description: "Explainable decision support and advisory workflows.",
+    description: "Подсказки по решениям и сценарии управленческих действий.",
     icon: Bot,
     requiredPermissions: ["analytics:view"]
   },
   {
-    label: "Team",
+    label: "Команда",
     href: "/team",
-    description: "Roles, permissions, and user lifecycle controls.",
+    description: "Пользователи, роли, права доступа и управление командой.",
     icon: Users,
     requiredPermissions: ["users:view"]
   },
   {
-    label: "Settings",
+    label: "Настройки",
     href: "/settings",
-    description: "Preferences, integrations, and workspace controls.",
+    description: "Параметры, интеграции и управление рабочим пространством.",
     icon: Settings,
     requiredPermissions: ["settings:manage"]
   }
@@ -119,13 +119,13 @@ export function resolveWorkspaceMeta(pathname: string) {
     return {
       title: match.label,
       description: match.description,
-      breadcrumb: ["Platform", match.label]
+      breadcrumb: ["Платформа", match.label]
     };
   }
 
   return {
-    title: "Platform",
-    description: "VOOGLII platform workspace shell.",
-    breadcrumb: ["Platform"]
+    title: "Платформа",
+    description: "Коммерческая рабочая среда VOOGLII.",
+    breadcrumb: ["Платформа"]
   };
 }

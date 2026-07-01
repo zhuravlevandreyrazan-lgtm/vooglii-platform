@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { BusinessAlert } from "@/features/business/types";
 
@@ -14,11 +15,11 @@ export function BusinessAlertsWidget({
   return (
     <WidgetCard
       empty={alerts.length === 0}
-      emptyMessage="Business alerts will appear here when deterministic rules identify operating issues."
+      emptyMessage="Сигналы по бизнесу появятся здесь, когда правила выявят операционные отклонения."
       error={error}
       loading={loading}
-      subtitle="Operating pressure"
-      title="Business Alerts"
+      subtitle="Операционные риски"
+      title="Сигналы бизнеса"
     >
       <div className="space-y-3">
         {alerts.map((alert) => (
@@ -29,7 +30,7 @@ export function BusinessAlertsWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{alert.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {alert.source}
+              Источник: {localizeWorkspaceLabel(alert.source)}
             </div>
           </div>
         ))}

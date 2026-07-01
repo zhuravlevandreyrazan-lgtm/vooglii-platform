@@ -1,4 +1,5 @@
 import { SeverityBadge } from "@/shared/status";
+import { localizeWorkspaceLabel } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { AdvisorTimeline } from "@/features/advisor/types";
 
@@ -14,11 +15,11 @@ export function AdvisorTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Advisor timeline entries will appear here when backend returns advisor events."
+      emptyMessage="События советника появятся здесь, когда backend начнет возвращать журнал изменений."
       error={error}
       loading={loading}
-      subtitle="Recent advisor events"
-      title="Advisor Timeline"
+      subtitle="Последние события"
+      title="Лента советника"
     >
       <div className="space-y-3">
         {timeline.map((item) => (
@@ -29,7 +30,7 @@ export function AdvisorTimelineWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>
             <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {item.source}
+              Источник: {localizeWorkspaceLabel(item.source)}
             </div>
           </div>
         ))}

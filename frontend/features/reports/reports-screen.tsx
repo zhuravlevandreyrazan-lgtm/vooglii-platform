@@ -36,14 +36,14 @@ export function ReportsScreen({
             <OpenAutomationLink format="PDF" workspace="reports" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Refresh reports snapshot
+                Обновить данные
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Platform", "Reports"]}
-        subtitle="A single entry point to backend-ready reports, report history, templates, sources, and future export capabilities."
-        title="Reports Center"
+        breadcrumb={["Платформа", "Отчеты"]}
+        subtitle="Отчеты, история, шаблоны, источники и экспорт в одном разделе."
+        title="Отчеты"
         updatedAt={lastUpdated ?? undefined}
       />
 
@@ -51,8 +51,8 @@ export function ReportsScreen({
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Using fallback data. Reports response is unavailable or invalid."
-          title="Fallback snapshot active"
+          detail="Сейчас показываются резервные данные. Попробуйте обновить страницу позже."
+          title="Отчеты временно недоступны"
           tone="watch"
         />
       ) : null}
