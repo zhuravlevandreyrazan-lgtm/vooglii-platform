@@ -56,6 +56,21 @@ def _endpoint_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
+def _runtime_mode(*payloads: dict[str, Any]) -> str:
+    sources = {
+        str((payload.get("runtime") or {}).get("source") or "").lower()
+        for payload in payloads
+        if payload
+    }
+    if not sources:
+        return "degraded"
+    if sources & {"degraded", "stale_cache"}:
+        return "degraded"
+    if sources & {"live", "cache"}:
+        return "live"
+    return "degraded"
+
+
 def get_system_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     del user_id
     performance = get_performance_snapshot()
@@ -78,8 +93,9 @@ def get_system_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         for endpoint, stats in performance.items()
         if stats.get("last_error")
     }
+    mode = _runtime_mode(finance_payload, advertising_payload, executive_payload, business_payload)
     health = {
-        "verdict": "WARNING" if last_errors else "GOOD",
+        "verdict": "WARNING" if last_errors or mode != "live" else "GOOD",
         "slow_endpoints": len(slow_endpoints),
         "cached_snapshots": cache.get("size", 0),
     }
@@ -92,7 +108,7 @@ def get_system_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
 
     return {
         "product": PRODUCT_NAME,
-        "mode": "read_only",
+        "mode": mode,
         "status": safe_text(health.get("verdict"), "UNKNOWN"),
         "health": health,
         "quality": quality,
@@ -107,8 +123,8 @@ def get_system_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         },
         "cache": cache,
         "writeSafety": {
-            "mode": "read_only",
-            "telegram_mutations": "disabled",
+            "mode": "protected",
+            "telegram_mutations": "unchanged",
         },
         "cooldowns": {
             "heavy_endpoints": "protected_by_timeout",
@@ -137,7 +153,7 @@ def get_system_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         "coreV2Status": {
             "version": BUILD_VERSION,
             "api": API_VERSION,
-            "runtime": "fast_mode",
+            "runtime": mode,
         },
         "controlCenter": {
             "status": safe_text((executive_payload.get("business_health") or {}).get("status"), "UNKNOWN"),

@@ -91,7 +91,7 @@ from analytics.degraded import (
     reports_degraded,
     system_degraded,
 )
-from analytics.executive import get_executive_payload, get_executive_payload_fast
+from analytics.executive import get_executive_payload
 from analytics.finance import get_finance_payload
 from analytics.inventory import get_inventory_payload
 from analytics.logging_config import configure_logging, get_logger, safe_log_extra
@@ -137,8 +137,8 @@ LOGGER = get_logger("api")
 STARTUP_VALIDATION = validate_startup()
 
 ENDPOINT_RUNTIME = {
-    "/api/command-center": {"cache_key": "executive", "ttl_seconds": 120, "timeout_ms": 5000},
-    "/api/executive": {"cache_key": "executive", "ttl_seconds": 120, "timeout_ms": 5000},
+    "/api/command-center": {"cache_key": "executive", "ttl_seconds": 120, "timeout_ms": 20000},
+    "/api/executive": {"cache_key": "executive", "ttl_seconds": 120, "timeout_ms": 20000},
     "/api/business": {"cache_key": "business", "ttl_seconds": 180, "timeout_ms": 10000},
     "/api/finance": {"cache_key": "finance", "ttl_seconds": 180, "timeout_ms": 10000},
     "/api/advertising": {"cache_key": "advertising", "ttl_seconds": 180, "timeout_ms": 10000},
@@ -626,13 +626,13 @@ def _build_dev_auth_payload(actor: dict[str, Any], *, cabinet_connected: bool | 
 @app.get("/api/command-center", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
 def api_command_center(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/command-center", get_executive_payload_fast, executive_degraded)
+    return _cached_snapshot("/api/command-center", get_executive_payload, executive_degraded)
 
 
 @app.get("/api/executive", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
 def api_executive(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/executive", get_executive_payload_fast, executive_degraded)
+    return _cached_snapshot("/api/executive", get_executive_payload, executive_degraded)
 
 
 @app.get("/api/business", response_model=BusinessResponse, responses={500: {"model": ApiErrorResponse}})
@@ -803,7 +803,7 @@ def api_select_wb_cabinet(
 def api_workspace_context(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    context = get_workspace_context()
+    context = get_workspace_context(mode="live")
     context["runtime"] = _auth_runtime(started_at=started_at)
     return context
 

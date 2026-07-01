@@ -202,7 +202,7 @@ export function mapCommandCenterApiResponseToSnapshot(
         value: metric.value ?? "n/a",
         delta: metric.delta ?? "n/a",
         tone: statusToTone(metric.status),
-        note: metric.source ?? "Read-only API"
+        note: metric.source ?? "Live backend API"
       })) ?? commandCenterMock.kpis,
     timeline:
       payload.recent_events?.map((event, index) => ({
@@ -237,7 +237,7 @@ export function mapCommandCenterApiResponseToSnapshot(
     notifications: [
       {
         id: "api-source",
-        title: "Read-only API connected",
+        title: "Live backend connected",
         description: `Finance API status: ${systemFinance}.${degraded}`,
         tone: statusToTone(payload.business_health?.status)
       },

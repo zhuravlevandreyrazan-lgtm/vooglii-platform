@@ -101,7 +101,7 @@ export function CommandCenterScreen({
         eyebrow="VOOGLII Command Center"
         status={
           source === "real"
-            ? "Read-only API snapshot active"
+            ? "Live backend data active"
             : source === "demo"
               ? "Demo snapshot active"
               : "Mock snapshot active"
@@ -156,7 +156,7 @@ export function CommandCenterScreen({
               <div className="mt-2 text-sm font-semibold">
                 {kpis.topRisk?.title ??
                   (source === "real"
-                    ? "Connected to the read-only Command Center API."
+                    ? "Connected to the live Command Center backend."
                     : "Frontend stays available through mock fallback.")}
               </div>
             </div>

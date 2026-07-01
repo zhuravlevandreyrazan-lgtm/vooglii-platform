@@ -4,6 +4,8 @@ from typing import Any
 
 import telegram_bot
 
+from analytics.advertising import get_advertising_payload
+from analytics.business import get_business_payload
 from analytics.cache import get_stale_cache_value
 from analytics.common import (
     DEFAULT_USER_ID,
@@ -18,10 +20,17 @@ from analytics.common import (
     snapshot_context,
     status_to_api,
 )
+from analytics.finance import get_finance_payload
+from analytics.inventory import get_inventory_payload
 from analytics.performance import get_performance_snapshot
+from analytics.products import get_products_payload
 
 
 def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
+    return get_executive_payload_fast(user_id)
+
+
+def _legacy_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     start_date, end_date = current_month_days()
     days = (start_date, end_date)
     shared_context = snapshot_context()
@@ -87,8 +96,8 @@ def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     executive_summary = safe_text(
         director_snapshot.get("executive_summary")
         or (advisor_snapshot.get("business_state") or {}).get("summary")
-        or "Command Center snapshot is available in degraded read-only mode.",
-        "Command Center snapshot is available in degraded read-only mode.",
+        or "Command Center is available with partial backend data.",
+        "Command Center is available with partial backend data.",
     )
     business_health_status = status_to_api(director_snapshot.get("business_health"))
     confidence_score = safe_int(
@@ -241,7 +250,7 @@ def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "Executive brief",
             ),
             "what_happened": what_happened or ["No executive summary was available."],
-            "why": why or ["Read-only summary is running with partial evidence."],
+            "why": why or ["The current summary was assembled from partial backend evidence."],
             "actions": actions or ["Review system and finance workspaces for more detail."],
             "confidence": confidence_score,
             "sources": safe_list(director_snapshot.get("source_layers") or ["Director", "KPI", "Advisor v2"]),
@@ -265,14 +274,20 @@ def _cached_snapshot(key: str) -> dict[str, Any]:
     return get_stale_cache_value(key) or {}
 
 
+def _workspace_payload(key: str, builder, user_id: int) -> dict[str, Any]:
+    payload = _cached_snapshot(key)
+    if payload:
+        return payload
+    return builder(user_id)
+
+
 def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
-    del user_id
     start_date, end_date = current_month_days()
-    business = _cached_snapshot("business")
-    finance = _cached_snapshot("finance")
-    advertising = _cached_snapshot("advertising")
-    products = _cached_snapshot("products")
-    inventory = _cached_snapshot("inventory")
+    business = _workspace_payload("business", get_business_payload, user_id)
+    finance = _workspace_payload("finance", get_finance_payload, user_id)
+    advertising = _workspace_payload("advertising", get_advertising_payload, user_id)
+    products = _workspace_payload("products", get_products_payload, user_id)
+    inventory = _workspace_payload("inventory", get_inventory_payload, user_id)
     advisor = _cached_snapshot("advisor")
     system = _cached_snapshot("system")
     performance = get_performance_snapshot()
@@ -294,8 +309,8 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     executive_summary = safe_text(
         (system.get("controlCenter") or {}).get("summary")
         or (advisor.get("insights") or [{}])[0].get("summary")
-        or f"Revenue {business_summary.get('revenue', 0)} and operating profit {business_summary.get('profit', 0)} were loaded from cached workspace snapshots.",
-        "Executive overview is waiting for workspace caches to warm up.",
+        or f"Revenue {business_summary.get('revenue', 0)} and operating profit {business_summary.get('profit', 0)} were assembled from live backend analytics.",
+        "Executive overview is waiting for backend analytics to become available.",
     )
     what_happened = [
         executive_summary,
@@ -424,13 +439,13 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
             "status": business_health_status,
             "summary": executive_summary,
             "confidence": trust_score,
-            "data_mode": "cached_workspaces",
+            "data_mode": "live" if (business or finance or advertising or products or inventory) else "degraded",
         },
         "executive_brief": {
             "title": safe_text((advisor.get("insights") or [{}])[0].get("title"), "Executive brief"),
-            "what_happened": what_happened or ["Workspace caches are warming up."],
-            "why": why or ["The executive layer is using the latest cached workspace snapshots."],
-            "actions": actions or ["Open stable workspaces to warm the shared cache."],
+            "what_happened": what_happened or ["Backend analytics are still loading."],
+            "why": why or ["The executive layer is using current backend workspace analytics."],
+            "actions": actions or ["Open Finance or Business to inspect the underlying live metrics."],
             "confidence": trust_score,
             "sources": ["business", "finance", "advertising", "products", "inventory", "advisor", "system"],
         },
@@ -444,6 +459,6 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
             "finance_api": safe_text((system.get("financeApi") or {}).get("status"), safe_text(finance_summary.get("health"), "UNKNOWN")),
             "last_updated": now_iso(),
             "degraded": not bool(business or finance or advertising or products or inventory),
-            "degraded_notes": [] if (business or finance or advertising or products or inventory) else ["Cached workspace snapshots are not ready yet."],
+            "degraded_notes": [] if (business or finance or advertising or products or inventory) else ["Backend workspace analytics are not ready yet."],
         },
     }

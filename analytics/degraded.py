@@ -215,7 +215,7 @@ def reports_degraded(reason: str) -> dict[str, Any]:
 def system_degraded(reason: str) -> dict[str, Any]:
     return {
         "product": PRODUCT_NAME,
-        "mode": "read_only",
+        "mode": "degraded",
         "status": "DEGRADED",
         "health": {},
         "quality": {},

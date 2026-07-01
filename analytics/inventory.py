@@ -39,17 +39,25 @@ def get_inventory_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             "criticalSku": sum(1 for item in items if item["status"]["tone"] == "risk"),
             "daysLeftAverage": None,
             "forecastCoverage": safe_float(sku_registry.get("coverage_percent")),
-            "inventoryHealth": "WATCH" if any(item["status"]["tone"] in ("watch", "risk") for item in items) else "HEALTHY",
+            "inventoryHealth": (
+                "DEGRADED"
+                if not items
+                else "WATCH" if any(item["status"]["tone"] in ("watch", "risk") for item in items) else "HEALTHY"
+            ),
             "warehouseCount": None,
             "lastUpdated": end_date,
         },
         "health": {
-            "inventoryHealth": "WATCH" if any(item["status"]["tone"] in ("watch", "risk") for item in items) else "HEALTHY",
+            "inventoryHealth": (
+                "DEGRADED"
+                if not items
+                else "WATCH" if any(item["status"]["tone"] in ("watch", "risk") for item in items) else "HEALTHY"
+            ),
             "coverage": safe_float(sku_registry.get("coverage_percent")),
             "forecastConfidence": "Medium",
             "criticalStock": sum(1 for item in items if item["status"]["tone"] == "risk"),
             "lowStock": sum(1 for item in items if item["status"]["tone"] == "watch"),
-            "warehouseStatus": "Inventory view currently reuses SKU action plan priorities.",
+            "warehouseStatus": "Inventory view currently reuses SKU action plan priorities and does not expose live stock counts yet.",
         },
         "items": items,
         "restockPlan": [
@@ -88,7 +96,15 @@ def get_inventory_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "severity": "medium",
                 "source": "backend",
             }
-        ] if items else [],
+        ] if items else [
+            {
+                "id": "inventory-alert-degraded",
+                "title": "Inventory data is degraded",
+                "description": "No live inventory item list is available from current WB agent modules yet.",
+                "severity": "medium",
+                "source": "backend",
+            }
+        ],
         "timeline": [
             {
                 "id": "inventory-timeline-1",
@@ -100,9 +116,8 @@ def get_inventory_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             }
         ],
         "metrics": [
-            {"label": "Inventory Health", "value": "WATCH" if items else "UNKNOWN", "note": "Derived from SKU action priorities.", "tone": "watch" if items else "neutral"},
+            {"label": "Inventory Health", "value": "WATCH" if items else "DEGRADED", "note": "Derived from SKU action priorities when live stock counts are unavailable.", "tone": "watch"},
             {"label": "Registry Coverage", "value": f"{safe_float(sku_registry.get('coverage_percent')) or 0}%", "note": "Coverage of SKU cost registry.", "tone": "accent"},
         ],
         "lastUpdated": end_date,
     }
-
