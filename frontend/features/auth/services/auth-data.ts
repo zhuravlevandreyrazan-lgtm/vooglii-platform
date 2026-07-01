@@ -1,6 +1,7 @@
 "use client";
 
 import { apiEndpoints, requestJson } from "@/shared/api";
+import { getRolePermissions } from "@/features/auth/rbac";
 import type { AuthSession, AuthSessionSnapshot, OrganizationProfile, UserProfile, WbCabinetProfile } from "@/features/auth/types";
 
 const DEV_USER: UserProfile = {
@@ -8,8 +9,12 @@ const DEV_USER: UserProfile = {
   name: "Andrey Voronov",
   email: "andrey@vooglii.local",
   role: "owner",
+  permissions: getRolePermissions("owner"),
+  enabled: true,
   avatarUrl: null,
-  createdAt: "2026-06-01T09:00:00Z"
+  createdAt: "2026-06-01T09:00:00Z",
+  lastActiveAt: "2026-07-01T00:00:00Z",
+  deactivatedAt: null
 };
 
 const DEV_ORGANIZATION: OrganizationProfile = {
@@ -54,7 +59,8 @@ export function getDemoAuthSession(): AuthSession {
       id: "user_demo_operator",
       name: "Daria Kuznetsova",
       email: "demo@vooglii.local",
-      role: "demo_admin"
+      role: "admin",
+      permissions: getRolePermissions("admin")
     },
     organization: {
       ...DEV_ORGANIZATION,
@@ -104,6 +110,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isPlatformRole(value: unknown): value is UserProfile["role"] {
+  return value === "owner" || value === "admin" || value === "manager" || value === "analyst" || value === "viewer";
+}
+
 function normalizeUserProfile(value: unknown, fallback: UserProfile): UserProfile {
   if (!isRecord(value)) {
     return fallback;
@@ -113,9 +123,15 @@ function normalizeUserProfile(value: unknown, fallback: UserProfile): UserProfil
     id: typeof value.id === "string" ? value.id : fallback.id,
     name: typeof value.name === "string" ? value.name : fallback.name,
     email: typeof value.email === "string" ? value.email : fallback.email,
-    role: typeof value.role === "string" ? value.role : fallback.role,
+    role: isPlatformRole(value.role) ? value.role : fallback.role,
+    permissions: Array.isArray(value.permissions)
+      ? value.permissions.filter((item): item is UserProfile["permissions"][number] => typeof item === "string")
+      : fallback.permissions,
+    enabled: typeof value.enabled === "boolean" ? value.enabled : fallback.enabled,
     avatarUrl: typeof value.avatarUrl === "string" ? value.avatarUrl : fallback.avatarUrl,
-    createdAt: typeof value.createdAt === "string" ? value.createdAt : fallback.createdAt
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : fallback.createdAt,
+    lastActiveAt: typeof value.lastActiveAt === "string" ? value.lastActiveAt : fallback.lastActiveAt,
+    deactivatedAt: typeof value.deactivatedAt === "string" ? value.deactivatedAt : fallback.deactivatedAt
   };
 }
 

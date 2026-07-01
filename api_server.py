@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import os
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from analytics.api_models import (
     ActiveWorkspaceContext,
     AdvertisingResponse,
+    AuditLogResponse,
     AuthProfileResponse,
     AuthSessionResponse,
     ExportCreateRequest,
@@ -60,7 +61,11 @@ from analytics.api_models import (
     StatusResponse,
     SystemResponse,
     MetricsResponse,
+    UserRecordResponse,
+    UserRoleUpdateRequest,
     UserProfile,
+    UsersResponse,
+    UserStatusUpdateRequest,
     VersionResponse,
     WbCabinetProfile,
     WbCabinetResponse,
@@ -95,6 +100,15 @@ from analytics.performance import build_runtime_metadata, now_monotonic_ms, reco
 from analytics.runtime import run_with_timeout
 from analytics.products import get_products_payload
 from analytics.reports import get_reports_payload, get_reports_payload_fast
+from analytics.rbac import (
+    list_audit_events,
+    list_roles,
+    list_users,
+    require_permission,
+    resolve_actor,
+    update_user_enabled,
+    update_user_role,
+)
 from analytics.runtime import safe_build_snapshot
 from analytics.startup import validate_startup
 from analytics.system import get_status_payload, get_system_payload, get_version_payload
@@ -585,19 +599,12 @@ def _build_notification_status() -> dict[str, Any]:
     ).model_dump()
 
 
-def _build_dev_auth_payload(*, cabinet_connected: bool | None = None) -> dict[str, Any]:
+def _build_dev_auth_payload(actor: dict[str, Any], *, cabinet_connected: bool | None = None) -> dict[str, Any]:
     organization = OrganizationProfile(**get_active_organization())
     cabinet_row = get_active_cabinet()
     resolved_connected = bool(cabinet_row.get("connected")) if cabinet_connected is None else cabinet_connected
     timestamp = datetime.now(timezone.utc).isoformat()
-    user = UserProfile(
-        id="user_dev_founder",
-        name="Andrey Voronov",
-        email="andrey@vooglii.local",
-        role="owner",
-        avatarUrl=None,
-        createdAt="2026-06-01T09:00:00Z",
-    )
+    user = UserProfile(**actor)
     cabinet = WbCabinetProfile(
         id=str(cabinet_row["id"]),
         name=str(cabinet_row["name"]),
@@ -617,57 +624,65 @@ def _build_dev_auth_payload(*, cabinet_connected: bool | None = None) -> dict[st
 
 
 @app.get("/api/command-center", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
-def api_command_center() -> dict[str, Any]:
+def api_command_center(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/command-center", get_executive_payload_fast, executive_degraded)
 
 
 @app.get("/api/executive", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
-def api_executive() -> dict[str, Any]:
+def api_executive(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/executive", get_executive_payload_fast, executive_degraded)
 
 
 @app.get("/api/business", response_model=BusinessResponse, responses={500: {"model": ApiErrorResponse}})
-def api_business() -> dict[str, Any]:
+def api_business(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/business", get_business_payload, business_degraded)
 
 
 @app.get("/api/finance", response_model=FinanceResponse, responses={500: {"model": ApiErrorResponse}})
-def api_finance() -> dict[str, Any]:
+def api_finance(actor: dict[str, Any] = Depends(require_permission("finance:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/finance", get_finance_payload, finance_degraded)
 
 
 @app.get("/api/advertising", response_model=AdvertisingResponse, responses={500: {"model": ApiErrorResponse}})
-def api_advertising() -> dict[str, Any]:
+def api_advertising(actor: dict[str, Any] = Depends(require_permission("ads:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/advertising", get_advertising_payload, advertising_degraded)
 
 
 @app.get("/api/products", response_model=ProductsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_products() -> dict[str, Any]:
+def api_products(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/products", get_products_payload, products_degraded)
 
 
 @app.get("/api/inventory", response_model=InventoryResponse, responses={500: {"model": ApiErrorResponse}})
-def api_inventory() -> dict[str, Any]:
+def api_inventory(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/inventory", get_inventory_payload, inventory_degraded)
 
 
 @app.get("/api/advisor", response_model=AdvisorResponse, responses={500: {"model": ApiErrorResponse}})
-def api_advisor() -> dict[str, Any]:
+def api_advisor(actor: dict[str, Any] = Depends(require_permission("analytics:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/advisor", get_advisor_payload_fast, advisor_degraded)
 
 
 @app.get("/api/auth/session", response_model=AuthSessionResponse, responses={500: {"model": ApiErrorResponse}})
-def api_auth_session() -> dict[str, Any]:
+def api_auth_session(request: Request) -> dict[str, Any]:
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload()
+    payload = _build_dev_auth_payload(resolve_actor(request))
     payload["runtime"] = _auth_runtime(started_at=started_at)
     return payload
 
 
 @app.get("/api/auth/profile", response_model=AuthProfileResponse, responses={500: {"model": ApiErrorResponse}})
-def api_auth_profile() -> dict[str, Any]:
+def api_auth_profile(request: Request) -> dict[str, Any]:
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload()
+    payload = _build_dev_auth_payload(resolve_actor(request))
     return {
         "authenticated": payload["authenticated"],
         "user": payload["user"],
@@ -676,9 +691,13 @@ def api_auth_profile() -> dict[str, Any]:
 
 
 @app.get("/api/organization", response_model=OrganizationResponse, responses={500: {"model": ApiErrorResponse}})
-def api_organization() -> dict[str, Any]:
+def api_organization(
+    request: Request,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload()
+    payload = _build_dev_auth_payload(resolve_actor(request))
     return {
         "organization": payload["organization"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -686,9 +705,13 @@ def api_organization() -> dict[str, Any]:
 
 
 @app.get("/api/wb-cabinet", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
-def api_wb_cabinet() -> dict[str, Any]:
+def api_wb_cabinet(
+    request: Request,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload()
+    payload = _build_dev_auth_payload(resolve_actor(request))
     return {
         "cabinet": payload["cabinet"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -696,7 +719,8 @@ def api_wb_cabinet() -> dict[str, Any]:
 
 
 @app.get("/api/organizations", response_model=OrganizationList, responses={500: {"model": ApiErrorResponse}})
-def api_organizations() -> dict[str, Any]:
+def api_organizations(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "organizations": list_organizations(),
@@ -706,7 +730,11 @@ def api_organizations() -> dict[str, Any]:
 
 
 @app.get("/api/organizations/{organization_id}", response_model=OrganizationResponse, responses={500: {"model": ApiErrorResponse}})
-def api_organization_detail(organization_id: str) -> dict[str, Any]:
+def api_organization_detail(
+    organization_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     organization = OrganizationSummary(**next(item for item in list_organizations() if str(item.get("id")) == organization_id)).model_dump()
     return {
@@ -716,7 +744,11 @@ def api_organization_detail(organization_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/organizations/select", response_model=ActiveWorkspaceContext, responses={500: {"model": ApiErrorResponse}})
-def api_select_organization(request: WorkspaceSelection) -> dict[str, Any]:
+def api_select_organization(
+    request: WorkspaceSelection,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     if not request.organizationId:
         raise ValueError("organizationId is required.")
@@ -726,7 +758,8 @@ def api_select_organization(request: WorkspaceSelection) -> dict[str, Any]:
 
 
 @app.get("/api/wb-cabinets", response_model=CabinetList, responses={500: {"model": ApiErrorResponse}})
-def api_wb_cabinets() -> dict[str, Any]:
+def api_wb_cabinets(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     context = get_workspace_context()
     organization_id = str(context.get("organizationId") or "")
@@ -739,7 +772,11 @@ def api_wb_cabinets() -> dict[str, Any]:
 
 
 @app.get("/api/wb-cabinets/{cabinet_id}", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
-def api_wb_cabinet_detail(cabinet_id: str) -> dict[str, Any]:
+def api_wb_cabinet_detail(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     cabinet = CabinetSummary(**next(item for item in list_cabinets() if str(item.get("id")) == cabinet_id)).model_dump()
     return {
@@ -749,7 +786,11 @@ def api_wb_cabinet_detail(cabinet_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/wb-cabinets/select", response_model=ActiveWorkspaceContext, responses={500: {"model": ApiErrorResponse}})
-def api_select_wb_cabinet(request: WorkspaceSelection) -> dict[str, Any]:
+def api_select_wb_cabinet(
+    request: WorkspaceSelection,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     if not request.cabinetId:
         raise ValueError("cabinetId is required.")
@@ -759,7 +800,8 @@ def api_select_wb_cabinet(request: WorkspaceSelection) -> dict[str, Any]:
 
 
 @app.get("/api/workspace/context", response_model=ActiveWorkspaceContext, responses={500: {"model": ApiErrorResponse}})
-def api_workspace_context() -> dict[str, Any]:
+def api_workspace_context(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     context = get_workspace_context()
     context["runtime"] = _auth_runtime(started_at=started_at)
@@ -767,7 +809,8 @@ def api_workspace_context() -> dict[str, Any]:
 
 
 @app.get("/api/exports", response_model=ExportsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_exports() -> dict[str, Any]:
+def api_exports(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "exports": scoped_records(DEV_EXPORTS),
@@ -776,7 +819,11 @@ def api_exports() -> dict[str, Any]:
 
 
 @app.post("/api/exports", response_model=ExportRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_create_export(request: ExportCreateRequest) -> dict[str, Any]:
+def api_create_export(
+    request: ExportCreateRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     global EXPORT_COUNTER
     started_at = now_monotonic_ms()
     EXPORT_COUNTER += 1
@@ -816,7 +863,11 @@ def api_create_export(request: ExportCreateRequest) -> dict[str, Any]:
 
 
 @app.get("/api/exports/{export_id}", response_model=ExportRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_export_detail(export_id: str) -> dict[str, Any]:
+def api_export_detail(
+    export_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     export = _find_by_id(DEV_EXPORTS, export_id)
     return {
@@ -826,7 +877,8 @@ def api_export_detail(export_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/schedules", response_model=SchedulesResponse, responses={500: {"model": ApiErrorResponse}})
-def api_schedules() -> dict[str, Any]:
+def api_schedules(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "schedules": scoped_records(DEV_SCHEDULES),
@@ -835,7 +887,11 @@ def api_schedules() -> dict[str, Any]:
 
 
 @app.post("/api/schedules", response_model=ScheduleRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_create_schedule(request: ScheduleCreateRequest) -> dict[str, Any]:
+def api_create_schedule(
+    request: ScheduleCreateRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     schedule = ScheduleRecord(
         id=f"schedule_{request.workspace}_{len(DEV_SCHEDULES) + 1}",
@@ -859,7 +915,12 @@ def api_create_schedule(request: ScheduleCreateRequest) -> dict[str, Any]:
 
 
 @app.patch("/api/schedules/{schedule_id}", response_model=ScheduleRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_update_schedule(schedule_id: str, request: ScheduleUpdateRequest) -> dict[str, Any]:
+def api_update_schedule(
+    schedule_id: str,
+    request: ScheduleUpdateRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     schedule = _find_by_id(DEV_SCHEDULES, schedule_id)
     updates = request.model_dump(exclude_none=True)
@@ -873,7 +934,11 @@ def api_update_schedule(schedule_id: str, request: ScheduleUpdateRequest) -> dic
 
 
 @app.delete("/api/schedules/{schedule_id}", response_model=ScheduleRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_delete_schedule(schedule_id: str) -> dict[str, Any]:
+def api_delete_schedule(
+    schedule_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     schedule = _find_by_id(DEV_SCHEDULES, schedule_id)
     DEV_SCHEDULES.remove(schedule)
@@ -886,7 +951,8 @@ def api_delete_schedule(schedule_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/jobs", response_model=JobsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_jobs() -> dict[str, Any]:
+def api_jobs(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "jobs": scoped_records(DEV_JOBS),
@@ -895,7 +961,11 @@ def api_jobs() -> dict[str, Any]:
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobRecordResponse, responses={500: {"model": ApiErrorResponse}})
-def api_job_detail(job_id: str) -> dict[str, Any]:
+def api_job_detail(
+    job_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     job = _find_by_id(DEV_JOBS, job_id)
     return {
@@ -905,7 +975,8 @@ def api_job_detail(job_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/notifications", response_model=NotificationsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_notifications() -> dict[str, Any]:
+def api_notifications(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "status": _build_notification_status(),
@@ -917,7 +988,10 @@ def api_notifications() -> dict[str, Any]:
 
 
 @app.get("/api/notifications/rules", response_model=NotificationRulesResponse, responses={500: {"model": ApiErrorResponse}})
-def api_notification_rules() -> dict[str, Any]:
+def api_notification_rules(
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "rules": scoped_records(DEV_NOTIFICATION_RULES),
@@ -926,7 +1000,11 @@ def api_notification_rules() -> dict[str, Any]:
 
 
 @app.post("/api/notifications/rules", response_model=NotificationRuleResponse, responses={500: {"model": ApiErrorResponse}})
-def api_create_notification_rule(request: NotificationRuleCreateRequest) -> dict[str, Any]:
+def api_create_notification_rule(
+    request: NotificationRuleCreateRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     global NOTIFICATION_RULE_COUNTER
     started_at = now_monotonic_ms()
     NOTIFICATION_RULE_COUNTER += 1
@@ -950,7 +1028,12 @@ def api_create_notification_rule(request: NotificationRuleCreateRequest) -> dict
 
 
 @app.patch("/api/notifications/rules/{rule_id}", response_model=NotificationRuleResponse, responses={500: {"model": ApiErrorResponse}})
-def api_update_notification_rule(rule_id: str, request: NotificationRuleUpdateRequest) -> dict[str, Any]:
+def api_update_notification_rule(
+    rule_id: str,
+    request: NotificationRuleUpdateRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     rule = _find_by_id(DEV_NOTIFICATION_RULES, rule_id)
     rule.update(request.model_dump(exclude_none=True))
@@ -961,7 +1044,11 @@ def api_update_notification_rule(rule_id: str, request: NotificationRuleUpdateRe
 
 
 @app.delete("/api/notifications/rules/{rule_id}", response_model=NotificationRuleResponse, responses={500: {"model": ApiErrorResponse}})
-def api_delete_notification_rule(rule_id: str) -> dict[str, Any]:
+def api_delete_notification_rule(
+    rule_id: str,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     rule = _find_by_id(DEV_NOTIFICATION_RULES, rule_id)
     DEV_NOTIFICATION_RULES.remove(rule)
@@ -974,7 +1061,10 @@ def api_delete_notification_rule(rule_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/notifications/history", response_model=NotificationHistoryResponse, responses={500: {"model": ApiErrorResponse}})
-def api_notification_history() -> dict[str, Any]:
+def api_notification_history(
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "history": scoped_records(DEV_NOTIFICATION_HISTORY),
@@ -983,7 +1073,10 @@ def api_notification_history() -> dict[str, Any]:
 
 
 @app.get("/api/notifications/channels", response_model=NotificationChannelsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_notification_channels() -> dict[str, Any]:
+def api_notification_channels(
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     return {
         "channels": scoped_records(DEV_NOTIFICATION_CHANNELS),
@@ -992,7 +1085,11 @@ def api_notification_channels() -> dict[str, Any]:
 
 
 @app.post("/api/notifications/test", response_model=NotificationTestResponse, responses={500: {"model": ApiErrorResponse}})
-def api_notification_test(request: NotificationTestRequest) -> dict[str, Any]:
+def api_notification_test(
+    request: NotificationTestRequest,
+    actor: dict[str, Any] = Depends(require_permission("dashboard:view")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     status = "sent" if request.channel in {"in_app", "webhook"} else "failed"
     delivery = NotificationDelivery(
@@ -1030,10 +1127,14 @@ def api_notification_test(request: NotificationTestRequest) -> dict[str, Any]:
 
 
 @app.post("/api/wb-cabinet/connect", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
-def api_wb_cabinet_connect() -> dict[str, Any]:
+def api_wb_cabinet_connect(
+    request: Request,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     cabinet = set_active_cabinet_connection(True)
-    payload = _build_dev_auth_payload(cabinet_connected=True)
+    payload = _build_dev_auth_payload(resolve_actor(request), cabinet_connected=True)
     payload["cabinet"]["status"] = str(cabinet.get("status") or "connected_dev")
     return {
         "cabinet": payload["cabinet"],
@@ -1042,10 +1143,14 @@ def api_wb_cabinet_connect() -> dict[str, Any]:
 
 
 @app.post("/api/wb-cabinet/disconnect", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
-def api_wb_cabinet_disconnect() -> dict[str, Any]:
+def api_wb_cabinet_disconnect(
+    request: Request,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
     started_at = now_monotonic_ms()
     cabinet = set_active_cabinet_connection(False)
-    payload = _build_dev_auth_payload(cabinet_connected=False)
+    payload = _build_dev_auth_payload(resolve_actor(request), cabinet_connected=False)
     payload["cabinet"]["status"] = str(cabinet.get("status") or "disconnected_dev")
     return {
         "cabinet": payload["cabinet"],
@@ -1058,7 +1163,11 @@ def api_wb_cabinet_disconnect() -> dict[str, Any]:
     response_model=AdvisorQueryResponse,
     responses={500: {"model": ApiErrorResponse}},
 )
-def api_advisor_query(request: AdvisorQueryRequest) -> dict[str, Any]:
+def api_advisor_query(
+    request: AdvisorQueryRequest,
+    actor: dict[str, Any] = Depends(require_permission("analytics:view")),
+) -> dict[str, Any]:
+    del actor
     endpoint = "/api/advisor/query"
     started_at = now_monotonic_ms()
     try:
@@ -1112,13 +1221,60 @@ def api_advisor_query(request: AdvisorQueryRequest) -> dict[str, Any]:
         return payload
 
 
+@app.get("/api/users", response_model=UsersResponse, responses={500: {"model": ApiErrorResponse}})
+def api_users(actor: dict[str, Any] = Depends(require_permission("users:view"))) -> dict[str, Any]:
+    started_at = now_monotonic_ms()
+    return {
+        "users": list_users(),
+        "availableRoles": list_roles(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.get("/api/audit", response_model=AuditLogResponse, responses={500: {"model": ApiErrorResponse}})
+def api_audit(actor: dict[str, Any] = Depends(require_permission("users:view"))) -> dict[str, Any]:
+    started_at = now_monotonic_ms()
+    return {
+        "events": list_audit_events(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.patch("/api/users/{user_id}/role", response_model=UserRecordResponse, responses={500: {"model": ApiErrorResponse}})
+def api_update_user_role(
+    user_id: str,
+    request: UserRoleUpdateRequest,
+    actor: dict[str, Any] = Depends(require_permission("users:manage")),
+) -> dict[str, Any]:
+    started_at = now_monotonic_ms()
+    return {
+        "user": update_user_role(actor=actor, user_id=user_id, role=request.role),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.patch("/api/users/{user_id}/status", response_model=UserRecordResponse, responses={500: {"model": ApiErrorResponse}})
+def api_update_user_status(
+    user_id: str,
+    request: UserStatusUpdateRequest,
+    actor: dict[str, Any] = Depends(require_permission("users:manage")),
+) -> dict[str, Any]:
+    started_at = now_monotonic_ms()
+    return {
+        "user": update_user_enabled(actor=actor, user_id=user_id, enabled=request.enabled),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
 @app.get("/api/reports", response_model=ReportsResponse, responses={500: {"model": ApiErrorResponse}})
-def api_reports() -> dict[str, Any]:
+def api_reports(actor: dict[str, Any] = Depends(require_permission("reports:view"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/reports", get_reports_payload_fast, reports_degraded)
 
 
 @app.get("/api/system", response_model=SystemResponse, responses={500: {"model": ApiErrorResponse}})
-def api_system() -> dict[str, Any]:
+def api_system(actor: dict[str, Any] = Depends(require_permission("settings:manage"))) -> dict[str, Any]:
+    del actor
     return _cached_snapshot("/api/system", get_system_payload, system_degraded)
 
 

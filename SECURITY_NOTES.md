@@ -22,3 +22,8 @@
 - Production auth should move to JWT or secure server sessions.
 - Role-aware access control should be enforced server-side.
 - Cookie or session handling should be added only with CSRF and transport security in place.
+
+## RBAC Notes
+- Frontend permission-based hiding is a UX layer only; backend permission checks are authoritative.
+- Role changes, disable actions, and denied access attempts are recorded through backend audit hooks.
+- The current actor scaffold is intentionally temporary and should be replaced by real session identity in the production auth rollout.

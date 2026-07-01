@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { PanelLeftClose } from "lucide-react";
+import { useAuth } from "@/features/auth";
+import { hasAnyPermission } from "@/features/auth/rbac";
 import { Button } from "@/shared/components/button";
 import { StatusBadge } from "@/shared/status";
 import { theme } from "@/shared/theme";
@@ -27,6 +29,8 @@ export function WorkspaceSidebar({
   onToggleCollapsed: () => void;
 }) {
   const workspace = useWorkspaceContext();
+  const { permissions } = useAuth();
+  const visibleNavigation = workspaceNavigation.filter((item) => hasAnyPermission(permissions, item.requiredPermissions));
 
   return (
     <aside
@@ -88,7 +92,7 @@ export function WorkspaceSidebar({
         ) : null}
 
         <nav className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1" aria-label="Workspace navigation">
-          {workspaceNavigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const active = isActivePath(pathname, item.href);
             const Icon = item.icon;
 

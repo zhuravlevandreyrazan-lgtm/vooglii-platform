@@ -27,6 +27,12 @@ BOT_USERNAME=vooglii_bot
 
 Токен Telegram-бота не должен храниться в исходном коде. Перед запуском задайте `BOT_TOKEN` и при необходимости `BOT_USERNAME` через environment variables.
 
+## RBAC
+- Роли платформы: `owner`, `admin`, `manager`, `analyst`, `viewer`
+- Backend RBAC map и audit hooks: `analytics/rbac.py`
+- Временная интеграционная точка для actor resolution: заголовок `X-VOOGLII-Actor-Id`
+- Детали реализации и текущие ограничения: `RBAC_ARCHITECTURE.md`
+
 ## Тарифы
 FREE: базовые отчёты, история 7 дней.  
 PRO: все команды, реклама, P&L, экспорт, AI, уведомления, конкуренты-заготовки.

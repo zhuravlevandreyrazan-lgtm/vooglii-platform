@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { hasAnyPermission, hasPermission } from "@/features/auth/rbac";
 import { formatApiErrorMessage } from "@/shared/api";
 import { useDemoMode } from "@/shared/demo/demo-provider";
 import { useWorkspaceContext } from "@/shared/workspace-context";
@@ -80,6 +81,9 @@ export function useAuthSession() {
     reload: load,
     authenticated: snapshot?.authenticated ?? false,
     diagnostics: snapshot?.diagnostics,
-    context: snapshot?.context
+    context: snapshot?.context,
+    permissions: snapshot?.user?.permissions ?? [],
+    can: (permission: Parameters<typeof hasPermission>[1]) => hasPermission(snapshot?.user?.permissions, permission),
+    canAny: (permissions: Parameters<typeof hasAnyPermission>[1]) => hasAnyPermission(snapshot?.user?.permissions, permissions)
   };
 }

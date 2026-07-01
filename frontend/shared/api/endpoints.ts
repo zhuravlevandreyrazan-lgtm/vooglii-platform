@@ -28,7 +28,9 @@ export const apiEndpoints = {
   wbCabinetConnect: "/api/wb-cabinet/connect",
   wbCabinetDisconnect: "/api/wb-cabinet/disconnect",
   workspaceContext: "/api/workspace/context",
-  reports: "/api/reports"
+  reports: "/api/reports",
+  users: "/api/users",
+  audit: "/api/audit"
 } as const;
 
 export type ApiEndpointName = keyof typeof apiEndpoints;

@@ -2,21 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/features/auth";
+import { hasAnyPermission } from "@/features/auth/rbac";
 import { cn } from "@/shared/lib/cn";
 
 const SETTINGS_LINKS = [
-  { href: "/settings/readiness", label: "Readiness" },
-  { href: "/settings/profile", label: "Profile" },
-  { href: "/settings/wb-cabinet", label: "WB Cabinet" },
-  { href: "/notifications", label: "Notifications" }
+  { href: "/settings/readiness", label: "Readiness", requiredPermissions: ["settings:manage"] as const },
+  { href: "/settings/profile", label: "Profile", requiredPermissions: ["dashboard:view"] as const },
+  { href: "/settings/wb-cabinet", label: "WB Cabinet", requiredPermissions: ["settings:manage"] as const },
+  { href: "/team", label: "Team", requiredPermissions: ["users:view"] as const },
+  { href: "/notifications", label: "Notifications", requiredPermissions: ["dashboard:view"] as const }
 ];
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const { permissions } = useAuth();
+  const visibleLinks = SETTINGS_LINKS.filter((item) => hasAnyPermission(permissions, [...item.requiredPermissions]));
 
   return (
     <div className="flex flex-wrap gap-3">
-      {SETTINGS_LINKS.map((item) => {
+      {visibleLinks.map((item) => {
         const active = pathname === item.href;
         return (
           <Link

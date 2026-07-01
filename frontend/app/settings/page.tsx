@@ -66,6 +66,19 @@ export default function SettingsPage() {
             Open Notifications Hub
           </Link>
         </WidgetCard>
+
+        <WidgetCard subtitle="Roles, permissions, and audit visibility" title="Team">
+          <p className="text-sm leading-7 text-[var(--ink-soft)]">
+            Review platform roles, understand access boundaries, and use backend-owned user
+            lifecycle actions without exposing secrets or deploy-only controls in the frontend.
+          </p>
+          <Link
+            className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--accent)] hover:bg-[var(--panel)]"
+            href="/team"
+          >
+            Open Team Page
+          </Link>
+        </WidgetCard>
       </div>
     </div>
   );

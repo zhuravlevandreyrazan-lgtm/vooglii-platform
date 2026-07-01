@@ -28,8 +28,12 @@ class UserProfile(ApiBaseModel):
     name: str
     email: str
     role: str
+    permissions: list[str] = []
+    enabled: bool = True
     avatarUrl: str | None = None
     createdAt: str
+    lastActiveAt: str | None = None
+    deactivatedAt: str | None = None
 
 
 class OrganizationProfile(ApiBaseModel):
@@ -115,6 +119,41 @@ class AuthSessionResponse(ApiBaseModel):
 
 class AuthProfileResponse(ApiBaseModel):
     authenticated: bool
+    user: UserProfile
+    runtime: RuntimeMetadata | None = None
+
+
+class AuditEventRecord(ApiBaseModel):
+    id: str
+    event: str
+    actorId: str
+    targetId: str | None = None
+    outcome: str
+    detail: str | None = None
+    metadata: dict[str, Any] = {}
+    createdAt: str
+
+
+class UsersResponse(ApiBaseModel):
+    users: list[UserProfile]
+    availableRoles: list[str] = []
+    runtime: RuntimeMetadata | None = None
+
+
+class AuditLogResponse(ApiBaseModel):
+    events: list[AuditEventRecord]
+    runtime: RuntimeMetadata | None = None
+
+
+class UserRoleUpdateRequest(ApiBaseModel):
+    role: str
+
+
+class UserStatusUpdateRequest(ApiBaseModel):
+    enabled: bool
+
+
+class UserRecordResponse(ApiBaseModel):
     user: UserProfile
     runtime: RuntimeMetadata | None = None
 

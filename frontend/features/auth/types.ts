@@ -1,5 +1,16 @@
 import type { WorkspaceContext, WorkspaceDiagnostics } from "@/shared/api";
 
+export type PlatformRole = "owner" | "admin" | "manager" | "analyst" | "viewer";
+export type PlatformPermission =
+  | "dashboard:view"
+  | "reports:view"
+  | "analytics:view"
+  | "ads:view"
+  | "finance:view"
+  | "users:view"
+  | "users:manage"
+  | "settings:manage";
+
 export type AuthRuntime = {
   duration_ms?: number;
   cached?: boolean;
@@ -12,9 +23,13 @@ export type UserProfile = {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: PlatformRole;
+  permissions: PlatformPermission[];
+  enabled: boolean;
   avatarUrl?: string | null;
   createdAt: string;
+  lastActiveAt?: string | null;
+  deactivatedAt?: string | null;
 };
 
 export type OrganizationProfile = {
