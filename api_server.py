@@ -126,6 +126,8 @@ from analytics.multi_tenant import (
     select_organization,
     set_active_cabinet_connection,
 )
+from config import DB_NAME
+from db_manager import init_db
 
 LIVE_RUNTIME_MODE = "live"
 DEFAULT_API_HOST = "0.0.0.0"
@@ -461,11 +463,17 @@ DEV_NOTIFICATION_HISTORY: list[dict[str, Any]] = [
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    init_db()
     app.state.startup_validation = STARTUP_VALIDATION
     app.state.environment = get_build_environment()
+    app.state.database_path = DB_NAME
     LOGGER.info(
         "API startup validation completed",
-        extra=safe_log_extra(startup_ok=STARTUP_VALIDATION.get("ok"), environment=app.state.environment),
+        extra=safe_log_extra(
+            startup_ok=STARTUP_VALIDATION.get("ok"),
+            environment=app.state.environment,
+            database_path=DB_NAME,
+        ),
     )
 
 
