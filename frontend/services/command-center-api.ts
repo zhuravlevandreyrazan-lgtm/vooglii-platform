@@ -16,6 +16,8 @@ import type {
 import {
   localizeKnownText,
   localizeRuntimeSource,
+  sanitizeUserText,
+  sanitizeUserTextList,
   localizeStatus,
   localizeWorkspaceLabel
 } from "@/shared/ui/status-labels";
@@ -183,38 +185,37 @@ export function mapCommandCenterApiResponseToSnapshot(
     ...(payload.executive_brief?.what_happened ?? []),
     ...(payload.executive_brief?.why ?? [])
   ].filter(Boolean);
-  const systemFinance = payload.system?.finance_api ?? "UNKNOWN";
-  const degraded = payload.system?.degraded ? " Часть данных сейчас недоступна." : "";
+  const executiveSummary = sanitizeUserTextList(summaryBits, "").join(" ");
+  const businessSummary = sanitizeUserText(payload.business_health?.summary, "");
+  const sourceSummary = executiveSummary || businessSummary || commandCenterMock.executiveBrief.summary;
+  const sanitizedSources =
+    sanitizeUserTextList(payload.executive_brief?.sources, "").length > 0
+      ? sanitizeUserTextList(payload.executive_brief?.sources, "")
+      : commandCenterMock.executiveBrief.sources;
+  const runtimeDescription = payload.system?.degraded
+    ? "Часть модулей временно недоступна, но платформа продолжает показывать подтвержденные данные."
+    : "Данные получены из рабочего контура и обновлены для текущего экрана.";
 
   return {
     businessHealth: {
       score: payload.business_health?.score ?? commandCenterMock.businessHealth.score,
       status: localizeStatus(payload.business_health?.status ?? "UNKNOWN"),
-      summary:
-      payload.business_health?.summary ??
-      summaryBits[0] ??
-      commandCenterMock.businessHealth.summary
+      summary: sourceSummary
     },
     executiveBrief: {
       id: "executive-brief",
       eyebrow: "Краткий вывод",
-      title: payload.executive_brief?.title ?? commandCenterMock.executiveBrief.title,
-      summary:
-        localizeKnownText(summaryBits.join(" ").trim(), "") ||
-        localizeKnownText(payload.business_health?.summary, "") ||
-        commandCenterMock.executiveBrief.summary,
+      title: sanitizeUserText(payload.executive_brief?.title, commandCenterMock.executiveBrief.title),
+      summary: sourceSummary,
       confidence: formatConfidence(payload.executive_brief?.confidence),
-      sources:
-        payload.executive_brief?.sources?.length
-          ? payload.executive_brief.sources
-          : commandCenterMock.executiveBrief.sources,
+      sources: sanitizedSources,
       tone: statusToTone(payload.business_health?.status)
     },
     kpis:
       payload.kpis?.map((metric) => ({
-        label: metric.title ?? "Показатель",
-        value: metric.value ?? "Нет данных",
-        delta: metric.delta ?? "Нет данных",
+        label: sanitizeUserText(metric.title, "Показатель"),
+        value: sanitizeUserText(metric.value, "Нет данных"),
+        delta: sanitizeUserText(metric.delta, "Нет данных"),
         tone: statusToTone(metric.status),
         note: "Актуальные показатели по выбранному периоду"
       })) ?? commandCenterMock.kpis,
@@ -229,9 +230,9 @@ export function mapCommandCenterApiResponseToSnapshot(
     actions:
       payload.today_actions?.map((action, index) => ({
         id: action.id ?? `action-${index + 1}`,
-        title: action.title ?? "Действие",
-        owner: action.owner ?? "Центр управления",
-        eta: action.eta ?? "Сегодня",
+        title: sanitizeUserText(action.title, "Действие"),
+        owner: sanitizeUserText(action.owner, "Центр управления"),
+        eta: sanitizeUserText(action.eta, "Сегодня"),
         tone: statusToTone(action.status)
       })) ?? commandCenterMock.actions,
     alerts:
@@ -252,7 +253,7 @@ export function mapCommandCenterApiResponseToSnapshot(
       {
         id: "api-source",
         title: localizeRuntimeSource(payload.runtime?.source ?? "live"),
-        description: `Статус финансовых данных: ${localizeStatus(systemFinance)}.${degraded}`,
+        description: runtimeDescription,
         tone: statusToTone(payload.business_health?.status)
       },
       {

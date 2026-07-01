@@ -20,11 +20,15 @@ import type { CommandCenterKpis } from "@/features/command-center/kpi-types";
 import type { PriorityAction } from "@/features/command-center/priority-actions-types";
 import type { CommandCenterScreenData, StatusTone } from "@/types/platform";
 import {
+  localizeActionImpact,
+  localizeActionStatus,
+  localizeActionType,
   localizeConfidence,
   localizeKnownText,
   localizeRuntimeSource,
   localizeSeverity,
-  localizeStatus
+  localizeStatus,
+  sanitizeUserText
 } from "@/shared/ui/status-labels";
 
 const FALLBACK_BRIEF_HELP = "Пока недостаточно данных, чтобы сделать уверенный вывод.";
@@ -124,7 +128,7 @@ export function CommandCenterScreen({
   lastUpdated
 }: CommandCenterScreenProps) {
   const runtimeTone = dataRuntimeTone(source, snapshot, runtimeSource);
-  const sourceLabel = resolveSourceLabel(source, runtimeSource);
+  const sourceLabel = sanitizeUserText(resolveSourceLabel(source, runtimeSource), "Данные обновляются");
   const alerts = snapshot?.alerts ?? [];
   const workspaces = snapshot?.workspaces ?? [];
   const sharedWidgetError =
@@ -173,7 +177,7 @@ export function CommandCenterScreen({
             <span className="text-lg text-[var(--ink-soft)]">/100</span>
           </div>
           <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
-            {kpis.businessHealth.note || "Сводка по состоянию бизнеса пока недоступна."}
+            {sanitizeUserText(kpis.businessHealth.note, "Сводка по состоянию бизнеса пока недоступна.")}
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
@@ -181,9 +185,11 @@ export function CommandCenterScreen({
                 Фокус дня
               </div>
               <div className="mt-2 text-sm font-semibold">
-                {kpis.topOpportunity?.title ??
+                {sanitizeUserText(
+                  kpis.topOpportunity?.title ??
                   priorityActions[0]?.title ??
-                  "Сначала защитите маржинальность, затем масштабируйте рост."}
+                  "Сначала защитите маржинальность, затем масштабируйте рост."
+                )}
               </div>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
@@ -191,10 +197,12 @@ export function CommandCenterScreen({
                 Текущее состояние
               </div>
               <div className="mt-2 text-sm font-semibold">
-                {kpis.topRisk?.title ??
+                {sanitizeUserText(
+                  kpis.topRisk?.title ??
                   (source === "real"
                     ? "Кабинет подключен, данные поступают из рабочей системы."
-                    : "Интерфейс продолжает работать в резервном режиме.")}
+                    : "Интерфейс продолжает работать в резервном режиме.")
+                )}
               </div>
             </div>
           </div>
@@ -212,17 +220,19 @@ export function CommandCenterScreen({
           updatedAt={updatedAtLabel}
         >
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-[var(--ink-soft)]">{executiveBrief.summary}</p>
+            <p className="text-sm leading-7 text-[var(--ink-soft)]">
+              {sanitizeUserText(executiveBrief.summary, FALLBACK_BRIEF_HELP)}
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
                   Главный риск
                 </div>
                 <div className="mt-2 text-sm font-semibold">
-                  {executiveBrief.topRisk?.title ?? "Сейчас нет подтвержденного критичного риска."}
+                  {sanitizeUserText(executiveBrief.topRisk?.title, "Сейчас нет подтвержденного критичного риска.")}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                  {executiveBrief.topRisk?.summary ?? FALLBACK_BRIEF_HELP}
+                  {sanitizeUserText(executiveBrief.topRisk?.summary, FALLBACK_BRIEF_HELP)}
                 </p>
               </div>
               <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
@@ -230,10 +240,10 @@ export function CommandCenterScreen({
                   Возможность роста
                 </div>
                 <div className="mt-2 text-sm font-semibold">
-                  {executiveBrief.topOpportunity?.title ?? "Сейчас нет подтвержденной точки роста."}
+                  {sanitizeUserText(executiveBrief.topOpportunity?.title, "Сейчас нет подтвержденной точки роста.")}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                  {executiveBrief.topOpportunity?.summary ?? FALLBACK_BRIEF_HELP}
+                  {sanitizeUserText(executiveBrief.topOpportunity?.summary, FALLBACK_BRIEF_HELP)}
                 </p>
               </div>
             </div>
@@ -254,9 +264,11 @@ export function CommandCenterScreen({
                   Уверенность: {localizeConfidence(executiveBrief.confidence)}
                 </StatusBadge>
               </div>
-              <div className="mt-2 text-sm font-semibold">{executiveBrief.recommendation.title}</div>
+              <div className="mt-2 text-sm font-semibold">
+                {sanitizeUserText(executiveBrief.recommendation.title, "Соберите больше данных.")}
+              </div>
               <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                {executiveBrief.recommendation.detail}
+                {sanitizeUserText(executiveBrief.recommendation.detail, FALLBACK_BRIEF_HELP)}
               </p>
             </div>
           </div>
@@ -315,8 +327,12 @@ export function CommandCenterScreen({
                   </StatusBadge>
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold">{event.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{event.description}</p>
+                  <h3 className="text-base font-semibold">
+                    {sanitizeUserText(event.title, "Событие обновится после синхронизации.")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                    {sanitizeUserText(event.description, "Подробности появятся после обновления данных.")}
+                  </p>
                 </div>
               </div>
             ))}
@@ -335,18 +351,24 @@ export function CommandCenterScreen({
             {priorityActions.map((action) => (
               <div key={action.id} className="rounded-[22px] bg-[var(--panel-strong)] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold">{action.title}</h3>
+                  <h3 className="text-base font-semibold">
+                    {sanitizeUserText(action.title, "Действие")}
+                  </h3>
                   <StatusBadge tone={mapActionSeverityTone(action.severity)}>
                     {localizeSeverity(action.severity)}
                   </StatusBadge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <StatusBadge tone="neutral">{action.type}</StatusBadge>
-                  {action.impact ? <StatusBadge tone="accent">{action.impact}</StatusBadge> : null}
-                  <StatusBadge tone="healthy">{action.status}</StatusBadge>
+                  <StatusBadge tone="neutral">{localizeActionType(action.type)}</StatusBadge>
+                  {action.impact ? <StatusBadge tone="accent">{localizeActionImpact(action.impact)}</StatusBadge> : null}
+                  <StatusBadge tone="healthy">{localizeActionStatus(action.status)}</StatusBadge>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{action.description}</p>
-                <p className="mt-3 text-sm font-semibold">{action.recommendation}</p>
+                <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
+                  {sanitizeUserText(action.description, "Подробности появятся после обновления данных.")}
+                </p>
+                <p className="mt-3 text-sm font-semibold">
+                  {sanitizeUserText(action.recommendation, "Проверьте кабинет и повторите обновление данных.")}
+                </p>
               </div>
             ))}
           </div>

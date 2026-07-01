@@ -33,15 +33,15 @@ export const primaryNavigation: NavItem[] = [
   },
   {
     key: "analytics",
-    label: "Analytics",
+    label: "Аналитика",
     href: "/analytics",
-    description: "Evidence trails, comparisons, and deeper business context."
+    description: "Сравнения, объяснение показателей и более глубокий контекст по бизнесу."
   },
   {
     key: "ai",
-    label: "AI",
+    label: "ИИ",
     href: "/ai",
-    description: "Copilot, decision support, and explainable intelligence."
+    description: "Подсказки, поддержка решений и объяснимые рекомендации платформы."
   },
   {
     key: "system",
@@ -60,107 +60,107 @@ export const primaryNavigation: NavItem[] = [
 export const commandCenterMock: CommandCenterSnapshot = {
   businessHealth: {
     score: 84,
-    status: "Stable Growth",
+    status: "Стабильный рост",
     summary:
-      "Revenue momentum is holding, but margin pressure and one stock gap need attention before they turn into avoidable loss."
+      "Выручка держится уверенно, но давление на маржу и один риск по остаткам требуют внимания."
   },
   executiveBrief: {
     id: "brief-1",
-    eyebrow: "Executive Brief",
-    title: "Protect margin today and clear the upcoming stock gap in top assortment.",
+    eyebrow: "Краткий вывод",
+    title: "Сохраните маржу сегодня и закройте ожидаемый дефицит по ключевому ассортименту.",
     summary:
-      "The platform sees healthy sales velocity, but two signals stand out: ad spend is growing faster than contribution margin, and one core SKU cluster may hit a stock squeeze within five days.",
-    confidence: "High confidence",
-    sources: ["Sales trend", "Stock coverage", "Ad efficiency"],
+      "Платформа видит устойчивые продажи, но выделяет два сигнала: реклама растет быстрее вклада в прибыль, а один кластер ключевых SKU может войти в дефицит в ближайшие пять дней.",
+    confidence: "Высокая уверенность",
+    sources: ["Тренд продаж", "Покрытие остатков", "Эффективность рекламы"],
     tone: "accent"
   },
   kpis: [
     {
-      label: "Business Health",
+      label: "Здоровье бизнеса",
       value: "84/100",
-      delta: "+4 vs last week",
+      delta: "+4 к прошлой неделе",
       tone: "healthy",
-      note: "Strong sales with manageable pressure."
+      note: "Сильные продажи при контролируемой нагрузке."
     },
     {
-      label: "Net Margin",
+      label: "Чистая маржинальность",
       value: "22.4%",
       delta: "-1.8 pp",
       tone: "watch",
-      note: "Acquisition costs are rising faster than payout quality."
+      note: "Затраты на привлечение растут быстрее качества выплат."
     },
     {
-      label: "Forecast Target",
+      label: "Выполнение плана",
       value: "93%",
       delta: "+7 pp",
       tone: "healthy",
-      note: "Current pace is close to monthly plan."
+      note: "Текущий темп близок к месячному плану."
     },
     {
-      label: "Stock Risk",
+      label: "Риск по остаткам",
       value: "3 SKUs",
-      delta: "1 critical",
+      delta: "1 критичный",
       tone: "risk",
-      note: "Action window remains open this week."
+      note: "Окно для действий еще открыто на этой неделе."
     }
   ],
   timeline: [
     {
       id: "tm-1",
       time: "08:10",
-      title: "Business health recalculated",
-      detail: "Sales and stock signals improved, but finance pressure remained unchanged.",
+      title: "Здоровье бизнеса пересчитано",
+      detail: "Сигналы по продажам и остаткам улучшились, но финансовое давление сохраняется.",
       tone: "neutral"
     },
     {
       id: "tm-2",
       time: "10:30",
-      title: "Ad efficiency cooled",
-      detail: "Spend accelerated faster than profit contribution on one campaign cluster.",
+      title: "Эффективность рекламы снизилась",
+      detail: "Расходы по одному кластеру кампаний растут быстрее вклада в прибыль.",
       tone: "watch"
     },
     {
       id: "tm-3",
       time: "13:45",
-      title: "Top assortment stock risk detected",
-      detail: "Coverage on one high-volume SKU family dropped below the preferred threshold.",
+      title: "Обнаружен риск по остаткам ключевого ассортимента",
+      detail: "Покрытие по одной высокооборотной группе SKU опустилось ниже целевого уровня.",
       tone: "risk"
     }
   ],
   actions: [
     {
       id: "ac-1",
-      title: "Review campaign group with widening CAC",
-      owner: "Advertising Lead",
-      eta: "Today",
+      title: "Проверьте группу кампаний с растущим CAC",
+      owner: "Реклама",
+      eta: "Сегодня",
       tone: "watch"
     },
     {
       id: "ac-2",
-      title: "Prepare replenishment plan for core summer SKU block",
-      owner: "Operations",
-      eta: "Next 24h",
+      title: "Подготовьте пополнение по ключевому летнему SKU-блоку",
+      owner: "Операции",
+      eta: "В ближайшие 24 часа",
       tone: "risk"
     },
     {
       id: "ac-3",
-      title: "Validate margin movement in Finance workspace",
-      owner: "Finance",
-      eta: "This afternoon",
+      title: "Проверьте движение маржи в разделе финансов",
+      owner: "Финансы",
+      eta: "Сегодня днем",
       tone: "accent"
     }
   ],
   alerts: [
     {
       id: "al-1",
-      title: "Critical SKU coverage below preferred floor",
-      detail: "A top revenue cluster can slip into stockout pressure within five days if replenishment is not confirmed.",
+      title: "Покрытие по критичным SKU ниже целевого уровня",
+      detail: "Один из ключевых кластеров выручки может уйти в дефицит в течение пяти дней без подтвержденного пополнения.",
       tone: "risk"
     },
     {
       id: "al-2",
-      title: "Ad spend growth outpacing contribution margin",
-      detail: "Efficiency remains acceptable, but the trend needs intervention before profit compression becomes structural.",
+      title: "Рост рекламных расходов опережает вклад в прибыль",
+      detail: "Эффективность пока приемлемая, но тренд требует вмешательства до системного сжатия прибыли.",
       tone: "watch"
     }
   ],
@@ -168,39 +168,39 @@ export const commandCenterMock: CommandCenterSnapshot = {
     {
       title: "Business",
       href: "/business",
-      summary: "See business health drivers, trend turns, and operating pressure.",
-      status: "Ready"
+      summary: "Отслеживайте драйверы здоровья бизнеса, смену трендов и операционное давление.",
+      status: "Готово"
     },
     {
       title: "Finance",
       href: "/finance",
-      summary: "Inspect payout quality, margin movement, and source confidence.",
-      status: "Ready"
+      summary: "Проверяйте качество выплат, динамику маржи и надежность источников данных.",
+      status: "Готово"
     },
     {
       title: "Products",
       href: "/products",
-      summary: "Track SKU pressure, assortment performance, and stock signals.",
-      status: "Ready"
+      summary: "Следите за давлением по SKU, эффективностью ассортимента и сигналами по остаткам.",
+      status: "Готово"
     },
     {
       title: "Advertising",
       href: "/advertising",
-      summary: "Review spend control, efficiency drift, and campaign priorities.",
-      status: "Ready"
+      summary: "Контролируйте расходы, отклонение эффективности и приоритеты кампаний.",
+      status: "Готово"
     }
   ],
   notifications: [
     {
       id: "nt-1",
-      title: "Mock mode active",
-      description: "The frontend uses an isolated mock data layer and is ready for backend integration later.",
+      title: "Демо-режим активен",
+      description: "Интерфейс показывает резервный сценарий и готов к работе с backend-данными.",
       tone: "accent"
     },
     {
       id: "nt-2",
-      title: "Source confidence placeholder",
-      description: "Command Center can already display data trust and degraded states.",
+      title: "Готовность слоя данных",
+      description: "Главная уже умеет показывать надежность данных и деградированные состояния.",
       tone: "neutral"
     }
   ]

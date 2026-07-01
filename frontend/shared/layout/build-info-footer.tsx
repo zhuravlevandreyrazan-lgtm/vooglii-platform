@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiEndpoints, requestJson } from "@/shared/api";
+import { localizeBuildEnvironment, localizeBuildType } from "@/shared/ui/status-labels";
 
 type VersionPayload = {
   version?: string;
@@ -29,7 +30,7 @@ export function BuildInfoFooter() {
   return (
     <span className="text-xs text-[var(--ink-soft)]">
       {version
-        ? `v${version.version ?? "нет данных"} - ${version.environment ?? "среда не указана"} - ${version.buildType ?? "сборка"} - ${version.git ?? "нет git-хеша"}`
+        ? `Версия ${version.version ?? "не указана"} · ${localizeBuildEnvironment(version.environment)} · ${localizeBuildType(version.buildType)}${version.git ? ` · ${version.git}` : ""}`
         : "Информация о сборке недоступна"}
     </span>
   );

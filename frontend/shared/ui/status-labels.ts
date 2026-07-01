@@ -160,15 +160,24 @@ const KNOWN_TEXT_LABELS: Record<string, string> = {
   "Problem SKU": "SKU с рисками",
   "SKU at Risk": "SKU под риском",
   "Growth SKU": "SKU роста",
-  "SKU Count": "Всего SKU"
+  "SKU Count": "Всего SKU",
+  "Finance health is HIGH; ads health is LOW.": "Финансы требуют проверки, по рекламе есть риски.",
+  "WB Finance API token is unavailable for the selected period.": "Финансовые данные временно недоступны для выбранного периода.",
+  "No live inventory item list is available from current WB agent modules yet.": "Список остатков пока не получен из модулей Wildberries.",
+  "Trust, coverage, and difference explainability.": "Надежность данных, покрытие и пояснение расхождений."
 };
+
+const TECHNICAL_TEXT_PATTERN =
+  /backend|frontend|snapshot|placeholder|mock|runtime|source|api\.|cached_workspaces|read_only|priorityactions|executivebrief|release_candidate|unknown|v\d+\.\d+\.\d+(?:-[a-z0-9]+)?/i;
+
+const ENGLISH_SENTENCE_PATTERN = /^[\x00-\x7F\s.,;:!?'"()/%+-]+$/;
 
 export function localizeStatus(value?: string | null) {
   const normalized = String(value ?? "").trim().toUpperCase();
   if (!normalized) {
     return "Нет данных";
   }
-  return STATUS_LABELS[normalized] ?? KNOWN_TEXT_LABELS[value ?? ""] ?? value ?? "Нет данных";
+  return STATUS_LABELS[normalized] ?? KNOWN_TEXT_LABELS[value ?? ""] ?? sanitizeUserText(value, "Нет данных");
 }
 
 export function localizeWorkspaceLabel(value?: string | null) {
@@ -255,6 +264,10 @@ export function localizePeriodLabel(value?: string | null) {
 }
 
 export function localizeKnownText(value?: string | null, fallback = "Нет данных") {
+  return sanitizeUserText(value, fallback);
+}
+
+export function sanitizeUserText(value?: string | null, fallback = "Нет данных") {
   const text = String(value ?? "").trim();
   if (!text) {
     return fallback;
@@ -262,13 +275,26 @@ export function localizeKnownText(value?: string | null, fallback = "Нет да
   if (KNOWN_TEXT_LABELS[text]) {
     return KNOWN_TEXT_LABELS[text];
   }
+  const statusLabel = STATUS_LABELS[text.toUpperCase()];
+  if (statusLabel) {
+    return statusLabel;
+  }
   if (/confidence$/i.test(text)) {
     return "Уверенность";
   }
-  if (/backend|frontend|snapshot|placeholder|mock|runtime|source|api\./i.test(text)) {
+  if (TECHNICAL_TEXT_PATTERN.test(text)) {
+    return fallback;
+  }
+  if (ENGLISH_SENTENCE_PATTERN.test(text) && !/[А-Яа-яЁё]/.test(text)) {
     return fallback;
   }
   return text;
+}
+
+export function sanitizeUserTextList(values?: Array<string | null | undefined>, fallback = "Нет данных") {
+  return (values ?? [])
+    .map((value) => sanitizeUserText(value, fallback))
+    .filter((value, index, array) => Boolean(value) && value !== fallback && array.indexOf(value) === index);
 }
 
 export function localizeSourceName(value?: string | null) {
@@ -284,6 +310,82 @@ export function localizeSourceName(value?: string | null) {
     return "данные кабинета";
   }
   return "данные кабинета";
+}
+
+export function localizeActionType(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "ads":
+      return "Реклама";
+    case "inventory":
+      return "Остатки";
+    case "profit":
+      return "Прибыль";
+    case "risk":
+      return "Риск";
+    case "growth":
+      return "Рост";
+    case "data":
+      return "Данные";
+    default:
+      return "Действие";
+  }
+}
+
+export function localizeActionImpact(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "revenue":
+      return "Выручка";
+    case "profit":
+      return "Прибыль";
+    case "efficiency":
+      return "Эффективность";
+    case "stability":
+      return "Стабильность";
+    case "visibility":
+      return "Прозрачность";
+    default:
+      return "Влияние";
+  }
+}
+
+export function localizeActionStatus(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "new":
+      return "Новое";
+    case "review":
+      return "Нужно проверить";
+    case "ready":
+      return "Готово";
+    default:
+      return "В работе";
+  }
+}
+
+export function localizeBuildEnvironment(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "production":
+      return "Продакшн";
+    case "staging":
+      return "Стейджинг";
+    case "development":
+    case "dev":
+      return "Разработка";
+    default:
+      return "Среда не указана";
+  }
+}
+
+export function localizeBuildType(value?: string | null) {
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "release_candidate":
+      return "Предрелизная сборка";
+    case "release":
+      return "Релизная сборка";
+    case "debug":
+      return "Отладочная сборка";
+    default:
+      return "Сборка платформы";
+  }
 }
 
 export function humanizeErrorMessage(value?: string | null) {
