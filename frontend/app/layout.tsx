@@ -9,11 +9,10 @@ export const metadata: Metadata = {
   description: "Платформа для управления бизнесом, финансами, рекламой и аналитикой Wildberries.",
   icons: {
     icon: [
-      { url: "/brand/favicon.svg", type: "image/svg+xml" },
-      { url: "/brand/logo-icon.svg", type: "image/svg+xml" }
+      { url: "/brand/vooglii-logo-full.png", type: "image/png" }
     ],
-    shortcut: "/brand/favicon.svg",
-    apple: "/brand/apple-touch-icon.svg"
+    shortcut: "/brand/vooglii-logo-full.png",
+    apple: "/brand/vooglii-logo-full.png"
   }
 };
 

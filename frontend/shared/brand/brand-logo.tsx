@@ -14,11 +14,11 @@ export function BrandLogo({
     return (
       <Image
         alt="VOOGLII"
-        className={cn("h-12 w-12 rounded-[18px]", className)}
-        height={48}
+        className={cn("h-10 w-auto", className)}
+        height={40}
         priority={priority}
-        src="/brand/logo-icon.svg"
-        width={48}
+        src="/brand/vooglii-logo-full.png"
+        width={131}
       />
     );
   }
@@ -29,7 +29,7 @@ export function BrandLogo({
       className={cn("h-14 w-auto", className)}
       height={56}
       priority={priority}
-      src="/brand/logo-full.svg"
+      src="/brand/vooglii-logo-full.png"
       width={184}
     />
   );

@@ -41,7 +41,7 @@ export function WorkspaceTopBar({
             <Menu size={16} />
           </Button>
           <Link className="hidden lg:inline-flex" href="/executive">
-            <BrandLogo compact className="h-10 w-10 rounded-[14px]" />
+            <BrandLogo compact className="h-10 w-auto" />
           </Link>
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">
