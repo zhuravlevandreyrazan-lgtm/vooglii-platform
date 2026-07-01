@@ -14,7 +14,7 @@ export function InventorySupplyPriorityWidget({
   return (
     <WidgetCard
       empty={priorities.length === 0}
-      emptyMessage="Supply priority items will appear here when backend returns priority data."
+      emptyMessage="Приоритеты поставок появятся здесь после загрузки рекомендаций."
       error={error}
       loading={loading}
       subtitle="Supply priority"

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Card } from "@/shared/components/card";
 import { StatusBadge } from "@/shared/components/status-badge";
 import { cn } from "@/shared/lib/cn";
+import { humanizeErrorMessage } from "@/shared/ui/status-labels";
 import type { WidgetCardProps } from "@/shared/widgets/types";
 
 function renderStatus(status: WidgetCardProps["status"]): ReactNode {
@@ -57,7 +58,7 @@ export function WidgetCard({
   loading = false,
   error,
   empty = false,
-  emptyMessage = "Data for this block is not available yet.",
+  emptyMessage = "Данные для этого блока пока недоступны.",
   className,
   ...props
 }: WidgetCardProps) {
@@ -68,14 +69,14 @@ export function WidgetCard({
   } else if (error) {
     content = (
       <MessageState
-        message={error}
-        title="Unable to load data"
+        message={humanizeErrorMessage(error)}
+        title="Не удалось загрузить данные"
         tone="error"
       />
     );
   } else if (empty) {
     content = (
-      <MessageState message={emptyMessage} title="Empty state" tone="empty" />
+      <MessageState message={emptyMessage} title="Нет данных" tone="empty" />
     );
   }
 
@@ -100,7 +101,7 @@ export function WidgetCard({
 
       {updatedAt ? (
         <div className="mt-5 text-xs font-medium uppercase tracking-[0.14em] text-[var(--ink-soft)]">
-          Updated {updatedAt}
+          Обновлено {updatedAt}
         </div>
       ) : null}
     </Card>

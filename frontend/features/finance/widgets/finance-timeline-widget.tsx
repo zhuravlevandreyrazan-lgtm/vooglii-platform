@@ -26,7 +26,7 @@ export function FinanceTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Finance timeline entries will appear here when backend sync events are available."
+      emptyMessage="События по финансам появятся здесь после синхронизации данных."
       error={error}
       loading={loading}
       subtitle="Recent finance events"

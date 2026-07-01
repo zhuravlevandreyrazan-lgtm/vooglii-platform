@@ -17,13 +17,13 @@ export default function GlobalError({
   return (
     <div className="mx-auto max-w-3xl rounded-[32px] border border-[var(--line)] bg-white/80 p-10 shadow-[var(--shadow-soft)]">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">500</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">Something went wrong</h1>
+      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">Что-то пошло не так</h1>
       <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
-        The workspace encountered an unexpected error. Runtime diagnostics remain available through the backend health endpoints.
+        Не удалось открыть раздел. Попробуйте повторить действие или вернитесь немного позже.
       </p>
       <div className="mt-6">
         <Button variant="secondary" onClick={reset}>
-          Try again
+          Повторить
         </Button>
       </div>
     </div>

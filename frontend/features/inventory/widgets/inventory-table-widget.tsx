@@ -15,7 +15,7 @@ export function InventoryTableWidget({
   return (
     <WidgetCard
       empty={items.length === 0}
-      emptyMessage="Inventory table will appear here when backend returns stock analytics rows."
+      emptyMessage="Таблица остатков появится здесь после загрузки складской аналитики."
       error={error}
       loading={loading}
       subtitle="Main inventory table"

@@ -11,21 +11,21 @@ export default async function InventoryDetailsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Inventory", sku]}
-        subtitle="Inventory drilldown architecture is ready. Detailed stock analytics, warehouse breakdowns, forecast panels, and restock history can connect here later without changing the surrounding UI."
-        title={`Inventory ${sku}`}
+        breadcrumb={["Платформа", "Остатки", sku]}
+        subtitle="Карточка товара подготовлена для детальной аналитики по остаткам, складам, прогнозу и пополнению."
+        title={`Остатки по SKU ${sku}`}
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <WidgetCard subtitle="Coming soon" title="SKU Stock Overview">
+        <WidgetCard subtitle="Раздел в подготовке" title="Сводка по остаткам SKU">
           <p className="text-sm leading-6 text-[var(--ink-soft)]">
-            Detailed stock overview widgets will connect here when direct inventory drilldown payloads are available from backend.
+            Детальная аналитика по остаткам появится здесь после подключения прямого drilldown по SKU.
           </p>
         </WidgetCard>
 
-        <WidgetCard subtitle="Coming soon" title="Supply Forecast">
+        <WidgetCard subtitle="Раздел в подготовке" title="Прогноз пополнения">
           <p className="text-sm leading-6 text-[var(--ink-soft)]">
-            Forecast and replenishment drilldown panels will be added here in a later phase.
+            Прогноз поставок и сценарии пополнения станут доступны на следующем этапе развития раздела.
           </p>
         </WidgetCard>
       </div>

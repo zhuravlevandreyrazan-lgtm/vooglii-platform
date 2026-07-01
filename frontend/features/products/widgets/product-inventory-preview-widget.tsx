@@ -14,7 +14,7 @@ export function ProductInventoryPreviewWidget({
   return (
     <WidgetCard
       empty={products.length === 0}
-      emptyMessage="Inventory preview will appear here when backend returns stock analytics rows."
+      emptyMessage="Предварительный обзор остатков появится здесь после загрузки складской аналитики."
       error={error}
       loading={loading}
       subtitle="Inventory preview"

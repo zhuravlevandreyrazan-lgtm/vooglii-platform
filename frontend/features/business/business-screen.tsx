@@ -66,7 +66,7 @@ export function BusinessScreen({
 
       <section className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">KPI Grid</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Ключевые показатели</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Ключевые показатели бизнеса</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -79,7 +79,7 @@ export function BusinessScreen({
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Trend Section</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ink-soft)]">Сравнение периодов</p>
             <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Сравнение периодов</h2>
           </div>
           <StatusBadge tone={kpis.healthScore.tone}>{kpis.healthScore.value}</StatusBadge>
@@ -97,7 +97,7 @@ export function BusinessScreen({
       <BusinessAlertsWidget alerts={alerts} error={error} loading={loading} />
 
       <div className="text-sm text-[var(--ink-soft)]">
-        Последнее обновление: {lastUpdated ?? "нет данных"}
+        Обновлено: {lastUpdated ?? "нет данных"}
       </div>
     </div>
   );

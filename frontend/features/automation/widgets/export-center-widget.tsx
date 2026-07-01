@@ -23,7 +23,7 @@ export function ExportCenterWidget({
   return (
     <WidgetCard
       empty={exports.length === 0}
-      emptyMessage="Export presets will appear here when automation metadata is available."
+      emptyMessage="Шаблоны выгрузки появятся здесь после загрузки параметров автоматизации."
       error={error}
       loading={loading}
       subtitle="Generate placeholder exports"

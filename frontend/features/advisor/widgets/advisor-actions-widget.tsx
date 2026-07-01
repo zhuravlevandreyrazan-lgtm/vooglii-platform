@@ -14,7 +14,7 @@ export function AdvisorActionsWidget({
   return (
     <WidgetCard
       empty={actions.length === 0}
-      emptyMessage="Advisor navigation actions will appear here when routes are available."
+      emptyMessage="Действия советника появятся здесь после загрузки доступных сценариев."
       error={error}
       loading={loading}
       subtitle="Navigation actions"

@@ -19,7 +19,7 @@ export function NotificationChannelsWidget({
   return (
     <WidgetCard
       empty={channels.length === 0}
-      emptyMessage="Notification channels will appear here when channel metadata is available."
+      emptyMessage="Каналы уведомлений появятся здесь после загрузки настроек доставки."
       error={error}
       loading={loading}
       subtitle="Delivery channels"

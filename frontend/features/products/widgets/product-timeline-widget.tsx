@@ -27,7 +27,7 @@ export function ProductTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Product timeline entries will appear here when backend returns product events."
+      emptyMessage="События по товару появятся здесь после загрузки истории изменений."
       error={error}
       loading={loading}
       subtitle="Recent product events"

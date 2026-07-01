@@ -25,11 +25,11 @@ export function InventoryWarehouseWidget({
   return (
     <WidgetCard
       empty={warehouses.length === 0}
-      emptyMessage="Warehouse analytics will appear here when backend returns warehouse-level data."
+      emptyMessage="Аналитика по складам появится здесь, когда станут доступны данные по площадкам хранения."
       error={error}
       loading={loading}
-      subtitle="Warehouse analytics"
-      title="Warehouse"
+      subtitle="Состояние складов"
+      title="Склады"
     >
       <div className="space-y-3">
         {warehouses.map((item) => (
@@ -40,19 +40,19 @@ export function InventoryWarehouseWidget({
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Current Stock</div>
-                <div className="mt-1 text-sm font-semibold">{item.currentStock ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущий остаток</div>
+                <div className="mt-1 text-sm font-semibold">{item.currentStock ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Critical SKU</div>
-                <div className="mt-1 text-sm font-semibold">{item.criticalSku ?? "n/a"}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Критичные SKU</div>
+                <div className="mt-1 text-sm font-semibold">{item.criticalSku ?? "Нет данных"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Forecast</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прогноз</div>
                 <div className="mt-1 text-sm font-semibold">{item.forecast}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Health</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Состояние</div>
                 <div className="mt-1 text-sm font-semibold">{item.health}</div>
               </div>
             </div>

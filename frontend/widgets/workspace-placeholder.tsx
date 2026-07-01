@@ -16,17 +16,17 @@ export function WorkspacePlaceholder({
       <WorkspaceHeader
         description={description}
         eyebrow={eyebrow}
-        status="Mock workspace"
+        status="Раздел в подготовке"
         title={title}
       />
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <ChartPlaceholder
-          subtitle="This placeholder is connected to the mock layer and ready for backend contracts."
-          title={`${title} Signal Map`}
+          subtitle="Раздел подготовлен для подключения реальных данных и сигналов."
+          title={`${title}: обзор сигналов`}
         />
         <TablePlaceholder
-          columns={["Priority", "Signal", "Owner", "State"]}
-          title={`${title} Action Queue`}
+          columns={["Приоритет", "Сигнал", "Ответственный", "Статус"]}
+          title={`${title}: очередь действий`}
         />
       </div>
     </div>

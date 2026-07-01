@@ -14,7 +14,7 @@ export function ReportTemplatesWidget({
   return (
     <WidgetCard
       empty={templates.length === 0}
-      emptyMessage="Report templates will appear here when backend returns template metadata."
+      emptyMessage="Шаблоны отчетов появятся здесь после загрузки доступных сценариев."
       error={error}
       loading={loading}
       subtitle="Report templates"

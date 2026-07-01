@@ -15,7 +15,7 @@ export function ChartPlaceholder({
           <p className="mt-1 text-sm text-[var(--ink-soft)]">{subtitle}</p>
         </div>
         <span className="rounded-full bg-[var(--panel-strong)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-          Mock
+          Черновик
         </span>
       </div>
       <div className="mt-6 h-52 rounded-[24px] border border-dashed border-[var(--line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(234,227,214,0.7))] p-5">

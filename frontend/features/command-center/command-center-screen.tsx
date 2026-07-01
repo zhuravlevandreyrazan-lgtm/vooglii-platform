@@ -19,7 +19,13 @@ import {
 import type { CommandCenterKpis } from "@/features/command-center/kpi-types";
 import type { PriorityAction } from "@/features/command-center/priority-actions-types";
 import type { CommandCenterScreenData, StatusTone } from "@/types/platform";
-import { localizeConfidence, localizeRuntimeSource, localizeSeverity, localizeStatus } from "@/shared/ui/status-labels";
+import {
+  localizeConfidence,
+  localizeKnownText,
+  localizeRuntimeSource,
+  localizeSeverity,
+  localizeStatus
+} from "@/shared/ui/status-labels";
 
 const FALLBACK_BRIEF_HELP = "Пока недостаточно данных, чтобы сделать уверенный вывод.";
 
@@ -187,7 +193,7 @@ export function CommandCenterScreen({
               <div className="mt-2 text-sm font-semibold">
                 {kpis.topRisk?.title ??
                   (source === "real"
-                    ? "Connected to the live Command Center backend."
+                    ? "Кабинет подключен, данные поступают из рабочей системы."
                     : "Интерфейс продолжает работать в резервном режиме.")}
               </div>
             </div>
@@ -312,7 +318,7 @@ export function CommandCenterScreen({
                   <h3 className="text-base font-semibold">{event.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{event.description}</p>
                   <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                    Основание: {event.source}
+                    Основание: {localizeKnownText(event.source, "данные системы")}
                   </div>
                 </div>
               </div>
@@ -345,7 +351,7 @@ export function CommandCenterScreen({
                 <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{action.description}</p>
                 <p className="mt-3 text-sm font-semibold">{action.recommendation}</p>
                 <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                  Основание: {action.source}
+                  Основание: {localizeKnownText(action.source, "данные системы")}
                 </div>
               </div>
             ))}
@@ -386,7 +392,7 @@ export function CommandCenterScreen({
                   <div>
                     <h3 className="text-lg font-semibold">{workspace.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                      {workspace.summary}
+                      {localizeKnownText(workspace.summary, "Раздел готов к работе с данными кабинета.")}
                     </p>
                   </div>
                   <ArrowRight className="mt-1 transition group-hover:translate-x-1" size={18} />

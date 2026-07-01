@@ -14,7 +14,7 @@ export function AutomationTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Automation events will appear here when export and scheduler events are available."
+      emptyMessage="События автоматизации появятся здесь после загрузки истории экспорта и расписаний."
       error={error}
       loading={loading}
       subtitle="Recent automation events"
@@ -29,7 +29,7 @@ export function AutomationTimelineWidget({
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{item.description}</p>
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-              Source {item.source}
+              Источник: {item.source}
             </p>
           </div>
         ))}

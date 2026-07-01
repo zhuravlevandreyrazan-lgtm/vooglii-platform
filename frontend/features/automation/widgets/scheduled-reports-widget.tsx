@@ -23,7 +23,7 @@ export function ScheduledReportsWidget({
   return (
     <WidgetCard
       empty={schedules.length === 0}
-      emptyMessage="Scheduled reports will appear here when schedule metadata is available."
+      emptyMessage="Запланированные отчеты появятся здесь после загрузки расписаний."
       error={error}
       loading={loading}
       subtitle="Scheduled reports"

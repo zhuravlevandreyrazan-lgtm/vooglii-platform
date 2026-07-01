@@ -20,7 +20,7 @@ export function NotificationRulesWidget({
   return (
     <WidgetCard
       empty={rules.length === 0}
-      emptyMessage="Notification rules will appear here when rule metadata is available."
+      emptyMessage="Правила уведомлений появятся здесь после загрузки настроек."
       error={error}
       loading={loading}
       subtitle="Routing rules"

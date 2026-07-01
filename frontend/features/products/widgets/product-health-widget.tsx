@@ -16,7 +16,7 @@ export function ProductHealthWidget({
   return (
     <WidgetCard
       empty={!featured}
-      emptyMessage="Product health panel will appear when at least one backend-ready SKU row is available."
+      emptyMessage="Состояние товара появится здесь, когда станут доступны данные хотя бы по одному SKU."
       error={error}
       loading={loading}
       subtitle="Featured SKU health"

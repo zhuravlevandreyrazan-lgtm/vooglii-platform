@@ -27,7 +27,7 @@ export function InventoryTimelineWidget({
   return (
     <WidgetCard
       empty={timeline.length === 0}
-      emptyMessage="Inventory timeline entries will appear here when backend returns inventory events."
+      emptyMessage="События по остаткам появятся здесь после загрузки истории изменений."
       error={error}
       loading={loading}
       subtitle="Recent inventory events"

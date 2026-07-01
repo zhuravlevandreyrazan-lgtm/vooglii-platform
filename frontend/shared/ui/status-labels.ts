@@ -24,9 +24,9 @@ const STATUS_LABELS: Record<string, string> = {
   REVIEW: "Нужно проверить",
   PLANNED: "Запланировано",
   GENERATED: "Сформировано",
-  HIGH: "Высокий",
-  MEDIUM: "Средний",
-  LOW: "Низкий"
+  HIGH: "Высокий уровень",
+  MEDIUM: "Средний уровень",
+  LOW: "Низкий уровень"
 };
 
 const WORKSPACE_LABELS: Record<string, string> = {
@@ -63,6 +63,23 @@ const PERIOD_LABELS: Record<string, string> = {
   ninetyDays: "90 дней"
 };
 
+const KNOWN_TEXT_LABELS: Record<string, string> = {
+  "LIVE BACKEND": "Данные обновлены",
+  "LIVE CACHE": "Данные недавно обновлены",
+  DEGRADED: "Данные частично недоступны",
+  "No business data available": "Нет данных за выбранный период",
+  "Finance requires attention": "Требуется внимание к финансам",
+  "Backend is unreachable.": "Не удалось загрузить данные. Попробуйте обновить страницу позже.",
+  "Unable to load data": "Не удалось загрузить данные",
+  "Empty state": "Нет данных",
+  "Data for this block is not available yet.": "Данные для этого блока пока недоступны.",
+  "Command Center": "Центр управления",
+  "Source": "Источник",
+  "Updated": "Обновлено",
+  "Refresh snapshot": "Обновить данные",
+  "Coming soon": "Раздел в подготовке"
+};
+
 export function localizeStatus(value?: string | null) {
   const normalized = String(value ?? "").trim().toUpperCase();
   if (!normalized) {
@@ -82,14 +99,14 @@ export function localizeWorkspaceLabel(value?: string | null) {
 export function localizeRuntimeSource(source?: ApiRuntimeSource | string | null) {
   switch (source) {
     case "live":
-      return "LIVE BACKEND";
+      return "Данные обновлены";
     case "cache":
-      return "LIVE CACHE";
+      return "Данные недавно обновлены";
     case "stale_cache":
     case "degraded":
-      return "DEGRADED";
+      return "Данные частично недоступны";
     case "fallback":
-      return "Резервные данные";
+      return "Резервный режим";
     case "demo":
       return "Демо-режим";
     case "dev":
@@ -104,10 +121,10 @@ export function localizeDiagnosticsLabel(diagnostics?: WorkspaceDiagnostics) {
     return "Нет данных";
   }
   if (diagnostics.degraded || diagnostics.stale) {
-    return "DEGRADED";
+    return "Данные частично недоступны";
   }
   if (diagnostics.cached) {
-    return "LIVE CACHE";
+    return "Данные недавно обновлены";
   }
   return localizeRuntimeSource(diagnostics.source);
 }
@@ -154,6 +171,49 @@ export function localizePeriodLabel(value?: string | null) {
   return PERIOD_LABELS[normalized] ?? value ?? "Период не указан";
 }
 
+export function localizeKnownText(value?: string | null, fallback = "Нет данных") {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return fallback;
+  }
+  return KNOWN_TEXT_LABELS[text] ?? text;
+}
+
+export function localizeSourceName(value?: string | null) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return "источник не указан";
+  }
+  const mapped = WORKSPACE_LABELS[normalized];
+  if (mapped) {
+    return mapped.toLowerCase();
+  }
+  if (normalized === "backend") {
+    return "сервер";
+  }
+  if (normalized === "placeholder") {
+    return "временный слой";
+  }
+  if (normalized === "system") {
+    return "система";
+  }
+  return value ?? "источник не указан";
+}
+
+export function humanizeErrorMessage(value?: string | null) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "Не удалось загрузить данные. Попробуйте обновить страницу позже.";
+  }
+  if (text === "Backend is unreachable.") {
+    return "Не удалось загрузить данные. Попробуйте обновить страницу позже.";
+  }
+  if (text.includes("API token")) {
+    return "Данные временно недоступны. Проверьте подключение кабинета и повторите обновление позже.";
+  }
+  return text;
+}
+
 export function formatOptionalValue(value?: string | number | null, fallback = "Нет данных") {
   if (value === null || value === undefined) {
     return fallback;
@@ -169,5 +229,5 @@ export function formatOptionalValue(value?: string | number | null, fallback = "
     return fallback;
   }
 
-  return text;
+  return localizeKnownText(text, fallback);
 }

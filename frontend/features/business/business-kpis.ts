@@ -60,13 +60,13 @@ function createUnknownMetric(
   key: BusinessWidget,
   label: string,
   note: string,
-  delta = "No business data available"
+  delta = "Нет данных за выбранный период"
 ): BusinessMetric {
   return {
     key,
     label,
     numericValue: 0,
-    value: "UNKNOWN",
+    value: "Нет данных",
     delta,
     note,
     tone: "neutral",

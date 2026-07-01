@@ -14,7 +14,7 @@ export function ReportExportCenterWidget({
   return (
     <WidgetCard
       empty={exports.length === 0}
-      emptyMessage="Export formats will appear here when export metadata is available."
+      emptyMessage="Форматы выгрузки появятся здесь после загрузки метаданных экспорта."
       error={error}
       loading={loading}
       subtitle="Export center"

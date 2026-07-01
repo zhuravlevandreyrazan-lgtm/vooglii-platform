@@ -14,6 +14,7 @@ import type {
   StatusTone
 } from "@/types/platform";
 import {
+  localizeKnownText,
   localizeRuntimeSource,
   localizeStatus,
   localizeWorkspaceLabel
@@ -190,17 +191,17 @@ export function mapCommandCenterApiResponseToSnapshot(
       score: payload.business_health?.score ?? commandCenterMock.businessHealth.score,
       status: localizeStatus(payload.business_health?.status ?? "UNKNOWN"),
       summary:
-        payload.business_health?.summary ??
-        summaryBits[0] ??
-        commandCenterMock.businessHealth.summary
+      payload.business_health?.summary ??
+      summaryBits[0] ??
+      commandCenterMock.businessHealth.summary
     },
     executiveBrief: {
       id: "executive-brief",
       eyebrow: "Краткий вывод",
       title: payload.executive_brief?.title ?? commandCenterMock.executiveBrief.title,
       summary:
-        summaryBits.join(" ").trim() ||
-        payload.business_health?.summary ||
+        localizeKnownText(summaryBits.join(" ").trim(), "") ||
+        localizeKnownText(payload.business_health?.summary, "") ||
         commandCenterMock.executiveBrief.summary,
       confidence: formatConfidence(payload.executive_brief?.confidence),
       sources:
@@ -215,14 +216,14 @@ export function mapCommandCenterApiResponseToSnapshot(
         value: metric.value ?? "Нет данных",
         delta: metric.delta ?? "Нет данных",
         tone: statusToTone(metric.status),
-        note: metric.source ? `Источник: ${metric.source}` : "Данные по текущему периоду"
+        note: "Актуальные показатели по выбранному периоду"
       })) ?? commandCenterMock.kpis,
     timeline:
       payload.recent_events?.map((event, index) => ({
         id: event.id ?? `timeline-${index + 1}`,
         time: "Сейчас",
-        title: event.title ?? "Последнее событие",
-        detail: event.detail ?? "Подробности появятся после обновления данных.",
+        title: localizeKnownText(event.title, "Последнее событие"),
+        detail: localizeKnownText(event.detail, "Подробности появятся после обновления данных."),
         tone: statusToTone(event.status)
       })) ?? commandCenterMock.timeline,
     actions:
@@ -236,15 +237,15 @@ export function mapCommandCenterApiResponseToSnapshot(
     alerts:
       payload.critical_alerts?.map((alert, index) => ({
         id: alert.id ?? `alert-${index + 1}`,
-        title: alert.title ?? "Сигнал",
-        detail: alert.detail ?? "Подробности появятся после обновления данных.",
+        title: localizeKnownText(alert.title, "Сигнал"),
+        detail: localizeKnownText(alert.detail, "Подробности появятся после обновления данных."),
         tone: statusToTone(alert.status)
       })) ?? commandCenterMock.alerts,
     workspaces:
       payload.workspaces?.map((workspace) => ({
         title: localizeWorkspaceLabel(workspace.title ?? "workspace"),
         href: workspace.href ?? "/",
-        summary: workspace.summary ?? "Раздел будет доступен после загрузки данных.",
+        summary: localizeKnownText(workspace.summary, "Раздел будет доступен после загрузки данных."),
         status: localizeStatus(workspace.status ?? "UNKNOWN")
       })) ?? commandCenterMock.workspaces,
     notifications: [

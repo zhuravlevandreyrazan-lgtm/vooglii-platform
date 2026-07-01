@@ -15,7 +15,7 @@ export function NotificationHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="Notification history will appear here when delivery events are available."
+      emptyMessage="История уведомлений появится здесь после загрузки событий доставки."
       error={error}
       loading={loading}
       subtitle="Delivery history"

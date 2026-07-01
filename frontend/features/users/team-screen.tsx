@@ -58,7 +58,7 @@ export function TeamScreen({
     return (
       <WidgetCard subtitle="Просмотр пользователей и журнала доступен не всем ролям." title="Доступ ограничен">
         <p className="text-sm leading-7 text-[var(--ink-soft)]">
-          Страница уже подключена к backend-проверкам прав. Когда появится полноценная авторизация,
+          Страница уже использует серверные проверки прав доступа. Когда появится полноценная авторизация,
           этот же контракт продолжит работать без изменения API страницы.
         </p>
       </WidgetCard>
@@ -84,7 +84,7 @@ export function TeamScreen({
       ) : null}
 
       <WidgetCard
-        title="Directory"
+        title="Пользователи"
         subtitle="Пользователи и роли"
         loading={loading}
         error={error ?? undefined}
@@ -119,7 +119,7 @@ export function TeamScreen({
                     <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-soft)]">
                       Роль
                     </label>
-                    <select
+                      <select
                       className="rounded-2xl border border-[var(--line)] bg-white px-4 py-2.5 text-sm"
                       disabled={!canManageUsers || busy}
                       onChange={(event) => onRoleChange(user.id, event.target.value as PlatformRole)}
@@ -127,7 +127,15 @@ export function TeamScreen({
                     >
                       {roles.map((role) => (
                         <option key={role} value={role}>
-                          {role}
+                          {role === "owner"
+                            ? "Владелец"
+                            : role === "admin"
+                              ? "Администратор"
+                              : role === "manager"
+                                ? "Менеджер"
+                                : role === "analyst"
+                                  ? "Аналитик"
+                                  : "Наблюдатель"}
                         </option>
                       ))}
                     </select>

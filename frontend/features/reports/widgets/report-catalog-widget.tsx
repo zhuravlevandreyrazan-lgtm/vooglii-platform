@@ -15,11 +15,11 @@ export function ReportCatalogWidget({
   return (
     <WidgetCard
       empty={catalog.length === 0}
-      emptyMessage="Report catalog will appear here when backend returns available report metadata."
+      emptyMessage="Каталог отчетов появится здесь, когда станут доступны метаданные по выгрузкам."
       error={error}
       loading={loading}
-      subtitle="Available reports"
-      title="Report Catalog"
+      subtitle="Доступные отчеты"
+      title="Каталог отчетов"
     >
       <div className="space-y-3">
         {catalog.map((item) => (
@@ -38,7 +38,7 @@ export function ReportCatalogWidget({
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="neutral">{item.category}</StatusBadge>
               <StatusBadge tone="accent">{item.source}</StatusBadge>
-              <StatusBadge tone="watch">{item.updatedAt ?? "n/a"}</StatusBadge>
+              <StatusBadge tone="watch">{item.updatedAt ?? "Нет данных"}</StatusBadge>
             </div>
           </Link>
         ))}

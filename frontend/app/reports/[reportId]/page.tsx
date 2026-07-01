@@ -11,21 +11,21 @@ export default async function ReportDetailsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb={["Platform", "Reports", reportId]}
-        subtitle="Report details architecture is ready. Detailed report content, export history, and scheduled delivery controls can connect here later without changing the surrounding UI."
-        title={`Report ${reportId}`}
+        breadcrumb={["Платформа", "Отчеты", reportId]}
+        subtitle="Карточка отчета подготовлена для просмотра содержимого, истории выгрузок и сценариев доставки."
+        title={`Отчет ${reportId}`}
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <WidgetCard subtitle="Coming soon" title="Report Overview">
+        <WidgetCard subtitle="Раздел в подготовке" title="Сводка по отчету">
           <p className="text-sm leading-6 text-[var(--ink-soft)]">
-            Detailed report overview widgets will connect here when direct report payloads are available from backend.
+            Подробное содержимое отчета появится здесь после подключения прямых данных по выбранному документу.
           </p>
         </WidgetCard>
 
-        <WidgetCard subtitle="Coming soon" title="Export History">
+        <WidgetCard subtitle="Раздел в подготовке" title="История выгрузок">
           <p className="text-sm leading-6 text-[var(--ink-soft)]">
-            Export history, scheduling, and generated file metadata will be added here in a later phase.
+            История экспорта, расписание и сведения о сформированных файлах будут доступны в следующей итерации.
           </p>
         </WidgetCard>
       </div>

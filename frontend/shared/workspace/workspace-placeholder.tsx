@@ -29,12 +29,12 @@ export function WorkspacePlaceholder({
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <ChartPlaceholder
-          subtitle="This workspace is ready for backend-connected executive widgets and deterministic insight layers."
-          title={`${title} Signal Map`}
+          subtitle="Раздел подготовлен для подключения реальных виджетов и бизнес-сигналов."
+          title={`${title}: обзор сигналов`}
         />
         <WidgetCard
-          subtitle="Coming soon"
-          title={`${title} Workspace`}
+          subtitle="Раздел в подготовке"
+          title={`${title}: рабочая область`}
         >
           <div className="space-y-3">
             {widgets.map((widget) => (
@@ -48,8 +48,8 @@ export function WorkspacePlaceholder({
       </div>
 
       <TablePlaceholder
-        columns={["Priority", "Signal", "Owner", "State"]}
-        title={`${title} Action Queue`}
+        columns={["Приоритет", "Сигнал", "Ответственный", "Статус"]}
+        title={`${title}: очередь действий`}
       />
     </div>
   );

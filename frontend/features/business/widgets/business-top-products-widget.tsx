@@ -1,5 +1,6 @@
 import { formatCurrency, formatPercent } from "@/features/command-center/formatters";
 import { StatusBadge } from "@/shared/status";
+import { localizeKnownText } from "@/shared/ui/status-labels";
 import { WidgetCard } from "@/shared/widgets";
 import type { BusinessProduct } from "@/features/business/types";
 
@@ -26,11 +27,11 @@ export function BusinessTopProductsWidget({
   return (
     <WidgetCard
       empty={products.length === 0}
-      emptyMessage="Top products will appear here when the business snapshot includes assortment-level data."
+      emptyMessage="Товары-лидеры появятся здесь, когда станут доступны данные по ассортименту."
       error={error}
       loading={loading}
-      subtitle="Top products"
-      title="Top Products"
+      subtitle="Товары с наибольшим вкладом"
+      title="Лидеры по ассортименту"
     >
       <div className="space-y-3">
         {products.map((product) => (
@@ -42,19 +43,19 @@ export function BusinessTopProductsWidget({
                   {product.sku}
                 </div>
               </div>
-              <StatusBadge tone={toneForStatus(product.status)}>{product.status}</StatusBadge>
+              <StatusBadge tone={toneForStatus(product.status)}>{localizeKnownText(product.status, "Норма")}</StatusBadge>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Revenue</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Выручка</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(product.revenue)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Profit</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прибыль</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(product.profit)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Margin</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Маржинальность</div>
                 <div className="mt-1 text-sm font-semibold">{formatPercent(product.margin)}</div>
               </div>
             </div>

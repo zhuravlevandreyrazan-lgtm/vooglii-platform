@@ -19,7 +19,7 @@ export function QuickActionsWidget({
   return (
     <WidgetCard
       empty={actions.length === 0}
-      emptyMessage="Quick actions will appear here when automation presets are available."
+      emptyMessage="Быстрые действия появятся здесь после загрузки сценариев автоматизации."
       error={error}
       loading={loading}
       subtitle="Fast operational shortcuts"

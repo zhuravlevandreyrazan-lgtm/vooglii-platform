@@ -16,11 +16,11 @@ export function ProductsTableWidget({
   return (
     <WidgetCard
       empty={products.length === 0}
-      emptyMessage="Products table will appear here when backend returns SKU-level product intelligence rows."
+      emptyMessage="Таблица товаров появится здесь, когда станут доступны данные по SKU."
       error={error}
       loading={loading}
-      subtitle="Main SKU intelligence table"
-      title="Products Table"
+      subtitle="Основная таблица по SKU"
+      title="Товары"
     >
       <div className="space-y-3">
         {products.map((product) => (
@@ -40,15 +40,15 @@ export function ProductsTableWidget({
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Revenue</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Выручка</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(product.metrics.revenue)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Profit</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прибыль</div>
                 <div className="mt-1 text-sm font-semibold">{formatCurrency(product.metrics.profit)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Margin</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Маржинальность</div>
                 <div className="mt-1 text-sm font-semibold">{formatPercent(product.metrics.margin)}</div>
               </div>
               <div>
@@ -62,15 +62,15 @@ export function ProductsTableWidget({
                 <div className="mt-1 text-sm font-semibold">{formatPercent(product.metrics.acos)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Stock</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Остаток</div>
                 <div className="mt-1 text-sm font-semibold">
-                  {product.metrics.stock === null ? "n/a" : product.metrics.stock.toLocaleString("en-US")}
+                  {product.metrics.stock === null ? "Нет данных" : product.metrics.stock.toLocaleString("ru-RU")}
                 </div>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <HealthBadge label={product.health.health} />
-              <StatusBadge tone="neutral">Days left {product.metrics.daysLeft ?? "n/a"}</StatusBadge>
+              <StatusBadge tone="neutral">Дней запаса: {product.metrics.daysLeft ?? "Нет данных"}</StatusBadge>
               <StatusBadge tone="accent">{product.trend}</StatusBadge>
               <StatusBadge tone="watch">{product.recommendation}</StatusBadge>
             </div>

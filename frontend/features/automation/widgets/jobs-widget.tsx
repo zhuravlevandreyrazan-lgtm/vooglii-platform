@@ -14,7 +14,7 @@ export function JobsWidget({
   return (
     <WidgetCard
       empty={jobs.length === 0}
-      emptyMessage="Jobs will appear here when the queue registry is available."
+      emptyMessage="Фоновые задачи появятся здесь после загрузки очереди."
       error={error}
       loading={loading}
       subtitle="Job queue"

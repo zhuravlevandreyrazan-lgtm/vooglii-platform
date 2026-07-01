@@ -28,7 +28,7 @@ export function ProductHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="Historical product performance will appear here when backend returns historical rollups."
+      emptyMessage="История по товару появится здесь после загрузки накопленной аналитики."
       error={error}
       loading={loading}
       subtitle="Historical section"

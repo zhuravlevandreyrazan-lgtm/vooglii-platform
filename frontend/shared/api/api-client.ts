@@ -81,7 +81,7 @@ export async function requestJson<T>(path: string, options: ApiRequestJsonOption
     try {
       return JSON.parse(rawText) as T;
     } catch (error) {
-      throw new ApiError("API returned invalid JSON.", {
+      throw new ApiError("Сервис вернул некорректный ответ.", {
         code: "invalid_json",
         status: response.status,
         url
@@ -96,14 +96,14 @@ export async function requestJson<T>(path: string, options: ApiRequestJsonOption
       const isTimeout = controller.signal.reason instanceof DOMException &&
         controller.signal.reason.name === "TimeoutError";
 
-      throw new ApiError(isTimeout ? "API request timed out." : "API request was aborted.", {
+      throw new ApiError(isTimeout ? "Сервер отвечает слишком долго." : "Запрос был прерван.", {
         code: isTimeout ? "timeout" : "aborted",
         status: null,
         url
       }, error);
     }
 
-    throw new ApiError("Backend is unreachable.", {
+    throw new ApiError("Не удалось загрузить данные.", {
       code: "network_error",
       status: null,
       url

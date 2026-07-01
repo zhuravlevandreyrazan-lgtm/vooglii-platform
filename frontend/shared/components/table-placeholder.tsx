@@ -12,7 +12,7 @@ export function TablePlaceholder({
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-lg font-semibold">{title}</h3>
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-          Placeholder
+          Подготовка
         </span>
       </div>
       <div className="mt-5 overflow-hidden rounded-[20px] border border-[var(--line)]">

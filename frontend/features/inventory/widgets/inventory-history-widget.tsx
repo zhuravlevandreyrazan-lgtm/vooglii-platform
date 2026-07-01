@@ -28,7 +28,7 @@ export function InventoryHistoryWidget({
   return (
     <WidgetCard
       empty={history.length === 0}
-      emptyMessage="Historical inventory will appear here when backend returns stock history rollups."
+      emptyMessage="История по остаткам появится здесь после загрузки накопленных данных."
       error={error}
       loading={loading}
       subtitle="Historical inventory"
