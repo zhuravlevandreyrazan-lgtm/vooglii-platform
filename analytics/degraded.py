@@ -46,15 +46,15 @@ def executive_degraded(reason: str) -> dict[str, Any]:
 
 def business_degraded(reason: str) -> dict[str, Any]:
     return {
-        "summary": {"revenue": 0, "profit": 0, "margin": 0, "orders": 0, "returns": 0, "averageOrderValue": 0, "unitsSold": 0},
-        "trends": {"revenue": 0, "profit": 0, "margin": 0, "returns": 0},
+        "summary": {"revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None},
+        "trends": {"revenue": None, "profit": None, "margin": None, "returns": None},
         "healthScore": 0,
-        "healthStatus": "DEGRADED",
+        "healthStatus": "No business data available",
         "periods": {
-            "today": {"key": "today", "label": "Today", "revenue": 0, "profit": 0, "margin": 0, "orders": 0, "returns": 0, "averageOrderValue": 0, "unitsSold": 0},
-            "yesterday": {"key": "yesterday", "label": "Yesterday", "revenue": 0, "profit": 0, "margin": 0, "orders": 0, "returns": 0, "averageOrderValue": 0, "unitsSold": 0},
-            "sevenDays": {"key": "sevenDays", "label": "7 Days", "revenue": 0, "profit": 0, "margin": 0, "orders": 0, "returns": 0, "averageOrderValue": 0, "unitsSold": 0},
-            "thirtyDays": {"key": "thirtyDays", "label": "30 Days", "revenue": 0, "profit": 0, "margin": 0, "orders": 0, "returns": 0, "averageOrderValue": 0, "unitsSold": 0},
+            "today": {"key": "today", "label": "Today", "revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None, "available": False},
+            "yesterday": {"key": "yesterday", "label": "Yesterday", "revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None, "available": False},
+            "sevenDays": {"key": "sevenDays", "label": "7 Days", "revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None, "available": False},
+            "thirtyDays": {"key": "thirtyDays", "label": "30 Days", "revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None, "available": False},
         },
         "topProducts": [],
         "generatedAt": now_iso(),
