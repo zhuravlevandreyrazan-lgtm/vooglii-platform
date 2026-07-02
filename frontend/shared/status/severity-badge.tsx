@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/shared/components/status-badge";
+import { localizeSeverity } from "@/shared/ui/status-labels";
 import type { StatusTone } from "@/types/platform";
 
 function mapSeverityTone(value: string): StatusTone {
@@ -17,5 +18,5 @@ function mapSeverityTone(value: string): StatusTone {
 }
 
 export function SeverityBadge({ severity }: { severity: string }) {
-  return <StatusBadge tone={mapSeverityTone(severity)}>{severity}</StatusBadge>;
+  return <StatusBadge tone={mapSeverityTone(severity)}>{localizeSeverity(severity)}</StatusBadge>;
 }

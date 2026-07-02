@@ -1,7 +1,5 @@
-import { RuntimeBadge } from "@/shared/api";
-import { Alert } from "@/shared/components/alert";
-import { Button } from "@/shared/components/button";
-import { PageHeader } from "@/shared/layout";
+import { OpenAutomationLink } from "@/features/automation/components/open-automation-link";
+import type { ProductDetailsSnapshot } from "@/features/product-details/types";
 import { ProductAdvertisingWidget } from "@/features/product-details/widgets/product-advertising-widget";
 import { ProductFinanceWidget } from "@/features/product-details/widgets/product-finance-widget";
 import { ProductForecastWidget } from "@/features/product-details/widgets/product-forecast-widget";
@@ -13,16 +11,18 @@ import { ProductQuickActionsWidget } from "@/features/product-details/widgets/pr
 import { ProductRecommendationsWidget } from "@/features/product-details/widgets/product-recommendations-widget";
 import { ProductSalesWidget } from "@/features/product-details/widgets/product-sales-widget";
 import { ProductDetailsTimelineWidget } from "@/features/product-details/widgets/product-timeline-widget";
-import { OpenAutomationLink } from "@/features/automation/components/open-automation-link";
-import type { ProductDetailsSnapshot } from "@/features/product-details/types";
+import { RuntimeBadge } from "@/shared/api";
 import type { WorkspaceDiagnostics } from "@/shared/api";
+import { Alert } from "@/shared/components/alert";
+import { Button } from "@/shared/components/button";
+import { PageHeader } from "@/shared/layout";
 
 function formatMoney(value: number | null) {
-  return value === null ? "Нет данных" : `в‚Ѕ${value.toLocaleString("en-US")}`;
+  return value === null ? "РќРµС‚ РґР°РЅРЅС‹С…" : `₽${value.toLocaleString("ru-RU")}`;
 }
 
 function formatCount(value: number | null) {
-  return value === null ? "Нет данных" : value.toLocaleString("en-US");
+  return value === null ? "РќРµС‚ РґР°РЅРЅС‹С…" : value.toLocaleString("ru-RU");
 }
 
 export function ProductDetailsScreen({
@@ -56,13 +56,13 @@ export function ProductDetailsScreen({
             <OpenAutomationLink format="JSON" sku={data.overview.sku} workspace="products" />
             {reload ? (
               <Button variant="secondary" onClick={reload}>
-                Обновить данные
+                РћР±РЅРѕРІРёС‚СЊ РґР°РЅРЅС‹Рµ
               </Button>
             ) : null}
           </div>
         }
-        breadcrumb={["Платформа", "Товары", data.overview.sku]}
-        subtitle="Карточка SKU с продажами, прибылью, рекламой, остатками, историей и рекомендациями в одном экране."
+        breadcrumb={["РџР»Р°С‚С„РѕСЂРјР°", "РўРѕРІР°СЂС‹", data.overview.sku]}
+        subtitle="РљР°СЂС‚РѕС‡РєР° SKU СЃ РїСЂРѕРґР°Р¶Р°РјРё, РїСЂРёР±С‹Р»СЊСЋ, СЂРµРєР»Р°РјРѕР№, РѕСЃС‚Р°С‚РєР°РјРё, РёСЃС‚РѕСЂРёРµР№ Рё СЂРµРєРѕРјРµРЅРґР°С†РёСЏРјРё РІ РѕРґРЅРѕРј СЌРєСЂР°РЅРµ."
         title={data.overview.name}
         updatedAt={lastUpdated ?? undefined}
       />
@@ -72,43 +72,43 @@ export function ProductDetailsScreen({
       {workspaceContext?.organization || workspaceContext?.cabinet ? (
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Организация</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.organization ?? "нет данных"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">РћСЂРіР°РЅРёР·Р°С†РёСЏ</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.organization ?? "РЅРµС‚ РґР°РЅРЅС‹С…"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущий кабинет</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.cabinet ?? "нет данных"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">РўРµРєСѓС‰РёР№ РєР°Р±РёРЅРµС‚</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.cabinet ?? "РЅРµС‚ РґР°РЅРЅС‹С…"}</p>
           </div>
           <div className="rounded-[22px] border border-[var(--line)] bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Режим работы</p>
-            <p className="mt-2 text-sm font-semibold">{workspaceContext.mode ?? "нет данных"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Р РµР¶РёРј СЂР°Р±РѕС‚С‹</p>
+            <p className="mt-2 text-sm font-semibold">{workspaceContext.mode ?? "РЅРµС‚ РґР°РЅРЅС‹С…"}</p>
           </div>
         </div>
       ) : null}
 
       {diagnostics?.validationStatus === "fallback" ? (
         <Alert
-          detail="Сейчас показываются резервные данные. Ответ по SKU временно недоступен или еще не готов."
-          title="Данные по товару временно недоступны"
+          detail="РЎРµР№С‡Р°СЃ РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ СЂРµР·РµСЂРІРЅС‹Рµ РґР°РЅРЅС‹Рµ. РћС‚РІРµС‚ РїРѕ SKU РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ РёР»Рё РµС‰Рµ РЅРµ РіРѕС‚РѕРІ."
+          title="Р”Р°РЅРЅС‹Рµ РїРѕ С‚РѕРІР°СЂСѓ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРЅС‹"
           tone="watch"
         />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Выручка</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Р’С‹СЂСѓС‡РєР°</p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatMoney(data.sales.revenue)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прибыль</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">РџСЂРёР±С‹Р»СЊ</p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatMoney(data.finance.profit)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Остаток</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">РћСЃС‚Р°С‚РѕРє</p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{formatCount(data.inventory.stock)}</p>
         </div>
         <div className="rounded-[26px] border border-[var(--line)] bg-white/80 p-5 shadow-[var(--shadow-soft)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Состояние рекламы</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">РЎРѕСЃС‚РѕСЏРЅРёРµ СЂРµРєР»Р°РјС‹</p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{data.advertising.adsHealth}</p>
         </div>
       </div>

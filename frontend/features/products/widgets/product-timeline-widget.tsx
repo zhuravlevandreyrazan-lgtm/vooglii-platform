@@ -1,17 +1,17 @@
+import type { ProductTimeline } from "@/features/products/types";
 import { SeverityBadge } from "@/shared/status";
 import { WidgetCard } from "@/shared/widgets";
-import type { ProductTimeline } from "@/features/products/types";
 
 function periodLabel(period: ProductTimeline["period"]) {
   switch (period) {
     case "sync":
-      return "Latest sync";
+      return "Последняя синхронизация";
     case "import":
-      return "Latest import";
+      return "Последняя загрузка";
     case "audit":
-      return "Latest SKU audit";
+      return "Последний аудит SKU";
     default:
-      return "Latest forecast";
+      return "Последний прогноз";
   }
 }
 
@@ -30,8 +30,8 @@ export function ProductTimelineWidget({
       emptyMessage="События по товару появятся здесь после загрузки истории изменений."
       error={error}
       loading={loading}
-      subtitle="Recent product events"
-      title="Product Timeline"
+      subtitle="Последние события по SKU"
+      title="История товара"
     >
       <div className="space-y-3">
         {timeline.map((item) => (

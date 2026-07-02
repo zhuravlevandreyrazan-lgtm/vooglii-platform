@@ -1,6 +1,6 @@
+import type { ProductCard } from "@/features/products/types";
 import { HealthBadge, StatusBadge } from "@/shared/status";
 import { WidgetCard } from "@/shared/widgets";
-import type { ProductCard } from "@/features/products/types";
 
 export function ProductHealthWidget({
   products,
@@ -19,8 +19,8 @@ export function ProductHealthWidget({
       emptyMessage="Состояние товара появится здесь, когда станут доступны данные хотя бы по одному SKU."
       error={error}
       loading={loading}
-      subtitle="Featured SKU health"
-      title="Product Health Panel"
+      subtitle="Состояние ключевого SKU"
+      title="Панель состояния товара"
     >
       {featured ? (
         <div className="space-y-4">
@@ -40,14 +40,14 @@ export function ProductHealthWidget({
               <div className="mt-2 text-lg font-semibold">{featured.health.xyz}</div>
             </div>
             <div className="rounded-[22px] bg-[var(--panel-strong)] p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Forecast</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Прогноз</div>
               <div className="mt-2 text-lg font-semibold">{featured.health.forecast}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <HealthBadge label={featured.health.health} />
             <StatusBadge tone={featured.status.tone}>{featured.health.status}</StatusBadge>
-            <StatusBadge tone="risk">Risk {featured.health.riskLevel}</StatusBadge>
+            <StatusBadge tone="risk">Риск: {featured.health.riskLevel}</StatusBadge>
           </div>
         </div>
       ) : null}
