@@ -1,4 +1,3 @@
-import { commandCenterMock } from "@/shared/data/mock-platform";
 import {
   apiEndpoints,
   ApiError,
@@ -7,20 +6,25 @@ import {
   normalizeRuntimeMetadata,
   requestJson
 } from "@/shared/api";
-import type {
-  CommandCenterScreenData,
-  CommandCenterRuntimeSource,
-  CommandCenterSnapshot,
-  StatusTone
-} from "@/types/platform";
+import { commandCenterMock } from "@/shared/data/mock-platform";
 import {
   localizeKnownText,
   localizeRuntimeSource,
-  sanitizeUserText,
-  sanitizeUserTextList,
   localizeStatus,
-  localizeWorkspaceLabel
+  localizeWorkspaceLabel,
+  sanitizeUserText,
+  sanitizeUserTextList
 } from "@/shared/ui/status-labels";
+import {
+  mapDecisionEngineApiResponse,
+  type ApiDecisionEngineResponse
+} from "@/services/decision-engine-api";
+import type {
+  CommandCenterRuntimeSource,
+  CommandCenterScreenData,
+  CommandCenterSnapshot,
+  StatusTone
+} from "@/types/platform";
 
 type ApiStatus = "GOOD" | "WARNING" | "CRITICAL" | "UNKNOWN";
 
@@ -47,6 +51,7 @@ export type ApiCommandCenterResponse = {
     confidence?: number;
     sources?: string[];
   };
+  decision_engine?: ApiDecisionEngineResponse | null;
   kpis?: Array<{
     id?: string;
     title?: string;
@@ -144,6 +149,10 @@ export function isApiCommandCenterResponse(value: unknown): value is ApiCommandC
     return false;
   }
 
+  if ("decision_engine" in value && value.decision_engine !== undefined && value.decision_engine !== null && !isObject(value.decision_engine)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -187,7 +196,8 @@ export function mapCommandCenterApiResponseToSnapshot(
   ].filter(Boolean);
   const executiveSummary = sanitizeUserTextList(summaryBits, "").join(" ");
   const businessSummary = sanitizeUserText(payload.business_health?.summary, "");
-  const sourceSummary = executiveSummary || businessSummary || "Данные появятся после первой синхронизации.";
+  const sourceSummary =
+    executiveSummary || businessSummary || "Данные появятся после первой синхронизации.";
   const sanitizedSources = sanitizeUserTextList(payload.executive_brief?.sources, "");
   const runtimeDescription = payload.system?.degraded
     ? "Часть модулей временно недоступна, но платформа продолжает показывать подтвержденные данные."
@@ -197,8 +207,9 @@ export function mapCommandCenterApiResponseToSnapshot(
     businessHealth: {
       score: typeof payload.business_health?.score === "number" ? payload.business_health.score : null,
       status: localizeStatus(payload.business_health?.status ?? "UNKNOWN"),
-      summary: sourceSummary || "Данные появятся после первой синхронизации."
+      summary: sourceSummary
     },
+    decisionEngine: payload.decision_engine ? mapDecisionEngineApiResponse(payload.decision_engine) : null,
     executiveBrief: {
       id: "executive-brief",
       eyebrow: "Краткий вывод",

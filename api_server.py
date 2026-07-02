@@ -30,6 +30,7 @@ from analytics.api_models import (
     JobRecordResponse,
     JobsResponse,
     ExecutiveResponse,
+    DecisionEngineResponse,
     FinanceResponse,
     HealthResponse,
     InventoryResponse,
@@ -80,10 +81,12 @@ from analytics.advisor import (
 )
 from analytics.business import get_business_payload, normalize_business_payload
 from analytics.common import BUILD_VERSION, DEFAULT_USER_ID, PRODUCT_NAME
+from analytics.decision_engine import get_decision_engine_payload
 from analytics.degraded import (
     advertising_degraded,
     advisor_degraded,
     business_degraded,
+    decision_engine_degraded,
     executive_degraded,
     finance_degraded,
     inventory_degraded,
@@ -148,6 +151,7 @@ ENDPOINT_RUNTIME = {
     "/api/inventory": {"cache_key": "inventory", "ttl_seconds": 180, "timeout_ms": 10000},
     "/api/advisor": {"cache_key": "advisor", "ttl_seconds": 120, "timeout_ms": 5000},
     "/api/advisor/query": {"cache_key": "advisor_query", "ttl_seconds": 0, "timeout_ms": 5000},
+    "/api/decision-engine": {"cache_key": "decision_engine", "ttl_seconds": 120, "timeout_ms": 12000},
     "/api/reports": {"cache_key": "reports", "ttl_seconds": 120, "timeout_ms": 5000},
     "/api/system": {"cache_key": "system", "ttl_seconds": 120, "timeout_ms": 5000},
 }
@@ -677,6 +681,12 @@ def api_inventory(actor: dict[str, Any] = Depends(require_permission("dashboard:
 def api_advisor(actor: dict[str, Any] = Depends(require_permission("analytics:view"))) -> dict[str, Any]:
     del actor
     return _cached_snapshot("/api/advisor", get_advisor_payload_fast, advisor_degraded)
+
+
+@app.get("/api/decision-engine", response_model=DecisionEngineResponse, responses={500: {"model": ApiErrorResponse}})
+def api_decision_engine(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
+    del actor
+    return _cached_snapshot("/api/decision-engine", get_decision_engine_payload, decision_engine_degraded)
 
 
 @app.get("/api/auth/session", response_model=AuthSessionResponse, responses={500: {"model": ApiErrorResponse}})

@@ -1,5 +1,6 @@
 export const apiEndpoints = {
   commandCenter: "/api/command-center",
+  decisionEngine: "/api/decision-engine",
   business: "/api/business",
   finance: "/api/finance",
   advertising: "/api/advertising",

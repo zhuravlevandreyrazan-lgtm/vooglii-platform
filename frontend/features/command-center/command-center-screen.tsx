@@ -84,7 +84,7 @@ function resolveSourceLabel(source: CommandCenterScreenData["source"], runtimeSo
     return "Демо-режим";
   }
   if (source === "mock_fallback") {
-    return "Показываем резервные данные";
+    return "Резервные данные";
   }
   return localizeRuntimeSource(runtimeSource ?? "live");
 }
@@ -131,6 +131,8 @@ export function CommandCenterScreen({
   const sharedWidgetError =
     error ?? fallbackReason ?? (source === "mock_fallback" ? "Сейчас показываются резервные данные." : null);
   const updatedAtLabel = formatDateTime(lastUpdated);
+  const decisionEngine = snapshot?.decisionEngine ?? null;
+  const decisionActions = decisionEngine?.todayActions.slice(0, 3) ?? [];
 
   return (
     <div className="space-y-5">
@@ -154,13 +156,143 @@ export function CommandCenterScreen({
         </div>
       </div>
 
+      {decisionEngine ? (
+        <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <WidgetCard
+            error={sharedWidgetError}
+            loading={loading}
+            status={{ label: decisionEngine.status, tone: decisionEngine.tone }}
+            subtitle="Управленческий вывод"
+            title={decisionEngine.title}
+            updatedAt={updatedAtLabel}
+          >
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-[var(--ink-soft)]">
+                {sanitizeUserText(
+                  decisionEngine.message,
+                  "Данные для управленческого вывода появятся после первой синхронизации."
+                )}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[20px] bg-[var(--panel-strong)] p-3.5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+                    Главный риск
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-6">
+                    {sanitizeUserText(
+                      decisionEngine.mainRisk?.title,
+                      "Критический риск будет показан после появления подтвержденных сигналов."
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                    {sanitizeUserText(decisionEngine.mainRisk?.reason, FALLBACK_BRIEF_HELP)}
+                  </p>
+                </div>
+                <div className="rounded-[20px] bg-[var(--panel-strong)] p-3.5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+                    Возможность роста
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-6">
+                    {sanitizeUserText(
+                      decisionEngine.mainOpportunity?.title,
+                      "Точка роста появится после загрузки бизнес- и рекламных данных."
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                    {sanitizeUserText(decisionEngine.mainOpportunity?.reason, FALLBACK_BRIEF_HELP)}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-[20px] border border-[var(--line)] bg-white/72 p-3.5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+                    Действия на сегодня
+                  </div>
+                  <StatusBadge tone={decisionEngine.tone}>{decisionEngine.confidence}</StatusBadge>
+                </div>
+                <div className="space-y-3">
+                  {decisionActions.length > 0 ? (
+                    decisionActions.map((action) => (
+                      <div key={action.id} className="rounded-[18px] bg-[var(--panel-strong)] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm font-semibold leading-6">
+                            {sanitizeUserText(action.message, "Откройте нужный раздел для проверки.")}
+                          </div>
+                          <StatusBadge tone={action.tone}>{sanitizeUserText(action.label, "Действие")}</StatusBadge>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                          {sanitizeUserText(action.reason, FALLBACK_BRIEF_HELP)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-6 text-[var(--ink-soft)]">
+                      Действия появятся после загрузки подтвержденных управленческих сигналов.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </WidgetCard>
+
+          <WidgetCard
+            error={sharedWidgetError}
+            loading={loading}
+            status={{ label: decisionEngine.forecast.status, tone: decisionEngine.tone }}
+            subtitle="Прогноз и факторы"
+            title="Контекст решения"
+            updatedAt={updatedAtLabel}
+          >
+            <div className="space-y-4">
+              <div className="rounded-[20px] bg-[var(--panel-strong)] p-3.5">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">
+                  Прогноз
+                </div>
+                <div className="mt-2 text-sm font-semibold leading-6">
+                  {sanitizeUserText(
+                    decisionEngine.forecast.message,
+                    "Прогноз появится после загрузки достаточного объема данных."
+                  )}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                  {`Уверенность: ${sanitizeUserText(decisionEngine.forecast.confidence, "Недостаточно данных")}`}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {decisionEngine.whatChanged.slice(0, 3).map((item) => (
+                  <div key={item.id} className="rounded-[20px] border border-[var(--line)] bg-white/72 p-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold leading-6">
+                        {sanitizeUserText(item.title, "Изменение показателей")}
+                      </div>
+                      <StatusBadge tone={item.tone}>{sanitizeUserText(item.confidence, "Без оценки")}</StatusBadge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+                      {sanitizeUserText(item.message, "Подробности появятся после обновления данных.")}
+                    </p>
+                  </div>
+                ))}
+                {decisionEngine.whatChanged.length === 0 ? (
+                  <div className="rounded-[20px] border border-[var(--line)] bg-white/72 p-3.5 text-sm leading-6 text-[var(--ink-soft)]">
+                    Изменения появятся после очередной синхронизации продаж, финансов и рекламы.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </WidgetCard>
+        </div>
+      ) : null}
+
       <div className="grid gap-5 xl:grid-cols-[0.94fr_1.06fr]">
         <WidgetCard
           className="overflow-hidden"
           error={sharedWidgetError}
           loading={loading}
           status={{
-            label: kpis.businessHealth.state === "ready" ? localizeStatus(snapshot.businessHealth?.status ?? "UNKNOWN") : "Ожидаем данные",
+            label:
+              kpis.businessHealth.state === "ready"
+                ? localizeStatus(snapshot.businessHealth?.status ?? "UNKNOWN")
+                : "Ожидаем данные",
             tone: kpis.businessHealth.tone
           }}
           subtitle={hasBusinessHealthScore ? "Состояние бизнеса" : "Недостаточно данных для оценки"}
@@ -180,29 +312,6 @@ export function CommandCenterScreen({
           <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
             {sanitizeUserText(kpis.businessHealth.note, "Сводка по состоянию бизнеса пока недоступна.")}
           </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[20px] bg-[var(--panel-strong)] p-3.5">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Фокус дня</div>
-              <div className="mt-2 text-sm font-semibold leading-6">
-                {sanitizeUserText(
-                  kpis.topOpportunity?.title ??
-                    visiblePriorityActions[0]?.title ??
-                    "Сначала защитите маржинальность, затем масштабируйте рост."
-                )}
-              </div>
-            </div>
-            <div className="rounded-[20px] bg-[var(--panel-strong)] p-3.5">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Текущее состояние</div>
-              <div className="mt-2 text-sm font-semibold leading-6">
-                {sanitizeUserText(
-                  kpis.topRisk?.title ??
-                    (source === "real"
-                      ? "Кабинет подключен, данные поступают из рабочей системы."
-                      : "Интерфейс продолжает работать в резервном режиме.")
-                )}
-              </div>
-            </div>
-          </div>
         </WidgetCard>
 
         <WidgetCard
@@ -244,15 +353,6 @@ export function CommandCenterScreen({
                   {sanitizeUserText(executiveBrief.topOpportunity?.summary, FALLBACK_BRIEF_HELP)}
                 </p>
               </div>
-            </div>
-            <div className="rounded-[20px] border border-[var(--line)] bg-white/72 p-3.5">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--ink-soft)]">Следующее действие</div>
-              <div className="mt-2 text-sm font-semibold leading-6">
-                {sanitizeUserText(executiveBrief.recommendation.title, "Соберите больше данных.")}
-              </div>
-              <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                {sanitizeUserText(executiveBrief.recommendation.detail, FALLBACK_BRIEF_HELP)}
-              </p>
             </div>
           </div>
         </WidgetCard>
@@ -359,7 +459,7 @@ export function CommandCenterScreen({
       <div className="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
         <WidgetCard
           empty={alerts.length === 0}
-          emptyMessage="Критичные сигналы появятся после загрузки достаточного объема данных."
+          emptyMessage="Важные сигналы появятся после загрузки достаточного объема данных."
           error={sharedWidgetError}
           loading={loading}
           status={{ label: "Под наблюдением", tone: "neutral" }}

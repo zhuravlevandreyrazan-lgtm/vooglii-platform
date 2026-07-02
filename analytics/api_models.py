@@ -405,7 +405,21 @@ class ExecutiveResponse(ApiBaseModel):
     today_actions: list[dict[str, Any]]
     critical_alerts: list[dict[str, Any]]
     recent_events: list[dict[str, Any]]
+    decision_engine: dict[str, Any] | None = None
     system: dict[str, Any]
+    runtime: RuntimeMetadata | None = None
+
+
+class DecisionEngineResponse(ApiBaseModel):
+    summary: dict[str, Any]
+    whatChanged: list[dict[str, Any]]
+    mainRisk: dict[str, Any] | None = None
+    mainOpportunity: dict[str, Any] | None = None
+    todayActions: list[dict[str, Any]]
+    forecast: dict[str, Any]
+    evidence: list[dict[str, Any]]
+    sources: list[str] | None = None
+    period: dict[str, Any] | None = None
     runtime: RuntimeMetadata | None = None
 
 

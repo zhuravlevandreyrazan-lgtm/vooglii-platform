@@ -1,3 +1,5 @@
+import type { DecisionEngineSnapshot } from "@/features/decision-engine/types";
+
 export type WorkspaceKey =
   | "command-center"
   | "business"
@@ -82,6 +84,7 @@ export type CommandCenterSnapshot = {
     status: string;
     summary: string;
   };
+  decisionEngine?: DecisionEngineSnapshot | null;
   executiveBrief: InsightItem;
   kpis: HealthMetric[];
   timeline: TimelineEvent[];

@@ -21,6 +21,7 @@ from analytics.common import (
     snapshot_context,
     status_to_api,
 )
+from analytics.decision_engine import get_decision_engine_payload
 from analytics.finance import get_finance_payload
 from analytics.inventory import get_inventory_payload
 from analytics.performance import get_performance_snapshot
@@ -44,6 +45,18 @@ def _format_metric_value(value: float | None, fallback: str = "UNKNOWN") -> str:
     return str(rounded)
 
 
+def _localize_executive_text(value: Any, fallback: str = "") -> str:
+    text = safe_text(value, fallback)
+    replacements = {
+        "No finance data available": "Финансовые данные пока недоступны.",
+        "No advertising data available": "Рекламные данные пока недоступны.",
+        "No business data available": "Бизнес-данные пока недоступны.",
+        "Difference explanation is not available from backend yet.": "Объяснение финансового расхождения пока недоступно в backend.",
+        "Inventory view currently reuses SKU action plan priorities and does not expose live stock counts yet.": "Раздел остатков пока использует SKU-приоритеты и еще не показывает живые складские остатки.",
+    }
+    return replacements.get(text, text)
+
+
 def _executive_summary(
     business_summary: dict[str, Any],
     finance_summary: dict[str, Any],
@@ -64,13 +77,13 @@ def _executive_summary(
 
     summary_parts = []
     if revenue is not None:
-        summary_parts.append(f"Revenue {_format_metric_value(revenue)}")
+        summary_parts.append(f"Выручка {_format_metric_value(revenue)}")
     if profit is not None:
-        summary_parts.append(f"operating profit {_format_metric_value(profit)}")
+        summary_parts.append(f"операционная прибыль {_format_metric_value(profit)}")
     if summary_parts:
-        headline = " and ".join(summary_parts)
-        return f"{headline}. Finance health is {finance_health}; ads health is {ads_health}."
-    return f"Finance health is {finance_health}; ads health is {ads_health}."
+        headline = " и ".join(summary_parts)
+        return f"{headline}. Состояние финансов: {finance_health}; состояние рекламы: {ads_health}."
+    return f"Состояние финансов: {finance_health}; состояние рекламы: {ads_health}."
 
 
 def get_executive_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
@@ -338,6 +351,7 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     inventory = _workspace_payload("inventory", get_inventory_payload, user_id)
     advisor = _cached_snapshot("advisor")
     system = _cached_snapshot("system")
+    decision_engine = get_decision_engine_payload(user_id)
     performance = get_performance_snapshot()
 
     business_summary = dict(business.get("summary") or {})
@@ -359,8 +373,14 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
         advertising_summary.get(key) is not None for key in ("advertisingSpend", "linkedSpend", "unlinkedSpend", "roas", "acos")
     )
     has_core_business_data = business_has_data or finance_has_data or advertising_has_data
+    decision_summary = dict(decision_engine.get("summary") or {})
+    decision_risk = dict(decision_engine.get("mainRisk") or {})
+    decision_opportunity = dict(decision_engine.get("mainOpportunity") or {})
+    decision_forecast = dict(decision_engine.get("forecast") or {})
+    decision_changes = list(decision_engine.get("whatChanged") or [])
+    decision_actions = list(decision_engine.get("todayActions") or [])
     business_health_status = status_to_api(
-        business.get("healthStatus") if has_core_business_data else "UNKNOWN"
+        decision_summary.get("status") or (business.get("healthStatus") if has_core_business_data else "UNKNOWN")
     )
     trust_score = safe_int(finance_summary.get("trustScore")) if finance_has_data else None
     health_score = (
@@ -373,36 +393,45 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     )
 
     executive_summary = safe_text(
-        (system.get("controlCenter") or {}).get("summary")
+        decision_summary.get("message")
+        or (system.get("controlCenter") or {}).get("summary")
         or (advisor.get("insights") or [{}])[0].get("summary")
         or _executive_summary(business_summary, finance_summary, finance_difference, advertising_summary),
-        "Executive overview is waiting for backend analytics to become available.",
+        "Сводка руководителя появится после загрузки аналитики.",
     )
     if not has_core_business_data:
-        executive_summary = "Business, finance, and advertising data will appear after the first successful synchronization."
-    what_happened = [
-        executive_summary,
-        safe_text(finance_summary.get("status"), ""),
-        safe_text(advertising_summary.get("status"), ""),
-    ]
+        executive_summary = "Данные по бизнесу, финансам и рекламе появятся после первой успешной синхронизации."
+    what_happened = [safe_text((item or {}).get("message"), "") for item in decision_changes[:3]]
+    if not any(what_happened):
+        what_happened = [
+            executive_summary,
+        _localize_executive_text(finance_summary.get("status"), ""),
+        _localize_executive_text(advertising_summary.get("status"), ""),
+        ]
     what_happened = [item for item in what_happened if item][:3]
 
     why = [
-        safe_text((finance.get("difference") or {}).get("reason"), ""),
-        safe_text((inventory.get("health") or {}).get("warehouseStatus"), ""),
-        safe_text((advisor.get("conversation") or {}).get("prompt"), ""),
+        _localize_executive_text(decision_risk.get("reason"), ""),
+        _localize_executive_text(decision_forecast.get("message"), ""),
+        _localize_executive_text((finance.get("difference") or {}).get("reason"), ""),
+        _localize_executive_text((inventory.get("health") or {}).get("warehouseStatus"), ""),
+        _localize_executive_text((advisor.get("conversation") or {}).get("prompt"), ""),
     ]
     why = [item for item in why if item][:4]
 
     actions: list[str] = []
+    for item in decision_actions:
+        label = safe_text((item or {}).get("action") or (item or {}).get("message") or (item or {}).get("title"), "")
+        if label and label not in actions:
+            actions.append(label)
     for item in list(advisor.get("actions") or []):
         label = safe_text((item or {}).get("label"), "")
         if label and label not in actions:
             actions.append(label)
     for item in (
-        "Use Finance workspace for official-profit validation.",
-        "Review inventory pressure before scaling demand.",
-        "Check advertising efficiency for current spend.",
+        "Откройте раздел финансов для сверки официальной прибыли.",
+        "Проверьте давление по остаткам перед масштабированием спроса.",
+        "Проверьте эффективность рекламы при текущих расходах.",
     ):
         if item not in actions:
             actions.append(item)
@@ -425,99 +454,99 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     kpis = [
         {
             "id": "revenue",
-            "title": "Revenue",
-            "value": _format_metric_value(revenue_value),
-            "delta": safe_text(business.get("healthStatus"), "Business"),
+            "title": "Выручка",
+            "value": _format_metric_value(revenue_value, "Нет данных"),
+            "delta": safe_text(business.get("healthStatus"), "Бизнес"),
             "status": status_to_api(business.get("healthStatus")),
             "source": "business",
         },
         {
             "id": "profit",
-            "title": "Operating Profit",
-            "value": _format_metric_value(profit_value),
-            "delta": safe_text(finance_summary.get("status"), "Finance-aligned"),
+            "title": "Операционная прибыль",
+            "value": _format_metric_value(profit_value, "Нет данных"),
+            "delta": safe_text(finance_summary.get("status"), "Сверено с финансами"),
             "status": status_to_api(finance_summary.get("health")),
             "source": "finance",
         },
         {
             "id": "margin",
-            "title": "Margin",
-            "value": f"{_format_metric_value(margin_value)}%" if margin_value is not None else "UNKNOWN",
-            "delta": safe_text(business.get("healthStatus"), "Business"),
+            "title": "Маржинальность",
+            "value": f"{_format_metric_value(margin_value)}%" if margin_value is not None else "Нет данных",
+            "delta": safe_text(business.get("healthStatus"), "Бизнес"),
             "status": status_to_api(business.get("healthStatus")),
             "source": "business",
         },
         {
             "id": "orders",
-            "title": "Orders",
-            "value": _format_metric_value(orders_value),
-            "delta": safe_text(business.get("healthStatus"), "Business"),
+            "title": "Заказы",
+            "value": _format_metric_value(orders_value, "Нет данных"),
+            "delta": safe_text(business.get("healthStatus"), "Бизнес"),
             "status": status_to_api(business.get("healthStatus")),
             "source": "business",
         },
         {
             "id": "advertising-spend",
-            "title": "Advertising Spend",
-            "value": _format_metric_value(ad_spend_value),
-            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "title": "Расходы на рекламу",
+            "value": _format_metric_value(ad_spend_value, "Нет данных"),
+            "delta": safe_text(advertising_summary.get("status"), "Реклама"),
             "status": status_to_api(advertising_summary.get("adsHealth")),
             "source": "advertising",
         },
         {
             "id": "roas",
             "title": "ROAS",
-            "value": _format_metric_value(roas_value),
-            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "value": _format_metric_value(roas_value, "Нет данных"),
+            "delta": safe_text(advertising_summary.get("status"), "Реклама"),
             "status": status_to_api(advertising_summary.get("adsHealth")),
             "source": "advertising",
         },
         {
             "id": "acos",
             "title": "ACOS",
-            "value": f"{_format_metric_value(acos_value)}%" if acos_value is not None else "UNKNOWN",
-            "delta": safe_text(advertising_summary.get("status"), "Advertising"),
+            "value": f"{_format_metric_value(acos_value)}%" if acos_value is not None else "Нет данных",
+            "delta": safe_text(advertising_summary.get("status"), "Реклама"),
             "status": status_to_api(advertising_summary.get("adsHealth")),
             "source": "advertising",
         },
         {
             "id": "trust-score",
-            "title": "Trust Score",
-            "value": f"{trust_score}/100" if trust_score is not None else "UNKNOWN",
-            "delta": safe_text(finance_quality.get("confidence"), "Unknown") if trust_score is not None else "No finance data available",
+            "title": "Надежность данных",
+            "value": f"{trust_score}/100" if trust_score is not None else "Нет данных",
+            "delta": safe_text(finance_quality.get("confidence"), "Нет данных") if trust_score is not None else "Нет финансовых данных",
             "status": status_to_api(finance_summary.get("health")),
             "source": "finance",
         },
         {
             "id": "inventory-health",
-            "title": "Inventory Health",
-            "value": safe_text(inventory_summary.get("inventoryHealth"), "UNKNOWN"),
-            "delta": safe_text((inventory.get("health") or {}).get("forecastConfidence"), "Unknown"),
+            "title": "Состояние остатков",
+            "value": safe_text(inventory_summary.get("inventoryHealth"), "Нет данных"),
+            "delta": safe_text((inventory.get("health") or {}).get("forecastConfidence"), "Нет данных"),
             "status": status_to_api(inventory_summary.get("inventoryHealth")),
             "source": "inventory",
         },
     ]
 
     workspaces = [
-        {"title": "Business", "href": "/business", "summary": "Revenue and profit trends from the live backend.", "status": status_to_api(business.get("healthStatus"))},
-        {"title": "Finance", "href": "/finance", "summary": "Trust, coverage, and difference explainability.", "status": status_to_api(finance_summary.get("health"))},
-        {"title": "Advertising", "href": "/advertising", "summary": "Spend, ROAS, ACOS, and ads health.", "status": status_to_api(advertising_summary.get("adsHealth"))},
-        {"title": "Products", "href": "/products", "summary": "SKU-level product and risk signals.", "status": "GOOD" if products_summary.get("skuCount") else "UNKNOWN"},
-        {"title": "Inventory", "href": "/inventory", "summary": "Coverage, restock, and warehouse readiness.", "status": status_to_api(inventory_summary.get("inventoryHealth"))},
-        {"title": "System", "href": "/system", "summary": "Runtime diagnostics and endpoint stability.", "status": status_to_api(system.get("status"))},
+        {"title": "Business", "href": "/business", "summary": "Тренды выручки и прибыли из рабочего backend-контура.", "status": status_to_api(business.get("healthStatus"))},
+        {"title": "Finance", "href": "/finance", "summary": "Надежность, покрытие и объяснение расхождений.", "status": status_to_api(finance_summary.get("health"))},
+        {"title": "Advertising", "href": "/advertising", "summary": "Расходы, ROAS, ACOS и состояние рекламы.", "status": status_to_api(advertising_summary.get("adsHealth"))},
+        {"title": "Products", "href": "/products", "summary": "SKU-сигналы, приоритеты и риски ассортимента.", "status": "GOOD" if products_summary.get("skuCount") else "UNKNOWN"},
+        {"title": "Inventory", "href": "/inventory", "summary": "Покрытие остатков, пополнение и готовность складов.", "status": status_to_api(inventory_summary.get("inventoryHealth"))},
+        {"title": "System", "href": "/system", "summary": "Диагностика runtime и стабильность API.", "status": status_to_api(system.get("status"))},
     ]
 
     alerts: list[dict[str, Any]] = []
     for payload, title in (
-        (finance, "Finance requires attention"),
-        (products, "Product risk detected"),
-        (inventory, "Inventory pressure detected"),
+        (finance, "Финансы требуют внимания"),
+        (products, "Обнаружен товарный риск"),
+        (inventory, "Обнаружено давление по остаткам"),
     ):
         for item in list(payload.get("alerts") or [])[:2]:
             alerts.append(
                 {
                     "id": f"alert-{len(alerts) + 1}",
                     "title": title,
-                    "detail": safe_text((item or {}).get("description") or (item or {}).get("title"), "Review workspace details."),
+                    "detail": safe_text((item or {}).get("description") or (item or {}).get("title"), "Откройте раздел для подробностей."),
                     "status": "WARNING",
                 }
             )
@@ -525,20 +554,52 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
         alerts.append(
             {
                 "id": "alert-runtime",
-                "title": "Executive runtime warning",
-                "detail": safe_text(performance.get("/api/executive", {}).get("last_error"), "Executive cache is warming up."),
+                "title": "Предупреждение executive runtime",
+                "detail": safe_text(performance.get("/api/executive", {}).get("last_error"), "Кэш executive-прослойки прогревается."),
                 "status": "WARNING",
             }
         )
+    if decision_risk:
+        alerts.insert(
+            0,
+            {
+                "id": safe_text(decision_risk.get("id"), "alert-decision-risk"),
+                "title": safe_text(decision_risk.get("title"), "Управленческий риск"),
+                "detail": safe_text(decision_risk.get("reason") or decision_risk.get("message"), "Проверьте выделенный риск."),
+                "status": "CRITICAL" if safe_text(decision_risk.get("severity"), "medium").lower() == "critical" else "WARNING",
+            },
+        )
 
     recent_events = [
-        {"id": f"event-{index}", "title": f"Signal {index}", "detail": item, "status": business_health_status}
-        for index, item in enumerate(what_happened, 1)
+        {
+            "id": safe_text((item or {}).get("id"), f"event-{index}"),
+                "title": safe_text((item or {}).get("title"), f"Сигнал {index}"),
+            "detail": safe_text((item or {}).get("message"), executive_summary),
+            "status": status_to_api((item or {}).get("severity")),
+        }
+        for index, item in enumerate(decision_changes[:3], 1)
     ]
-    today_actions = [
-        {"id": f"action-{index}", "title": item, "owner": "Command Center", "eta": "Today", "status": "GOOD" if index > 1 else "WARNING"}
-        for index, item in enumerate(actions[:4], 1)
-    ]
+    if not recent_events:
+        recent_events = [
+            {"id": f"event-{index}", "title": f"Signal {index}", "detail": item, "status": business_health_status}
+            for index, item in enumerate(what_happened, 1)
+        ]
+    today_actions: list[dict[str, Any]] = []
+    for index, item in enumerate(decision_actions[:4], 1):
+        today_actions.append(
+            {
+                "id": safe_text((item or {}).get("id"), f"action-{index}"),
+                "title": safe_text((item or {}).get("message") or (item or {}).get("title") or (item or {}).get("action"), "Проверьте действие"),
+                "owner": safe_text((item or {}).get("source"), "Command Center"),
+                "eta": "Today",
+                "status": status_to_api((item or {}).get("severity")),
+            }
+        )
+    if not today_actions:
+        today_actions = [
+            {"id": f"action-{index}", "title": item, "owner": "Command Center", "eta": "Today", "status": "GOOD" if index > 1 else "WARNING"}
+            for index, item in enumerate(actions[:4], 1)
+        ]
 
     return {
         "product": PRODUCT_NAME,
@@ -556,23 +617,24 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
             "data_mode": "live" if (business or finance or advertising or products or inventory) else "degraded",
         },
         "executive_brief": {
-            "title": safe_text((advisor.get("insights") or [{}])[0].get("title"), "Executive brief"),
-            "what_happened": what_happened or ["Backend analytics are still loading."],
-            "why": why or ["The executive layer is using current backend workspace analytics."],
-            "actions": actions or ["Open Finance or Business to inspect the underlying live metrics."],
-            "confidence": trust_score,
-            "sources": ["business", "finance", "advertising", "products", "inventory", "advisor", "system"],
+            "title": safe_text(decision_summary.get("title") or (advisor.get("insights") or [{}])[0].get("title"), "Сводка руководителя"),
+            "what_happened": what_happened or ["Аналитика backend еще загружается."],
+            "why": why or ["Executive-слой использует текущую аналитику рабочих разделов."],
+            "actions": actions or ["Откройте разделы «Финансы» или «Бизнес», чтобы проверить исходные метрики."],
+            "confidence": safe_int(decision_summary.get("confidence"), trust_score),
+            "sources": list(decision_engine.get("sources") or ["business", "finance", "advertising", "products", "inventory", "advisor", "system"]),
         },
         "kpis": kpis,
         "workspaces": workspaces,
         "today_actions": today_actions,
         "critical_alerts": alerts[:5],
         "recent_events": recent_events,
+        "decision_engine": decision_engine,
         "system": {
             "status": safe_text(system.get("status"), "UNKNOWN"),
             "finance_api": safe_text((system.get("financeApi") or {}).get("status"), safe_text(finance_summary.get("health"), "UNKNOWN")),
             "last_updated": now_iso(),
             "degraded": not bool(business or finance or advertising or products or inventory),
-            "degraded_notes": [] if (business or finance or advertising or products or inventory) else ["Backend workspace analytics are not ready yet."],
+            "degraded_notes": [] if (business or finance or advertising or products or inventory) else ["Аналитика рабочих разделов backend еще не готова."],
         },
     }

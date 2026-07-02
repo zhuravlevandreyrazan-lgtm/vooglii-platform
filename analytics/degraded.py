@@ -34,6 +34,7 @@ def executive_degraded(reason: str) -> dict[str, Any]:
         "today_actions": [],
         "critical_alerts": [{"id": "degraded-executive", "title": "Degraded mode", "detail": _message(reason), "status": "WARNING"}],
         "recent_events": [],
+        "decision_engine": decision_engine_degraded(reason),
         "system": {
             "status": "DEGRADED",
             "finance_api": "UNKNOWN",
@@ -41,6 +42,63 @@ def executive_degraded(reason: str) -> dict[str, Any]:
             "degraded": True,
             "degraded_notes": [_message(reason)],
         },
+    }
+
+
+def decision_engine_degraded(reason: str) -> dict[str, Any]:
+    return {
+        "summary": {
+            "title": "AI Director",
+            "status": "UNKNOWN",
+            "code": "degraded",
+            "message": _message(reason),
+            "confidence": None,
+        },
+        "whatChanged": [],
+        "mainRisk": None,
+        "mainOpportunity": None,
+        "todayActions": [
+            {
+                "id": "decision-engine-degraded-action",
+                "type": "WAIT_FOR_DATA",
+                "label": "Дождаться синхронизации",
+                "title": "Дождитесь восстановления аналитики",
+                "message": "Повторите запрос после восстановления backend-аналитики.",
+                "severity": "medium",
+                "priority": "medium",
+                "expectedImpact": "low",
+                "confidence": 20,
+                "reason": _message(reason),
+                "action": "Повторите запрос позже.",
+                "source": "system",
+                "relatedSku": None,
+                "relatedMetric": "runtime",
+                "category": "action",
+            }
+        ],
+        "forecast": {
+            "status": "insufficient_data",
+            "message": "Прогноз временно недоступен из-за degraded режима.",
+            "profit": None,
+            "profitDirection": None,
+            "riskLevel": "unknown",
+            "expectedImpact": None,
+            "confidence": None,
+        },
+        "evidence": [
+            {
+                "label": "Runtime",
+                "metric": "Degraded Mode",
+                "value": "active",
+                "source": "system",
+                "confidence": 20,
+                "reason": _message(reason),
+                "relatedSku": None,
+                "relatedMetric": "runtime",
+            }
+        ],
+        "sources": ["system"],
+        "period": {"date_from": None, "date_to": None},
     }
 
 

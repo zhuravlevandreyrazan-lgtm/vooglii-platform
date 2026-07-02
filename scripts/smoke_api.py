@@ -38,6 +38,7 @@ STABLE_ENDPOINTS = [
 DERIVED_ENDPOINTS = [
     "/api/command-center",
     "/api/executive",
+    "/api/decision-engine",
     "/api/advisor",
     "/api/reports",
     "/api/system",
