@@ -248,60 +248,10 @@ export function normalizeAdvertisingSnapshot(
       status: localizeKnownText(raw.health?.status ?? "Pending")
     },
     metrics: (raw.metrics ?? []).map(normalizeMetric),
-    recommendations:
-      raw.recommendations?.length
-        ? raw.recommendations
-        : [
-            {
-              id: "ads-rec-fallback",
-              campaign: "Рекомендации по кампаниям пока не готовы",
-              recommendation: "Дождитесь обновления рекламных данных",
-              reason: "Система пока не получила рекомендации по кампаниям.",
-              expectedEffect: "Советы появятся после следующей синхронизации.",
-              confidence: "Unknown",
-              severity: "info"
-            }
-          ],
-    alerts:
-      raw.alerts?.length
-        ? raw.alerts
-        : [
-            {
-              id: "ads-alert-fallback",
-              title: "Сигналы по рекламе пока не поступали",
-              description: "После синхронизации здесь появятся важные предупреждения по рекламе.",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
-    timeline:
-      raw.timeline?.length
-        ? raw.timeline
-        : [
-            {
-              id: "ads-timeline-fallback",
-              title: "Лента рекламы обновится после синхронизации",
-              description: "События по рекламным кампаниям появятся автоматически.",
-              period: "sync",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
-    campaigns:
-      raw.campaigns?.length
-        ? raw.campaigns
-        : [
-            {
-              id: "ads-campaign-fallback",
-              campaign: "Данные по кампаниям появятся после синхронизации",
-              spend: null,
-              revenue: null,
-              roas: null,
-              acos: null,
-              status: "Нет данных",
-              recommendation: "Показатели появятся после обновления рекламных данных."
-            }
-          ],
+    recommendations: raw.recommendations ?? [],
+    alerts: raw.alerts ?? [],
+    timeline: raw.timeline ?? [],
+    campaigns: raw.campaigns ?? [],
     lastUpdated: raw.lastUpdated ?? null,
     diagnostics
   };

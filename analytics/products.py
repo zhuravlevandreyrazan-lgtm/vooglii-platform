@@ -44,13 +44,13 @@ def get_products_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                     "status": status_label,
                     "abc": "A" if (safe_float(row.get("revenue"), 0.0) or 0) > 10000 else "B",
                     "xyz": "X",
-                    "forecast": "Stable demand",
+                    "forecast": safe_text((row.get("verdicts") or ["Demand outlook is not available yet"])[0], "Demand outlook is not available yet"),
                     "riskLevel": "Low" if tone in ("healthy", "accent") else ("Medium" if tone == "watch" else "High"),
                 },
                 "status": {"label": status_label, "tone": tone},
                 "recommendation": safe_text((row.get("verdicts") or ["Review economics"])[0], "Review economics"),
-                "trend": "Growing" if (safe_float(row.get("revenue"), 0.0) or 0) > 0 else "Unknown",
-                "warehouse": "n/a",
+                "trend": "Growing" if (safe_float(row.get("revenue"), 0.0) or 0) > 0 else "No product trend available",
+                "warehouse": safe_text(row.get("warehouse_name"), "Warehouse data is not connected"),
             }
         )
 
@@ -80,12 +80,7 @@ def get_products_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         },
         "products": products,
         "recommendations": recommendations[:6],
-        "history": [
-            {"period": "today", "sales": None, "advertising": None, "note": "Detailed daily history is not exported yet."},
-            {"period": "sevenDays", "sales": None, "advertising": None, "note": "Detailed weekly history is not exported yet."},
-            {"period": "thirtyDays", "sales": None, "advertising": None, "note": "Detailed monthly history is not exported yet."},
-            {"period": "ninetyDays", "sales": None, "advertising": None, "note": "Detailed long-range history is not exported yet."},
-        ],
+        "history": [],
         "inventoryPreview": products[:5],
         "alerts": [
             {
@@ -105,7 +100,7 @@ def get_products_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "severity": "low",
                 "source": "backend",
             }
-        ],
+        ] if products or recommendations else [],
         "actions": [
             {
                 "id": f"product-action-{index}",
@@ -117,4 +112,3 @@ def get_products_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         ],
         "lastUpdated": end_date,
     }
-

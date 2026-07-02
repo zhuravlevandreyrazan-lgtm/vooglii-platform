@@ -153,48 +153,11 @@ export function normalizeReportsSnapshot(
       latestProfitAudit: raw.summary?.latestProfitAudit ?? "n/a",
       systemStatus: raw.summary?.systemStatus ?? "Unknown"
     },
-    catalog:
-      raw.catalog?.length
-        ? raw.catalog
-        : [
-            {
-              id: "report-fallback",
-              name: "Reports catalog pending",
-              description: "No backend-ready reports were returned in the current snapshot.",
-              category: "system",
-              status: { label: "Pending", tone: "neutral" },
-              updatedAt: null,
-              source: "Report Engine",
-              href: "/reports"
-            }
-          ],
-    recent:
-      raw.recent?.length
-        ? raw.recent
-        : [
-            {
-              id: "recent-fallback",
-              date: null,
-              type: "No recent reports",
-              status: "Pending",
-              source: "Report Engine",
-              href: "/reports"
-            }
-          ],
+    catalog: raw.catalog ?? [],
+    recent: raw.recent ?? [],
     templates: raw.templates ?? [],
     exports: raw.exports ?? [],
-    timeline:
-      raw.timeline?.length
-        ? raw.timeline
-        : [
-            {
-              id: "reports-timeline-fallback",
-              title: "Reports timeline is waiting for backend events",
-              description: "No report timeline entries are available yet.",
-              severity: "info",
-              source: "Report Engine"
-            }
-          ],
+    timeline: raw.timeline ?? [],
     sources: raw.sources ?? [],
     lastUpdated: raw.lastUpdated ?? null,
     diagnostics

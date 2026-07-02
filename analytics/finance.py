@@ -23,20 +23,48 @@ def get_finance_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     difference = safe_float(health.get("wb_difference"))
     trust_score = safe_int(health.get("trust_score"), 0)
     coverage = safe_float(engine.get("cost_coverage_percent"))
-    health_status = safe_text(health.get("status") or engine.get("status"), "Unknown")
-    confidence = "Low" if trust_score < 60 else ("Medium" if trust_score < 85 else "High")
+    revenue_base = safe_float(health.get("revenue"))
+    explained_total = safe_float(health.get("explained_total"))
+    engine_status = safe_text(engine.get("status"), "Unknown")
+    no_finance_data = (
+        operating_profit is None
+        and official_profit is None
+        and (difference is None or difference == 0.0)
+        and (coverage is None or coverage == 0.0)
+        and (revenue_base is None or revenue_base == 0.0)
+        and (explained_total is None or explained_total == 0.0)
+        and engine_status.upper() == "UNAVAILABLE"
+    )
+    if no_finance_data:
+        difference = None
+        coverage = None
+        trust_score = None
+    health_status = "No finance data available" if no_finance_data else safe_text(health.get("status") or engine.get("status"), "Unknown")
+    confidence = "Unavailable" if no_finance_data else ("Low" if (trust_score or 0) < 60 else ("Medium" if (trust_score or 0) < 85 else "High"))
 
     metrics = [
         _metric("operatingProfit", "Operating Profit", str(operating_profit if operating_profit is not None else "Unavailable"), "Operational management profit from current analytics.", "healthy"),
         _metric("officialProfit", "Official Profit", str(official_profit if official_profit is not None else "Unavailable"), "Official finance profit from Finance API layer.", status_to_tone(engine.get("status"))),
         _metric("profitDifference", "Profit Difference", str(difference if difference is not None else "Unavailable"), "Difference between revenue and payout-side explanation.", "watch"),
         _metric("financeHealth", "Finance Health", safe_text(health_status), "Finance model status from current engine.", status_to_tone(health_status)),
-        _metric("trustScore", "Trust Score", f"{trust_score}/100", "Trust score from profit audit and reconciliation.", "risk" if trust_score < 60 else "watch"),
+        _metric("trustScore", "Trust Score", f"{trust_score}/100" if trust_score is not None else "Unavailable", "Trust score from profit audit and reconciliation.", "risk" if (trust_score or 0) < 60 else "watch"),
         _metric("coverage", "Coverage", f"{coverage}%" if coverage is not None else "Unavailable", "Cost and finance coverage available for reconciliation.", "accent"),
         _metric("confidence", "Confidence", confidence, "Confidence inherited from trust and finance status.", status_to_tone(confidence)),
         _metric("residualModel", "Residual Model", safe_text(health.get("bridge_mode"), "Informational only"), "Residual bridge usage status.", "neutral"),
-        _metric("income", "Income", str(safe_float(health.get("revenue")) or 0), "Revenue base for the selected period.", "healthy"),
-        _metric("expenses", "Expenses", str(safe_float(health.get("explained_total")) or 0), "Explained payout-side components.", "watch"),
+        _metric(
+            "income",
+            "Income",
+            str(revenue_base) if revenue_base is not None and not no_finance_data else "Unavailable",
+            "Revenue base for the selected period.",
+            "healthy",
+        ),
+        _metric(
+            "expenses",
+            "Expenses",
+            str(explained_total) if explained_total is not None and not no_finance_data else "Unavailable",
+            "Explained payout-side components.",
+            "watch",
+        ),
     ]
 
     warnings = safe_list(engine.get("warnings")) + safe_list(health.get("warnings"))
@@ -49,19 +77,13 @@ def get_finance_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             "source": "backend",
         }
         for index, item in enumerate(warnings[:5], 1)
-    ] or [{
-        "id": "finance-alert-fallback",
-        "title": "No finance alerts available",
-        "description": "Finance engine did not return alert-level warnings.",
-        "severity": "info",
-        "source": "placeholder",
-    }]
+    ]
 
     timeline = [
         {
             "id": "finance-timeline-1",
             "title": "Latest finance snapshot updated",
-            "description": f"Finance engine status: {safe_text(engine.get('status'), 'UNKNOWN')}.",
+            "description": f"Finance engine status: {safe_text(engine.get('status'), 'Unknown')}.",
             "period": "latest",
             "severity": status_to_severity(engine.get("status")),
             "source": "backend",
@@ -83,7 +105,7 @@ def get_finance_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             "difference": difference,
             "health": health_status,
             "trustScore": trust_score,
-            "status": safe_text(health.get("status"), "Pending"),
+            "status": "No finance data available" if no_finance_data else safe_text(health.get("status"), "Pending"),
         },
         "quality": {
             "coverage": coverage,
@@ -96,7 +118,7 @@ def get_finance_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             "operatingProfit": operating_profit,
             "officialProfit": official_profit,
             "difference": difference,
-            "differencePercent": safe_float(health.get("explained_percent")),
+            "differencePercent": None if no_finance_data else safe_float(health.get("explained_percent")),
             "reason": safe_text(health.get("reason"), "Difference explanation is not available from backend yet."),
             "explanation": safe_text(health.get("recommended_profit_base"), ""),
         },
@@ -105,4 +127,3 @@ def get_finance_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
         "timeline": timeline,
         "lastUpdated": end_date,
     }
-

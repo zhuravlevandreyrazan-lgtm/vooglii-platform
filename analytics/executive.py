@@ -348,11 +348,28 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
     products_summary = dict(products.get("summary") or {})
     inventory_summary = dict(inventory.get("summary") or {})
     advisor_summary = dict(advisor.get("summary") or {})
-    business_health_status = status_to_api(business.get("healthStatus") or finance_summary.get("health") or advisor_summary.get("overallHealth"))
-    trust_score = safe_int(finance_summary.get("trustScore"), 50)
-    health_score = safe_int(
-        business.get("healthScore"),
-        max(35, min(95, int(round((trust_score + (84 if business_health_status == "GOOD" else 58)) / 2)))),
+    business_has_data = any(
+        business_summary.get(key) is not None
+        for key in ("revenue", "profit", "margin", "orders", "returns", "averageOrderValue", "unitsSold")
+    )
+    finance_has_data = any(
+        finance_summary.get(key) is not None for key in ("operatingProfit", "officialProfit", "difference", "trustScore")
+    ) or finance_quality.get("coverage") is not None
+    advertising_has_data = any(
+        advertising_summary.get(key) is not None for key in ("advertisingSpend", "linkedSpend", "unlinkedSpend", "roas", "acos")
+    )
+    has_core_business_data = business_has_data or finance_has_data or advertising_has_data
+    business_health_status = status_to_api(
+        business.get("healthStatus") if has_core_business_data else "UNKNOWN"
+    )
+    trust_score = safe_int(finance_summary.get("trustScore")) if finance_has_data else None
+    health_score = (
+        safe_int(
+            business.get("healthScore"),
+            max(35, min(95, int(round(((trust_score or 50) + (84 if business_health_status == "GOOD" else 58)) / 2)))),
+        )
+        if has_core_business_data
+        else None
     )
 
     executive_summary = safe_text(
@@ -361,6 +378,8 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
         or _executive_summary(business_summary, finance_summary, finance_difference, advertising_summary),
         "Executive overview is waiting for backend analytics to become available.",
     )
+    if not has_core_business_data:
+        executive_summary = "Business, finance, and advertising data will appear after the first successful synchronization."
     what_happened = [
         executive_summary,
         safe_text(finance_summary.get("status"), ""),
@@ -463,8 +482,8 @@ def get_executive_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]
         {
             "id": "trust-score",
             "title": "Trust Score",
-            "value": f"{trust_score}/100",
-            "delta": safe_text(finance_quality.get("confidence"), "Unknown"),
+            "value": f"{trust_score}/100" if trust_score is not None else "UNKNOWN",
+            "delta": safe_text(finance_quality.get("confidence"), "Unknown") if trust_score is not None else "No finance data available",
             "status": status_to_api(finance_summary.get("health")),
             "source": "finance",
         },

@@ -13,6 +13,21 @@ from analytics.inventory import get_inventory_payload
 from analytics.advisor import get_advisor_payload
 
 
+def _report_status(label: str, tone: str) -> dict[str, str]:
+    return {"label": label, "tone": tone}
+
+
+def _module_state(health: str | None) -> tuple[str, str]:
+    normalized = str(health or "UNKNOWN").upper()
+    if normalized in {"GOOD", "READY", "HEALTHY"}:
+        return "Ready", "healthy"
+    if normalized in {"WARNING", "WATCH", "PARTIAL", "DEGRADED"}:
+        return "Limited", "watch"
+    if normalized in {"CRITICAL", "RISK", "ERROR"}:
+        return "Attention", "risk"
+    return "Waiting for data", "neutral"
+
+
 def get_reports_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     start_date, end_date = current_month_days()
     executive = get_executive_payload(user_id)
@@ -23,11 +38,51 @@ def get_reports_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     inventory = get_inventory_payload(user_id)
     advisor = get_advisor_payload(user_id)
 
+    executive_health = (executive.get("business_health") or {}).get("status")
+    finance_health = (finance.get("summary") or {}).get("health")
+    advertising_health = (advertising.get("summary") or {}).get("adsHealth")
+    products_health = "GOOD" if (products.get("summary") or {}).get("skuCount") else "UNKNOWN"
     catalog = [
-        {"id": "report-ceo", "name": "CEO Report", "description": "Leadership-facing report from the analytics engine.", "category": "executive", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "Director", "href": "/executive"},
-        {"id": "report-profit-audit", "name": "Profit Audit", "description": "Finance-safe profit audit and reconciliation report.", "category": "finance", "status": {"label": "Ready", "tone": "watch"}, "updatedAt": end_date, "source": "Financial Engine", "href": "/finance"},
-        {"id": "report-ads", "name": "Advertising Analytics", "description": "Campaign efficiency, linkability, and ads health analytics.", "category": "advertising", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "Advertising Engine", "href": "/advertising"},
-        {"id": "report-sku", "name": "SKU Analytics", "description": "Product and inventory-facing SKU analytics.", "category": "products", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "SKU Analytics", "href": "/products"},
+        {
+            "id": "report-ceo",
+            "name": "CEO Report",
+            "description": "Leadership-facing report assembled from the executive workspace payload.",
+            "category": "executive",
+            "status": _report_status(*_module_state(executive_health)),
+            "updatedAt": end_date,
+            "source": "Director",
+            "href": "/executive",
+        },
+        {
+            "id": "report-profit-audit",
+            "name": "Profit Audit",
+            "description": "Profit audit and reconciliation data from the finance workspace.",
+            "category": "finance",
+            "status": _report_status(*_module_state(finance_health)),
+            "updatedAt": end_date,
+            "source": "Financial Engine",
+            "href": "/finance",
+        },
+        {
+            "id": "report-ads",
+            "name": "Advertising Analytics",
+            "description": "Campaign efficiency, linkability, and ads health analytics.",
+            "category": "advertising",
+            "status": _report_status(*_module_state(advertising_health)),
+            "updatedAt": end_date,
+            "source": "Advertising Engine",
+            "href": "/advertising",
+        },
+        {
+            "id": "report-sku",
+            "name": "SKU Analytics",
+            "description": "Product and inventory-facing SKU analytics.",
+            "category": "products",
+            "status": _report_status(*_module_state(products_health)),
+            "updatedAt": end_date,
+            "source": "SKU Analytics",
+            "href": "/products",
+        },
     ]
 
     return {
@@ -54,9 +109,6 @@ def get_reports_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             {"id": "template-advisor", "name": "Advisor", "category": "advisor", "status": "Ready"},
         ],
         "exports": [
-            {"format": "PDF", "status": "Planned", "description": "UI contract is ready for future PDF exports."},
-            {"format": "Excel", "status": "Planned", "description": "UI contract is ready for future Excel exports."},
-            {"format": "CSV", "status": "Planned", "description": "UI contract is ready for future CSV exports."},
             {"format": "JSON", "status": "Ready", "description": "Current API payloads are already JSON-native."},
         ],
         "timeline": [
@@ -92,11 +144,51 @@ def get_reports_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
     advisor = _cached_snapshot("advisor")
     system = _cached_snapshot("system")
 
+    executive_health = (executive.get("business_health") or {}).get("status")
+    finance_health = (finance.get("summary") or {}).get("health")
+    advertising_health = (advertising.get("summary") or {}).get("adsHealth")
+    products_health = "GOOD" if (products.get("summary") or {}).get("skuCount") else "UNKNOWN"
     catalog = [
-        {"id": "report-ceo", "name": "CEO Report", "description": "Leadership-facing report from cached executive metadata.", "category": "executive", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "Executive Cache", "href": "/executive"},
-        {"id": "report-profit-audit", "name": "Profit Audit", "description": "Finance-safe profit audit entry from live finance cache.", "category": "finance", "status": {"label": "Ready", "tone": "watch"}, "updatedAt": end_date, "source": "Finance Cache", "href": "/finance"},
-        {"id": "report-ads", "name": "Advertising Analytics", "description": "Advertising snapshot catalog entry.", "category": "advertising", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "Advertising Cache", "href": "/advertising"},
-        {"id": "report-sku", "name": "SKU Analytics", "description": "Products and inventory report metadata.", "category": "products", "status": {"label": "Ready", "tone": "healthy"}, "updatedAt": end_date, "source": "Products Cache", "href": "/products"},
+        {
+            "id": "report-ceo",
+            "name": "CEO Report",
+            "description": "Leadership-facing report assembled from cached executive metadata.",
+            "category": "executive",
+            "status": _report_status(*_module_state(executive_health)),
+            "updatedAt": end_date,
+            "source": "Executive Cache",
+            "href": "/executive",
+        },
+        {
+            "id": "report-profit-audit",
+            "name": "Profit Audit",
+            "description": "Finance-safe profit audit entry from the latest finance cache.",
+            "category": "finance",
+            "status": _report_status(*_module_state(finance_health)),
+            "updatedAt": end_date,
+            "source": "Finance Cache",
+            "href": "/finance",
+        },
+        {
+            "id": "report-ads",
+            "name": "Advertising Analytics",
+            "description": "Advertising performance snapshot from current cache.",
+            "category": "advertising",
+            "status": _report_status(*_module_state(advertising_health)),
+            "updatedAt": end_date,
+            "source": "Advertising Cache",
+            "href": "/advertising",
+        },
+        {
+            "id": "report-sku",
+            "name": "SKU Analytics",
+            "description": "Products and inventory report metadata from the latest cache.",
+            "category": "products",
+            "status": _report_status(*_module_state(products_health)),
+            "updatedAt": end_date,
+            "source": "Products Cache",
+            "href": "/products",
+        },
     ]
 
     return {
@@ -123,13 +215,10 @@ def get_reports_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             {"id": "template-advisor", "name": "Advisor", "category": "advisor", "status": "Ready"},
         ],
         "exports": [
-            {"format": "PDF", "status": "Planned", "description": "Fast mode returns export placeholders without generating files on demand."},
-            {"format": "Excel", "status": "Planned", "description": "Fast mode avoids expensive export generation during runtime."},
-            {"format": "CSV", "status": "Planned", "description": "CSV export remains a future runtime extension."},
             {"format": "JSON", "status": "Ready", "description": "Current API payloads are already JSON-native."},
         ],
         "timeline": [
-            {"id": "reports-timeline-fast-1", "title": "Reports registry refreshed", "description": "Reports fast mode reused latest cached metadata and did not rebuild heavy reports.", "severity": "low", "source": "Reports Engine"},
+            {"id": "reports-timeline-fast-1", "title": "Reports registry refreshed", "description": "Reports fast mode reused the latest cached metadata and report statuses.", "severity": "low", "source": "Reports Engine"},
         ],
         "sources": [
             {"module": "executive", "health": (executive.get("business_health") or {}).get("status", "UNKNOWN"), "status": "Cached", "lastUpdated": end_date},

@@ -260,8 +260,6 @@ export function normalizeProductSnapshot(
   raw: RawProductSnapshot,
   diagnostics = createFallbackDiagnostics()
 ): ProductSnapshot {
-  const fallbackCard = emptyProductCard();
-
   return {
     summary: {
       skuCount: raw.summary?.skuCount ?? 0,
@@ -271,58 +269,12 @@ export function normalizeProductSnapshot(
       growthSku: raw.summary?.growthSku ?? 0,
       lastUpdated: raw.summary?.lastUpdated ?? raw.lastUpdated ?? null
     },
-    products: raw.products?.length ? raw.products : [fallbackCard],
-    recommendations:
-      raw.recommendations?.length
-        ? raw.recommendations
-        : [
-            {
-              id: "product-rec-fallback",
-              sku: "Рекомендации по SKU пока не готовы",
-              recommendation: "Дождитесь обновления товарной аналитики",
-              reason: "План действий по товарам пока не получен.",
-              priority: "info",
-              confidence: "Unknown",
-              expectedEffect: "Рекомендации появятся после следующей синхронизации."
-            }
-          ],
-    history:
-      raw.history?.length
-        ? raw.history
-        : [
-            {
-              period: "today",
-              sales: null,
-              advertising: null,
-              note: "История появится после загрузки данных."
-            }
-          ],
-    inventoryPreview: raw.inventoryPreview?.length ? raw.inventoryPreview : [fallbackCard],
-    alerts:
-      raw.alerts?.length
-        ? raw.alerts
-        : [
-            {
-              id: "product-alert-fallback",
-              title: "Сигналы по товарам пока не поступали",
-              description: "После синхронизации здесь появятся важные предупреждения по ассортименту.",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
-    timeline:
-      raw.timeline?.length
-        ? raw.timeline
-        : [
-            {
-              id: "product-timeline-fallback",
-              title: "Лента товаров обновится после синхронизации",
-              description: "События по товарам появятся автоматически.",
-              period: "sync",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
+    products: raw.products ?? [],
+    recommendations: raw.recommendations ?? [],
+    history: raw.history ?? [],
+    inventoryPreview: raw.inventoryPreview ?? [],
+    alerts: raw.alerts ?? [],
+    timeline: raw.timeline ?? [],
     actions: raw.actions ?? [],
     lastUpdated: raw.lastUpdated ?? null,
     diagnostics

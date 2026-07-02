@@ -252,66 +252,19 @@ export function normalizeAdvisorSnapshot(
       recommendationCount: raw.summary?.recommendationCount ?? 0,
       lastUpdated: raw.summary?.lastUpdated ?? raw.lastUpdated ?? null
     },
-    recommendations:
-      raw.recommendations?.length
-        ? raw.recommendations
-        : [
-            {
-              id: "advisor-rec-fallback",
-              title: "No advisor recommendation yet",
-              reason: "Backend did not return recommendation payloads for the current advisor snapshot.",
-              priority: "info",
-              confidence: "Unknown",
-              source: "executive",
-              expectedEffect: "The recommendation architecture remains ready for future advisor engine integration.",
-              status: "Pending",
-              href: "/executive"
-            }
-          ],
-    evidence:
-      raw.evidence?.length
-        ? raw.evidence
-        : [
-            {
-              id: "advisor-evidence-fallback",
-              workspace: "executive",
-              source: "Advisor Engine",
-              reason: "No evidence payload is available yet.",
-              metrics: ["Evidence pending"],
-              href: "/executive"
-            }
-          ],
+    recommendations: raw.recommendations ?? [],
+    evidence: raw.evidence ?? [],
     risks: raw.risks ?? [],
     opportunities: raw.opportunities ?? [],
     priorities: raw.priorities ?? [],
-    timeline:
-      raw.timeline?.length
-        ? raw.timeline
-        : [
-            {
-              id: "advisor-timeline-fallback",
-              title: "Advisor timeline is waiting for backend events",
-              description: "No advisor timeline entries are available yet.",
-              severity: "info",
-              source: "advisor"
-            }
-          ],
-    actions:
-      raw.actions?.length
-        ? raw.actions
-        : [
-            {
-              id: "advisor-action-fallback",
-              label: "Open Executive",
-              href: "/executive"
-            }
-          ],
+    timeline: raw.timeline ?? [],
+    actions: raw.actions ?? [],
     sources: raw.sources ?? [],
     conversation: {
-      placeholder: raw.conversation?.placeholder ?? true,
+      placeholder: raw.conversation?.placeholder ?? false,
       prompt:
         raw.conversation?.prompt ??
-        "Conversation placeholder is ready for future AI engine integration.",
+        "Спросите советника о финансах, рекламе, товарах, остатках или общей динамике бизнеса.",
       history: raw.conversation?.history ?? []
     },
     insights: raw.insights ?? [],

@@ -210,31 +210,8 @@ export function normalizeFinanceSnapshot(
       explanation: raw.difference?.explanation ? localizeKnownText(raw.difference.explanation) : null
     },
     metrics: (raw.metrics ?? []).map(normalizeMetric),
-    alerts:
-      raw.alerts?.length
-        ? raw.alerts
-        : [
-            {
-              id: "finance-alert-fallback",
-              title: "Финансовые сигналы пока не поступали",
-              description: "После синхронизации здесь появятся важные финансовые предупреждения.",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
-    timeline:
-      raw.timeline?.length
-        ? raw.timeline
-        : [
-            {
-              id: "finance-timeline-fallback",
-              title: "Лента финансов обновится после синхронизации",
-              description: "События по финансам появятся автоматически.",
-              period: "latest",
-              severity: "info",
-              source: "placeholder"
-            }
-          ],
+    alerts: raw.alerts ?? [],
+    timeline: raw.timeline ?? [],
     lastUpdated: raw.lastUpdated ?? null,
     diagnostics
   };

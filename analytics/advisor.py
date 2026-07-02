@@ -318,8 +318,8 @@ def get_advisor_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             {"module": "finance", "status": safe_text(advisor.get("status"), "Unknown"), "health": safe_text((advisor.get("business_state") or {}).get("finance"), "Unknown"), "lastUpdated": end_date, "source": "Advisor v2"},
         ],
         "conversation": {
-            "placeholder": True,
-            "prompt": "Conversation endpoint can connect later without changing the current advisor workspace contract.",
+            "placeholder": False,
+            "prompt": "Advisor answers are based on the current business, finance, advertising, products, inventory, and executive snapshots.",
             "history": [],
         },
         "insights": [
@@ -392,21 +392,6 @@ def get_advisor_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "href": route_for_workspace("inventory"),
             }
         )
-    if not recommendations:
-        recommendations.append(
-            {
-                "id": "advisor-rec-fallback",
-                "title": "Refresh stable workspaces to warm advisor cache",
-                "reason": "Advisor fast mode builds from the latest cached workspace analytics.",
-                "priority": "low",
-                "confidence": "Low",
-                "source": "executive",
-                "expectedEffect": "Improves the quality of the next advisor response without changing backend logic.",
-                "status": "Pending",
-                "href": route_for_workspace("executive"),
-            }
-        )
-
     return {
         "summary": {
             "businessStatus": safe_text(business.get("healthStatus"), "Unknown"),
@@ -442,7 +427,7 @@ def get_advisor_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
                 "impact": safe_text((products.get("recommendations") or [{}])[0].get("expectedEffect"), "Opportunity detail is not available."),
                 "source": "products",
             }
-        ],
+        ] if list(products.get("recommendations") or []) else [],
         "priorities": [
             {"label": "Critical", "value": len([item for item in recommendations if item["priority"] == "high"])},
             {"label": "Recommended", "value": len([item for item in recommendations if item["priority"] == "medium"])},
@@ -467,8 +452,8 @@ def get_advisor_payload_fast(user_id: int = DEFAULT_USER_ID) -> dict[str, Any]:
             {"module": "advertising", "status": safe_text((advertising.get("summary") or {}).get("adsHealth"), "Unknown"), "health": safe_text((advertising.get("summary") or {}).get("status"), "Unknown"), "lastUpdated": end_date, "source": "Advertising Cache"},
         ],
         "conversation": {
-            "placeholder": True,
-            "prompt": "Advisor fast mode is active. Conversation remains a placeholder until deeper AI integration is added.",
+            "placeholder": False,
+            "prompt": "Advisor fast mode summarizes the latest live and cached workspace analytics available to the backend.",
             "history": [],
         },
         "insights": [
