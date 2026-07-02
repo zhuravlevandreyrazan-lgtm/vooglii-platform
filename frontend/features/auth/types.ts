@@ -42,6 +42,8 @@ export type OrganizationProfile = {
 
 export type WbCabinetProfile = {
   id: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
   name: string;
   sellerId: string;
   status: string;
@@ -49,6 +51,14 @@ export type WbCabinetProfile = {
   lastSyncAt?: string | null;
   dataQuality: string;
   tokenStatus: string;
+  health?: string | null;
+  lastSyncStatus?: string | null;
+  syncMessage?: string | null;
+  lastCheckedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  scopes?: string[];
+  tokens?: Record<string, string | null>;
 };
 
 export type AuthSession = {

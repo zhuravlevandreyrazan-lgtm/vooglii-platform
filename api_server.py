@@ -73,6 +73,13 @@ from analytics.api_models import (
     VersionResponse,
     WbCabinetProfile,
     WbCabinetResponse,
+    WbCabinetSyncRequest,
+    WbCabinetSyncResponse,
+    WbCabinetTestResponse,
+    WbCabinetUpsertRequest,
+    WbApiHealthResponse,
+    WbConnectionSummaryResponse,
+    WbSyncStatusResponse,
     WorkspaceSelection,
 )
 from analytics.advertising import get_advertising_payload
@@ -83,7 +90,7 @@ from analytics.advisor import (
     get_advisor_query_payload,
 )
 from analytics.business import get_business_payload, normalize_business_payload
-from analytics.common import BUILD_VERSION, DEFAULT_USER_ID, PRODUCT_NAME
+from analytics.common import BUILD_VERSION, PRODUCT_NAME
 from analytics.decision_engine import get_decision_engine_payload
 from analytics.degraded import (
     advertising_degraded,
@@ -124,6 +131,7 @@ from analytics.build_info import get_build_environment
 from analytics.env import get_allowed_origins, get_trusted_hosts
 from analytics.multi_tenant import (
     get_active_cabinet,
+    get_active_cabinet_user_id,
     get_active_organization,
     get_workspace_context,
     list_cabinets,
@@ -133,6 +141,18 @@ from analytics.multi_tenant import (
     select_cabinet,
     select_organization,
     set_active_cabinet_connection,
+)
+from analytics.wb_cabinet_manager import (
+    create_cabinet,
+    delete_cabinet,
+    get_cabinet,
+    get_connection_summary,
+    get_organization,
+    get_sync_status,
+    list_api_health,
+    sync_cabinet,
+    test_cabinet,
+    update_cabinet,
 )
 from config import DB_NAME
 from db_manager import init_db
@@ -617,21 +637,34 @@ def _build_notification_status() -> dict[str, Any]:
     ).model_dump()
 
 
-def _build_dev_auth_payload(actor: dict[str, Any], *, cabinet_connected: bool | None = None) -> dict[str, Any]:
+def _active_user_id() -> int:
+    return get_active_cabinet_user_id()
+
+
+def _build_auth_payload(actor: dict[str, Any], *, cabinet_connected: bool | None = None) -> dict[str, Any]:
     organization = OrganizationProfile(**get_active_organization())
     cabinet_row = get_active_cabinet()
     resolved_connected = bool(cabinet_row.get("connected")) if cabinet_connected is None else cabinet_connected
-    timestamp = datetime.now(timezone.utc).isoformat()
     user = UserProfile(**actor)
     cabinet = WbCabinetProfile(
         id=str(cabinet_row["id"]),
         name=str(cabinet_row["name"]),
+        organizationId=str(cabinet_row.get("organizationId") or organization.id),
+        organizationName=str(cabinet_row.get("organizationName") or organization.name),
         sellerId=str(cabinet_row["sellerId"]),
         status="connected" if resolved_connected else "disconnected",
         connected=resolved_connected,
-        lastSyncAt=(str(cabinet_row.get("lastSyncAt")) if cabinet_row.get("lastSyncAt") else timestamp) if resolved_connected else None,
+        lastSyncAt=str(cabinet_row.get("lastSyncAt")) if cabinet_row.get("lastSyncAt") else None,
         dataQuality=str(cabinet_row.get("dataQuality") or ("high" if resolved_connected else "pending")),
-        tokenStatus=str(cabinet_row.get("tokenStatus") or "safe_placeholder"),
+        tokenStatus=str(cabinet_row.get("tokenStatus") or "not_configured"),
+        health=str(cabinet_row.get("health") or "Watch"),
+        lastSyncStatus=str(cabinet_row.get("lastSyncStatus") or "") or None,
+        syncMessage=str(cabinet_row.get("syncMessage") or "") or None,
+        lastCheckedAt=str(cabinet_row.get("lastCheckedAt") or "") or None,
+        createdAt=str(cabinet_row.get("createdAt") or "") or None,
+        updatedAt=str(cabinet_row.get("updatedAt") or "") or None,
+        scopes=list(cabinet_row.get("scopes") or []),
+        tokens=dict(cabinet_row.get("tokens") or {}),
     )
     return {
         "authenticated": True,
@@ -644,61 +677,69 @@ def _build_dev_auth_payload(actor: dict[str, Any], *, cabinet_connected: bool | 
 @app.get("/api/command-center", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
 def api_command_center(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/command-center", get_executive_payload, executive_degraded)
+    return _cached_snapshot("/api/command-center", lambda: get_executive_payload(_active_user_id()), executive_degraded)
 
 
 @app.get("/api/executive", response_model=ExecutiveResponse, responses={500: {"model": ApiErrorResponse}})
 def api_executive(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/executive", get_executive_payload, executive_degraded)
+    return _cached_snapshot("/api/executive", lambda: get_executive_payload(_active_user_id()), executive_degraded)
 
 
 @app.get("/api/business", response_model=BusinessResponse, responses={500: {"model": ApiErrorResponse}})
 def api_business(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/business", lambda: normalize_business_payload(get_business_payload()), business_degraded)
+    return _cached_snapshot(
+        "/api/business",
+        lambda: normalize_business_payload(get_business_payload(_active_user_id())),
+        business_degraded,
+    )
 
 
 @app.get("/api/finance", response_model=FinanceResponse, responses={500: {"model": ApiErrorResponse}})
 def api_finance(actor: dict[str, Any] = Depends(require_permission("finance:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/finance", get_finance_payload, finance_degraded)
+    return _cached_snapshot("/api/finance", lambda: get_finance_payload(_active_user_id()), finance_degraded)
 
 
 @app.get("/api/advertising", response_model=AdvertisingResponse, responses={500: {"model": ApiErrorResponse}})
 def api_advertising(actor: dict[str, Any] = Depends(require_permission("ads:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/advertising", get_advertising_payload, advertising_degraded)
+    return _cached_snapshot("/api/advertising", lambda: get_advertising_payload(_active_user_id()), advertising_degraded)
 
 
 @app.get("/api/products", response_model=ProductsResponse, responses={500: {"model": ApiErrorResponse}})
 def api_products(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/products", get_products_payload, products_degraded)
+    return _cached_snapshot("/api/products", lambda: get_products_payload(_active_user_id()), products_degraded)
 
 
 @app.get("/api/inventory", response_model=InventoryResponse, responses={500: {"model": ApiErrorResponse}})
 def api_inventory(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/inventory", get_inventory_payload, inventory_degraded)
+    return _cached_snapshot("/api/inventory", lambda: get_inventory_payload(_active_user_id()), inventory_degraded)
 
 
 @app.get("/api/advisor", response_model=AdvisorResponse, responses={500: {"model": ApiErrorResponse}})
 def api_advisor(actor: dict[str, Any] = Depends(require_permission("analytics:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/advisor", get_advisor_payload_fast, advisor_degraded)
+    return _cached_snapshot("/api/advisor", lambda: get_advisor_payload_fast(_active_user_id()), advisor_degraded)
 
 
 @app.get("/api/decision-engine", response_model=DecisionEngineResponse, responses={500: {"model": ApiErrorResponse}})
 def api_decision_engine(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/decision-engine", get_decision_engine_payload, decision_engine_degraded)
+    return _cached_snapshot(
+        "/api/decision-engine",
+        lambda: get_decision_engine_payload(_active_user_id()),
+        decision_engine_degraded,
+    )
 
 
 @app.get("/api/forecast", response_model=ForecastResponse, responses={500: {"model": ApiErrorResponse}})
 def api_forecast(actor: dict[str, Any] = Depends(require_permission("analytics:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/forecast", get_forecast_payload, forecast_degraded)
+    return _cached_snapshot("/api/forecast", lambda: get_forecast_payload(_active_user_id()), forecast_degraded)
 
 
 @app.post("/api/forecast/simulate", response_model=ForecastSimulationResponse, responses={500: {"model": ApiErrorResponse}})
@@ -708,7 +749,7 @@ def api_forecast_simulate(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    payload = simulate_forecast_action(request.type, sku=request.sku, value=request.value)
+    payload = simulate_forecast_action(request.type, sku=request.sku, value=request.value, user_id=_active_user_id())
     payload["runtime"] = build_runtime_metadata(
         duration_ms=now_monotonic_ms() - started_at,
         cached=False,
@@ -722,7 +763,7 @@ def api_forecast_simulate(
 @app.get("/api/auth/session", response_model=AuthSessionResponse, responses={500: {"model": ApiErrorResponse}})
 def api_auth_session(request: Request) -> dict[str, Any]:
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload(resolve_actor(request))
+    payload = _build_auth_payload(resolve_actor(request))
     payload["runtime"] = _auth_runtime(started_at=started_at)
     return payload
 
@@ -730,7 +771,7 @@ def api_auth_session(request: Request) -> dict[str, Any]:
 @app.get("/api/auth/profile", response_model=AuthProfileResponse, responses={500: {"model": ApiErrorResponse}})
 def api_auth_profile(request: Request) -> dict[str, Any]:
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload(resolve_actor(request))
+    payload = _build_auth_payload(resolve_actor(request))
     return {
         "authenticated": payload["authenticated"],
         "user": payload["user"],
@@ -745,7 +786,7 @@ def api_organization(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload(resolve_actor(request))
+    payload = _build_auth_payload(resolve_actor(request))
     return {
         "organization": payload["organization"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -759,7 +800,7 @@ def api_wb_cabinet(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    payload = _build_dev_auth_payload(resolve_actor(request))
+    payload = _build_auth_payload(resolve_actor(request))
     return {
         "cabinet": payload["cabinet"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -784,7 +825,7 @@ def api_organization_detail(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    organization = OrganizationSummary(**next(item for item in list_organizations() if str(item.get("id")) == organization_id)).model_dump()
+    organization = OrganizationSummary(**get_organization(organization_id)).model_dump()
     return {
         "organization": organization,
         "runtime": _auth_runtime(started_at=started_at),
@@ -826,10 +867,155 @@ def api_wb_cabinet_detail(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    cabinet = CabinetSummary(**next(item for item in list_cabinets() if str(item.get("id")) == cabinet_id)).model_dump()
+    cabinet = WbCabinetProfile(**get_cabinet(cabinet_id)).model_dump()
     return {
         "cabinet": cabinet,
         "runtime": _auth_runtime(started_at=started_at),
+    }
+
+
+@app.get("/api/wb/connection-summary", response_model=WbConnectionSummaryResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_connection_summary(
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = dict(get_connection_summary())
+    payload["runtime"] = _auth_runtime(source="live", started_at=started_at)
+    return payload
+
+
+@app.get("/api/wb/cabinets", response_model=CabinetList, responses={500: {"model": ApiErrorResponse}})
+def api_wb_cabinets_v2(actor: dict[str, Any] = Depends(require_permission("settings:manage"))) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    context = get_workspace_context(mode="live")
+    organization_id = context.get("organizationId")
+    return {
+        "cabinets": list_cabinets(str(organization_id) if organization_id else None),
+        "activeCabinetId": context.get("cabinetId"),
+        "organizationId": organization_id,
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.post("/api/wb/cabinets", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_create_cabinet(
+    request: WbCabinetUpsertRequest,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    cabinet = create_cabinet(request.model_dump(exclude_none=True))
+    return {
+        "cabinet": WbCabinetProfile(**cabinet).model_dump(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.get("/api/wb/cabinets/{cabinet_id}", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_cabinet_v2_detail(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    return {
+        "cabinet": WbCabinetProfile(**get_cabinet(cabinet_id)).model_dump(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.patch("/api/wb/cabinets/{cabinet_id}", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_update_cabinet(
+    cabinet_id: str,
+    request: WbCabinetUpsertRequest,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    cabinet = update_cabinet(cabinet_id, request.model_dump(exclude_none=True))
+    return {
+        "cabinet": WbCabinetProfile(**cabinet).model_dump(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.delete("/api/wb/cabinets/{cabinet_id}", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_delete_cabinet(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    cabinet = delete_cabinet(cabinet_id)
+    return {
+        "cabinet": WbCabinetProfile(**cabinet).model_dump(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.post("/api/wb/cabinets/{cabinet_id}/test", response_model=WbCabinetTestResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_test_cabinet(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = test_cabinet(cabinet_id)
+    return {
+        "cabinet": WbCabinetProfile(**payload["cabinet"]).model_dump(),
+        "status": str(payload["status"]),
+        "checks": list(payload.get("checks") or []),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.post("/api/wb/cabinets/{cabinet_id}/sync", response_model=WbCabinetSyncResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_sync_cabinet(
+    cabinet_id: str,
+    request: WbCabinetSyncRequest,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = sync_cabinet(
+        cabinet_id,
+        sync_type=request.type,
+        date_from=request.dateFrom,
+        date_to=request.dateTo,
+    )
+    return {
+        "cabinet": WbCabinetProfile(**payload["cabinet"]).model_dump(),
+        "job": payload.get("job"),
+        "results": dict(payload.get("results") or {}),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.get("/api/wb/cabinets/{cabinet_id}/sync-status", response_model=WbSyncStatusResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_sync_status(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = get_sync_status(cabinet_id)
+    payload["runtime"] = _auth_runtime(source="live", started_at=started_at)
+    return payload
+
+
+@app.get("/api/wb/cabinets/{cabinet_id}/api-health", response_model=WbApiHealthResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_api_health(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    return {
+        "cabinetId": cabinet_id,
+        "health": list_api_health(cabinet_id),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
     }
 
 
@@ -1182,8 +1368,8 @@ def api_wb_cabinet_connect(
     del actor
     started_at = now_monotonic_ms()
     cabinet = set_active_cabinet_connection(True)
-    payload = _build_dev_auth_payload(resolve_actor(request), cabinet_connected=True)
-    payload["cabinet"]["status"] = str(cabinet.get("status") or "connected_dev")
+    payload = _build_auth_payload(resolve_actor(request), cabinet_connected=True)
+    payload["cabinet"]["status"] = str(cabinet.get("status") or "connected")
     return {
         "cabinet": payload["cabinet"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -1198,8 +1384,8 @@ def api_wb_cabinet_disconnect(
     del actor
     started_at = now_monotonic_ms()
     cabinet = set_active_cabinet_connection(False)
-    payload = _build_dev_auth_payload(resolve_actor(request), cabinet_connected=False)
-    payload["cabinet"]["status"] = str(cabinet.get("status") or "disconnected_dev")
+    payload = _build_auth_payload(resolve_actor(request), cabinet_connected=False)
+    payload["cabinet"]["status"] = str(cabinet.get("status") or "disconnected")
     return {
         "cabinet": payload["cabinet"],
         "runtime": _auth_runtime(started_at=started_at),
@@ -1317,19 +1503,19 @@ def api_update_user_status(
 @app.get("/api/reports", response_model=ReportsResponse, responses={500: {"model": ApiErrorResponse}})
 def api_reports(actor: dict[str, Any] = Depends(require_permission("reports:view"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/reports", get_reports_payload_fast, reports_degraded)
+    return _cached_snapshot("/api/reports", lambda: get_reports_payload_fast(_active_user_id()), reports_degraded)
 
 
 @app.get("/api/system", response_model=SystemResponse, responses={500: {"model": ApiErrorResponse}})
 def api_system(actor: dict[str, Any] = Depends(require_permission("settings:manage"))) -> dict[str, Any]:
     del actor
-    return _cached_snapshot("/api/system", get_system_payload, system_degraded)
+    return _cached_snapshot("/api/system", lambda: get_system_payload(_active_user_id()), system_degraded)
 
 
 @app.get("/api/status", response_model=StatusResponse, responses={500: {"model": ApiErrorResponse}})
 def api_status() -> dict[str, Any]:
     started_at = now_monotonic_ms()
-    payload = dict(get_status_payload())
+    payload = dict(get_status_payload(_active_user_id()))
     payload["runtime"] = build_runtime_metadata(
         duration_ms=now_monotonic_ms() - started_at,
         cached=False,

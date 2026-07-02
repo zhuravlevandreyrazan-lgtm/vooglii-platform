@@ -27,13 +27,23 @@ const DEV_ORGANIZATION: OrganizationProfile = {
 
 const DEV_CABINET: WbCabinetProfile = {
   id: "cabinet_dev_primary",
+  organizationId: "org_vooglii_beta",
+  organizationName: "VOOGLII Beta Lab",
   name: "Wildberries Main Cabinet",
   sellerId: "WB-458210",
   status: "connected",
   connected: true,
   lastSyncAt: "2026-06-30T09:45:00Z",
   dataQuality: "high",
-  tokenStatus: "safe_placeholder"
+  tokenStatus: "configured",
+  health: "Healthy",
+  scopes: ["statistics", "advertising", "finance"],
+  tokens: {
+    seller: "****",
+    statistics: "****",
+    advertising: "****",
+    finance: "****"
+  }
 };
 
 export function getDevAuthSession(): AuthSession {
@@ -156,13 +166,28 @@ function normalizeCabinetProfile(value: unknown, fallback: WbCabinetProfile): Wb
 
   return {
     id: typeof value.id === "string" ? value.id : fallback.id,
+    organizationId: typeof value.organizationId === "string" ? value.organizationId : fallback.organizationId,
+    organizationName: typeof value.organizationName === "string" ? value.organizationName : fallback.organizationName,
     name: typeof value.name === "string" ? value.name : fallback.name,
     sellerId: typeof value.sellerId === "string" ? value.sellerId : fallback.sellerId,
     status: typeof value.status === "string" ? value.status : fallback.status,
     connected: typeof value.connected === "boolean" ? value.connected : fallback.connected,
     lastSyncAt: typeof value.lastSyncAt === "string" ? value.lastSyncAt : fallback.lastSyncAt,
     dataQuality: typeof value.dataQuality === "string" ? value.dataQuality : fallback.dataQuality,
-    tokenStatus: typeof value.tokenStatus === "string" ? value.tokenStatus : fallback.tokenStatus
+    tokenStatus: typeof value.tokenStatus === "string" ? value.tokenStatus : fallback.tokenStatus,
+    health: typeof value.health === "string" ? value.health : fallback.health,
+    lastSyncStatus: typeof value.lastSyncStatus === "string" ? value.lastSyncStatus : fallback.lastSyncStatus,
+    syncMessage: typeof value.syncMessage === "string" ? value.syncMessage : fallback.syncMessage,
+    lastCheckedAt: typeof value.lastCheckedAt === "string" ? value.lastCheckedAt : fallback.lastCheckedAt,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : fallback.createdAt,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : fallback.updatedAt,
+    scopes: Array.isArray(value.scopes) ? value.scopes.filter((item): item is string => typeof item === "string") : fallback.scopes,
+    tokens:
+      isRecord(value.tokens)
+        ? Object.fromEntries(
+            Object.entries(value.tokens).filter((entry): entry is [string, string | null] => typeof entry[0] === "string")
+          )
+        : fallback.tokens
   };
 }
 

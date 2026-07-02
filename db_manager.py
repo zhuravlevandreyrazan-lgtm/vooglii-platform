@@ -187,8 +187,111 @@ def init_db():
         'min_order_qty':'INTEGER DEFAULT 0',
         'updated_at':'TEXT'
         }.items(): _add(cur,'replenishment_settings',c,s)
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS organizations(
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        plan TEXT DEFAULT 'starter',
+        status TEXT DEFAULT 'active',
+        created_at TEXT,
+        updated_at TEXT
+        )''')
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS workspace_state(
+        state_key TEXT PRIMARY KEY,
+        organization_id TEXT,
+        cabinet_id TEXT,
+        last_changed TEXT
+        )''')
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS wb_cabinets(
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        data_owner_id INTEGER UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        seller_id TEXT,
+        seller_token_encrypted TEXT,
+        seller_token_masked TEXT,
+        statistics_token_encrypted TEXT,
+        statistics_token_masked TEXT,
+        advertising_token_encrypted TEXT,
+        advertising_token_masked TEXT,
+        finance_token_encrypted TEXT,
+        finance_token_masked TEXT,
+        status TEXT DEFAULT 'disconnected',
+        scopes TEXT,
+        connected INTEGER DEFAULT 0,
+        data_quality TEXT DEFAULT 'pending',
+        last_sync_status TEXT,
+        sync_message TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        last_checked_at TEXT,
+        last_sync_at TEXT
+        )''')
+        for c,s in {
+        'seller_id':'TEXT',
+        'seller_token_encrypted':'TEXT',
+        'seller_token_masked':'TEXT',
+        'statistics_token_encrypted':'TEXT',
+        'statistics_token_masked':'TEXT',
+        'advertising_token_encrypted':'TEXT',
+        'advertising_token_masked':'TEXT',
+        'finance_token_encrypted':'TEXT',
+        'finance_token_masked':'TEXT',
+        'status':"TEXT DEFAULT 'disconnected'",
+        'scopes':'TEXT',
+        'connected':'INTEGER DEFAULT 0',
+        'data_quality':"TEXT DEFAULT 'pending'",
+        'last_sync_status':'TEXT',
+        'sync_message':'TEXT',
+        'created_at':'TEXT',
+        'updated_at':'TEXT',
+        'last_checked_at':'TEXT',
+        'last_sync_at':'TEXT'
+        }.items(): _add(cur,'wb_cabinets',c,s)
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS wb_sync_jobs(
+        id TEXT PRIMARY KEY,
+        cabinet_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        duration_ms INTEGER,
+        records_loaded INTEGER DEFAULT 0,
+        error_message TEXT,
+        runtime_source TEXT,
+        meta_json TEXT
+        )''')
+        for c,s in {
+        'records_loaded':'INTEGER DEFAULT 0',
+        'error_message':'TEXT',
+        'runtime_source':'TEXT',
+        'meta_json':'TEXT'
+        }.items(): _add(cur,'wb_sync_jobs',c,s)
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS wb_api_health(
+        cabinet_id TEXT NOT NULL,
+        section TEXT NOT NULL,
+        status TEXT,
+        last_success_at TEXT,
+        last_error_at TEXT,
+        last_error_message TEXT,
+        rate_limit_state TEXT,
+        message TEXT,
+        required_action TEXT,
+        PRIMARY KEY(cabinet_id, section)
+        )''')
+        for c,s in {
+        'message':'TEXT',
+        'required_action':'TEXT'
+        }.items(): _add(cur,'wb_api_health',c,s)
+
         for name, table, cols in [('idx_sales_user_date','sales','telegram_id,sale_date'),('idx_orders_user_date','orders','telegram_id,order_date'),('idx_exp_user_date','expenses','telegram_id,expense_date'),('idx_ads_user_date','advertising','telegram_id,advert_date'),('idx_stocks_user','stocks','telegram_id,supplier_article'),('idx_finance_raw_user_rrd','finance_raw_audit','telegram_id,rrd_id'),('idx_finance_raw_user_date','finance_raw_audit','telegram_id,report_date')]:
             cur.execute(f'CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})')
+        cur.execute("INSERT OR IGNORE INTO organizations(id,name,plan,status,created_at,updated_at) VALUES('org_vooglii_main','VOOGLII Workspace','starter','active',datetime('now'),datetime('now'))")
+        cur.execute("INSERT OR IGNORE INTO workspace_state(state_key,organization_id,cabinet_id,last_changed) VALUES('active','org_vooglii_main',NULL,datetime('now'))")
         conn.commit()
     except sqlite3.OperationalError as exc:
         if _is_readonly_db_error(exc):

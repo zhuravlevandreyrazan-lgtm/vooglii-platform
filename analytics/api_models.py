@@ -47,12 +47,22 @@ class OrganizationProfile(ApiBaseModel):
 class WbCabinetProfile(ApiBaseModel):
     id: str
     name: str
+    organizationId: str | None = None
+    organizationName: str | None = None
     sellerId: str
     status: str
     connected: bool
     lastSyncAt: str | None = None
     dataQuality: str
     tokenStatus: str
+    health: str | None = None
+    lastSyncStatus: str | None = None
+    syncMessage: str | None = None
+    lastCheckedAt: str | None = None
+    createdAt: str | None = None
+    updatedAt: str | None = None
+    scopes: list[str] = []
+    tokens: dict[str, str | None] = {}
 
 
 class OrganizationSummary(ApiBaseModel):
@@ -165,6 +175,83 @@ class OrganizationResponse(ApiBaseModel):
 
 class WbCabinetResponse(ApiBaseModel):
     cabinet: WbCabinetProfile
+    runtime: RuntimeMetadata | None = None
+
+
+class WbCabinetUpsertRequest(ApiBaseModel):
+    organizationId: str | None = None
+    name: str
+    sellerId: str | None = None
+    scopes: list[str] | None = None
+    connected: bool | None = None
+    tokens: dict[str, str | None] | None = None
+
+
+class WbCabinetSyncRequest(ApiBaseModel):
+    type: str = "all"
+    dateFrom: str | None = None
+    dateTo: str | None = None
+
+
+class WbApiHealthRecord(ApiBaseModel):
+    section: str
+    status: str
+    lastSuccessAt: str | None = None
+    lastErrorAt: str | None = None
+    lastErrorMessage: str | None = None
+    rateLimitState: str | None = None
+    message: str | None = None
+    requiredAction: str | None = None
+
+
+class WbApiHealthResponse(ApiBaseModel):
+    cabinetId: str
+    health: list[WbApiHealthRecord]
+    runtime: RuntimeMetadata | None = None
+
+
+class WbSyncJobRecord(ApiBaseModel):
+    id: str
+    cabinetId: str
+    type: str
+    status: str
+    startedAt: str | None = None
+    finishedAt: str | None = None
+    durationMs: int | None = None
+    recordsLoaded: int = 0
+    errorMessage: str | None = None
+    runtimeSource: str | None = None
+    meta: dict[str, Any] = {}
+
+
+class WbSyncStatusResponse(ApiBaseModel):
+    cabinetId: str
+    latestJob: WbSyncJobRecord | None = None
+    history: list[WbSyncJobRecord] = []
+    runtime: RuntimeMetadata | None = None
+
+
+class WbCabinetTestResponse(ApiBaseModel):
+    cabinet: WbCabinetProfile
+    status: str
+    checks: list[dict[str, Any]]
+    runtime: RuntimeMetadata | None = None
+
+
+class WbCabinetSyncResponse(ApiBaseModel):
+    cabinet: WbCabinetProfile
+    job: WbSyncJobRecord | None = None
+    results: dict[str, Any]
+    runtime: RuntimeMetadata | None = None
+
+
+class WbConnectionSummaryResponse(ApiBaseModel):
+    organization: OrganizationSummary | None = None
+    activeCabinet: WbCabinetProfile | None = None
+    connectedCabinets: int = 0
+    totalCabinets: int = 0
+    hasActiveConnection: bool = False
+    lastChanged: str | None = None
     runtime: RuntimeMetadata | None = None
 
 

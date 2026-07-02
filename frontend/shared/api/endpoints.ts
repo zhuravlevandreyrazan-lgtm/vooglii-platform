@@ -30,6 +30,8 @@ export const apiEndpoints = {
   wbCabinetsSelect: "/api/wb-cabinets/select",
   wbCabinetConnect: "/api/wb-cabinet/connect",
   wbCabinetDisconnect: "/api/wb-cabinet/disconnect",
+  wbConnectionSummary: "/api/wb/connection-summary",
+  wbCabinetsManage: "/api/wb/cabinets",
   workspaceContext: "/api/workspace/context",
   reports: "/api/reports",
   users: "/api/users",
