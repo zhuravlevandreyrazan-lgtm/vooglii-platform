@@ -24,3 +24,13 @@ services:
     depends_on:
       backend:
         condition: service_started
+
+  telegram-bot:
+    env_file:
+      - .env.production
+    environment:
+      APP_ENV: production
+      DB_DIR: /app/storage
+    depends_on:
+      backend:
+        condition: service_started

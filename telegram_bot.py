@@ -174,6 +174,20 @@ FINANCE_REPORTS_DETAILED_PERIOD_ENDPOINT = f'{FINANCE_API_BASE}/api/finance/v1/s
 # gradually and safely; Phase 1 only prepares neutral module placeholders.
 
 
+def _configure_telegram_logging():
+    level_name = str(os.getenv('LOG_LEVEL') or 'INFO').upper()
+    level = getattr(logging, level_name, logging.INFO)
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=level,
+            format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        )
+    else:
+        root_logger.setLevel(level)
+    logging.getLogger('httpx').setLevel(max(level, logging.WARNING))
+
+
 def _mask_secret(value):
     text = str(value or '').strip()
     if not text:
@@ -20991,9 +21005,20 @@ async def error_handler(update, context):
 
 
 def main():
+    _configure_telegram_logging()
     init_db()
     if not BOT_TOKEN:
         raise RuntimeError('BOT_TOKEN не задан. Установите environment variable BOT_TOKEN перед запуском.')
+    app_env = str(os.getenv('APP_ENV') or 'development').strip().lower() or 'development'
+    logger.info(
+        'Starting Telegram bot',
+        extra={
+            'app_env': app_env,
+            'db_name': DB_NAME,
+            'bot_username': BOT_USERNAME,
+            'admin_count': len(ADMIN_IDS),
+        },
+    )
     print("HTTP_PROXY =", os.environ.get("HTTP_PROXY"))
     print("HTTPS_PROXY =", os.environ.get("HTTPS_PROXY"))
     print("http_proxy =", os.environ.get("http_proxy"))
@@ -21009,5 +21034,8 @@ def main():
     app.add_error_handler(error_handler)
     if app.job_queue:
         schedule_background_jobs(app.job_queue)
-    print('Telegram Bot Started...'); app.run_polling()
+        logger.info('Telegram background jobs scheduled')
+    print('Telegram Bot Started...')
+    logger.info('Telegram bot polling started')
+    app.run_polling()
 if __name__=='__main__': main()
