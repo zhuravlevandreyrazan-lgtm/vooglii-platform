@@ -20,8 +20,8 @@ export function InventorySummaryWidget({
       error={error}
       loading={loading}
       status={{ label: summary.inventoryHealth, tone: "watch" }}
-      subtitle="Сводка по остаткам"
-      title="Остатки и покрытие"
+      subtitle="Сводка по остаткам и покрытию"
+      title="Остатки"
       updatedAt={updatedAt}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -52,6 +52,11 @@ export function InventorySummaryWidget({
           <div className="mt-2 text-lg font-semibold">{formatOptionalValue(summary.warehouseCount)}</div>
         </div>
       </div>
+      {summary.status ? (
+        <div className="mt-4 rounded-[22px] border border-[var(--line)] bg-white/70 p-4 text-sm text-[var(--ink-soft)]">
+          {summary.status}
+        </div>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <HealthBadge label={summary.inventoryHealth} />
         <StatusBadge tone="risk">Критичных SKU: {formatOptionalValue(summary.criticalSku)}</StatusBadge>

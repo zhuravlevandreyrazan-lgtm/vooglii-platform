@@ -9,6 +9,13 @@ export type InventorySummary = {
   inventoryHealth: string;
   warehouseCount: number | null;
   lastUpdated: string | null;
+  totalSku?: number | null;
+  inStockSku?: number | null;
+  outOfStockSku?: number | null;
+  lowStockSku?: number | null;
+  overstockSku?: number | null;
+  estimatedCoverageDays?: number | null;
+  status?: string | null;
 };
 
 export type InventoryHealth = {
@@ -38,15 +45,25 @@ export type InventoryWarehouse = {
 
 export type InventorySku = {
   sku: string;
+  name?: string;
+  nmId?: number | null;
   stock: number | null;
   reserved: number | null;
   available: number | null;
   daysLeft: number | null;
+  coverageDays?: number | null;
+  salesVelocity?: number | null;
   forecast: string;
   warehouse: string;
   health: string;
+  risk?: string;
+  riskCode?: string;
   priority: string;
   recommendation: string;
+  recommendationCode?: string;
+  linkedRevenue?: number | null;
+  linkedAdvertisingSpend?: number | null;
+  scaleAllowed?: boolean;
   status: {
     label: string;
     tone: StatusTone;

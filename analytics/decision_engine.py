@@ -236,6 +236,7 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
     advertising_summary = dict(advertising.get("summary") or {})
     inventory_summary = dict(inventory.get("summary") or {})
     inventory_health = dict(inventory.get("health") or {})
+    inventory_items = list(inventory.get("items") or [])
 
     if not has_core_data:
         today_actions = [
@@ -418,7 +419,81 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
         )
 
     inventory_status = safe_text(inventory_summary.get("inventoryHealth"), "UNKNOWN")
-    if inventory_status in {"DEGRADED", "WARNING"}:
+    critical_inventory_item = next((item for item in inventory_items if safe_text(item.get("riskCode"), "") in {"OUT_OF_STOCK", "CRITICAL_LOW"}), None)
+    low_inventory_item = next((item for item in inventory_items if safe_text(item.get("riskCode"), "") == "LOW"), None)
+    scalable_inventory_item = next((item for item in inventory_items if bool(item.get("scaleAllowed"))), None)
+    if critical_inventory_item:
+        risk_candidates.append(
+            _build_signal(
+                signal_id=f"inventory-critical-{safe_text(critical_inventory_item.get('sku'), 'sku')}",
+                decision_type="RESTOCK",
+                message=safe_text(critical_inventory_item.get("recommendation"), "Срочно проверьте остатки."),
+                reason=safe_text(critical_inventory_item.get("risk"), safe_text(inventory_health.get("warehouseStatus"), "Остатки требуют внимания.")),
+                source="inventory",
+                severity="critical",
+                priority="critical",
+                expected_impact="high",
+                confidence=80,
+                related_sku=safe_text(critical_inventory_item.get("sku"), "") or None,
+                related_metric="coverage_days",
+                action=safe_text(critical_inventory_item.get("recommendation"), "Срочно пополните остатки."),
+                category="risk",
+            )
+        )
+        if (safe_float(critical_inventory_item.get("linkedAdvertisingSpend")) or 0) > 0:
+            risk_candidates.append(
+                _build_signal(
+                    signal_id=f"inventory-ads-{safe_text(critical_inventory_item.get('sku'), 'sku')}",
+                    decision_type="CHECK_ADS",
+                    message="Не масштабируйте рекламу до пополнения остатков.",
+                    reason="SKU уже получает рекламный трафик, но запас близок к исчерпанию.",
+                    source="inventory",
+                    severity="high",
+                    priority="high",
+                    expected_impact="high",
+                    confidence=78,
+                    related_sku=safe_text(critical_inventory_item.get("sku"), "") or None,
+                    related_metric="linked_advertising_spend",
+                    action="Снизьте рекламное давление до пополнения склада.",
+                    category="risk",
+                )
+            )
+    elif low_inventory_item:
+        risk_candidates.append(
+            _build_signal(
+                signal_id=f"inventory-low-{safe_text(low_inventory_item.get('sku'), 'sku')}",
+                decision_type="CHECK_INVENTORY",
+                message=safe_text(low_inventory_item.get("recommendation"), "Проверьте запас по SKU."),
+                reason=safe_text(low_inventory_item.get("risk"), "Запас по SKU уменьшается быстрее целевого горизонта."),
+                source="inventory",
+                severity="medium",
+                priority="medium",
+                expected_impact="medium",
+                confidence=68,
+                related_sku=safe_text(low_inventory_item.get("sku"), "") or None,
+                related_metric="coverage_days",
+                category="risk",
+            )
+        )
+    elif scalable_inventory_item:
+        opportunity_candidates.append(
+            _build_signal(
+                signal_id=f"inventory-scale-{safe_text(scalable_inventory_item.get('sku'), 'sku')}",
+                decision_type="SCALE",
+                message=f"SKU {safe_text(scalable_inventory_item.get('sku'), 'товар')} можно масштабировать без риска дефицита.",
+                reason="Запас покрывает безопасный горизонт и подтвержден текущей скоростью продаж.",
+                source="inventory",
+                severity="low",
+                priority="medium",
+                expected_impact="high",
+                confidence=72,
+                related_sku=safe_text(scalable_inventory_item.get("sku"), "") or None,
+                related_metric="coverage_days",
+                action="Масштабируйте SKU в пределах подтвержденного спроса.",
+                category="opportunity",
+            )
+        )
+    if not critical_inventory_item and not low_inventory_item and not scalable_inventory_item and inventory_status in {"DEGRADED", "WARNING"}:
         risk_candidates.append(
             _build_signal(
                 signal_id="inventory-check",
