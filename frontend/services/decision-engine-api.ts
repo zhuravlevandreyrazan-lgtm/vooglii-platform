@@ -57,6 +57,11 @@ export type ApiDecisionEngineResponse = {
     riskLevel?: string | null;
     expectedImpact?: string | null;
     confidence?: number | string | null;
+    expectedRevenue?: number | string | null;
+    expectedOrders?: number | string | null;
+    expectedUnits?: number | string | null;
+    primaryRisk?: string | null;
+    recommendedAction?: string | null;
   };
   evidence?: Array<{
     label?: string;
@@ -168,7 +173,15 @@ function mapForecast(forecast?: ApiDecisionEngineResponse["forecast"]): Decision
     profitDirection: sanitizeUserText(forecast?.profitDirection, "unknown"),
     riskLevel: sanitizeUserText(forecast?.riskLevel, "unknown"),
     expectedImpact: sanitizeUserText(forecast?.expectedImpact, "unknown"),
-    confidence: formatConfidence(forecast?.confidence)
+    confidence: formatConfidence(forecast?.confidence),
+    expectedRevenue: formatMetricValue(forecast?.expectedRevenue),
+    expectedOrders: formatMetricValue(forecast?.expectedOrders),
+    expectedUnits: formatMetricValue(forecast?.expectedUnits),
+    primaryRisk: localizeKnownText(forecast?.primaryRisk, "РџСЂРѕРіРЅРѕР·РЅС‹Р№ СЂРёСЃРє РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С…."),
+    recommendedAction: localizeKnownText(
+      forecast?.recommendedAction,
+      "Р РµРєРѕРјРµРЅРґР°С†РёСЏ РїРѕ РїСЂРѕРіРЅРѕР·Сѓ РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С…."
+    )
   };
 }
 

@@ -31,6 +31,9 @@ from analytics.api_models import (
     JobsResponse,
     ExecutiveResponse,
     DecisionEngineResponse,
+    ForecastResponse,
+    ForecastSimulationResponse,
+    ForecastSimulateRequest,
     FinanceResponse,
     HealthResponse,
     InventoryResponse,
@@ -87,6 +90,7 @@ from analytics.degraded import (
     advisor_degraded,
     business_degraded,
     decision_engine_degraded,
+    forecast_degraded,
     executive_degraded,
     finance_degraded,
     inventory_degraded,
@@ -95,6 +99,7 @@ from analytics.degraded import (
     system_degraded,
 )
 from analytics.executive import get_executive_payload
+from analytics.forecast_engine import get_forecast_payload, simulate_forecast_action
 from analytics.finance import get_finance_payload
 from analytics.inventory import get_inventory_payload
 from analytics.logging_config import configure_logging, get_logger, safe_log_extra
@@ -152,6 +157,7 @@ ENDPOINT_RUNTIME = {
     "/api/advisor": {"cache_key": "advisor", "ttl_seconds": 120, "timeout_ms": 5000},
     "/api/advisor/query": {"cache_key": "advisor_query", "ttl_seconds": 0, "timeout_ms": 5000},
     "/api/decision-engine": {"cache_key": "decision_engine", "ttl_seconds": 120, "timeout_ms": 12000},
+    "/api/forecast": {"cache_key": "forecast", "ttl_seconds": 120, "timeout_ms": 12000},
     "/api/reports": {"cache_key": "reports", "ttl_seconds": 120, "timeout_ms": 5000},
     "/api/system": {"cache_key": "system", "ttl_seconds": 120, "timeout_ms": 5000},
 }
@@ -687,6 +693,30 @@ def api_advisor(actor: dict[str, Any] = Depends(require_permission("analytics:vi
 def api_decision_engine(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
     return _cached_snapshot("/api/decision-engine", get_decision_engine_payload, decision_engine_degraded)
+
+
+@app.get("/api/forecast", response_model=ForecastResponse, responses={500: {"model": ApiErrorResponse}})
+def api_forecast(actor: dict[str, Any] = Depends(require_permission("analytics:view"))) -> dict[str, Any]:
+    del actor
+    return _cached_snapshot("/api/forecast", get_forecast_payload, forecast_degraded)
+
+
+@app.post("/api/forecast/simulate", response_model=ForecastSimulationResponse, responses={500: {"model": ApiErrorResponse}})
+def api_forecast_simulate(
+    request: ForecastSimulateRequest,
+    actor: dict[str, Any] = Depends(require_permission("analytics:view")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = simulate_forecast_action(request.type, sku=request.sku, value=request.value)
+    payload["runtime"] = build_runtime_metadata(
+        duration_ms=now_monotonic_ms() - started_at,
+        cached=False,
+        stale=False,
+        degraded=payload.get("status") != "ready",
+        source="live" if payload.get("status") == "ready" else "degraded",
+    )
+    return payload
 
 
 @app.get("/api/auth/session", response_model=AuthSessionResponse, responses={500: {"model": ApiErrorResponse}})

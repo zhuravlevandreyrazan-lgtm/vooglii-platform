@@ -102,6 +102,28 @@ def decision_engine_degraded(reason: str) -> dict[str, Any]:
     }
 
 
+def forecast_degraded(reason: str) -> dict[str, Any]:
+    return {
+        "summary": {
+            "status": "insufficient_data",
+            "message": "Прогноз временно недоступен из-за degraded режима.",
+            "confidence": None,
+        },
+        "periods": {
+            "sevenDays": {"status": "insufficient_data", "expectedOrders": None, "expectedRevenue": None, "expectedUnits": None, "trend": "Недостаточно данных", "confidence": None, "explanation": _message(reason)},
+            "fourteenDays": {"status": "insufficient_data", "expectedOrders": None, "expectedRevenue": None, "expectedUnits": None, "trend": "Недостаточно данных", "confidence": None, "explanation": _message(reason)},
+            "thirtyDays": {"status": "insufficient_data", "expectedOrders": None, "expectedRevenue": None, "expectedUnits": None, "trend": "Недостаточно данных", "confidence": None, "explanation": _message(reason)},
+        },
+        "salesForecast": {"status": "insufficient_data", "historyDays": 0, "activeDays": 0, "confidence": None, "trend": "Недостаточно данных", "explanation": _message(reason)},
+        "profitForecast": {"status": "insufficient_data", "expectedOperatingProfit": None, "expectedMargin": None, "expectedProfitChange": None, "riskOfProfitDrop": None, "mainProfitDrivers": [], "periods": {}, "explanation": _message(reason)},
+        "inventoryForecast": {"status": "insufficient_data", "coverageDays": None, "stockoutRisk": None, "expectedOutOfStockDate": None, "restockNeeded": None, "scaleAllowed": None, "affectedRevenue": None, "message": _message(reason), "criticalSku": []},
+        "advertisingForecast": {"status": "insufficient_data", "expectedSpend": None, "expectedROAS": None, "expectedACOS": None, "efficiencyTrend": "Недостаточно данных", "overspendRisk": None, "scalePotential": None, "explanation": _message(reason)},
+        "risks": [],
+        "opportunities": [],
+        "scenarios": [],
+    }
+
+
 def business_degraded(reason: str) -> dict[str, Any]:
     return {
         "summary": {"revenue": None, "profit": None, "margin": None, "orders": None, "returns": None, "averageOrderValue": None, "unitsSold": None},

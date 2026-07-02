@@ -44,6 +44,11 @@ export type DecisionEngineForecast = {
   riskLevel: string;
   expectedImpact: string;
   confidence: string;
+  expectedRevenue: string;
+  expectedOrders: string;
+  expectedUnits: string;
+  primaryRisk: string;
+  recommendedAction: string;
 };
 
 export type DecisionEngineSnapshot = {

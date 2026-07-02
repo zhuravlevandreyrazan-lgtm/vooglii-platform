@@ -423,6 +423,34 @@ class DecisionEngineResponse(ApiBaseModel):
     runtime: RuntimeMetadata | None = None
 
 
+class ForecastSimulateRequest(ApiBaseModel):
+    type: Literal["increase_ads", "reduce_ads", "restock", "pause_sku", "scale_sku"]
+    sku: str | None = None
+    value: float | None = None
+
+
+class ForecastResponse(ApiBaseModel):
+    summary: dict[str, Any]
+    periods: dict[str, Any]
+    salesForecast: dict[str, Any]
+    profitForecast: dict[str, Any]
+    inventoryForecast: dict[str, Any]
+    advertisingForecast: dict[str, Any]
+    risks: list[dict[str, Any]]
+    opportunities: list[dict[str, Any]]
+    scenarios: list[dict[str, Any]]
+    runtime: RuntimeMetadata | None = None
+
+
+class ForecastSimulationResponse(ApiBaseModel):
+    status: str
+    expectedEffect: dict[str, Any]
+    risks: list[str]
+    recommendation: str
+    confidence: int | None = None
+    runtime: RuntimeMetadata | None = None
+
+
 class BusinessResponse(ApiBaseModel):
     summary: dict[str, Any]
     trends: dict[str, Any]

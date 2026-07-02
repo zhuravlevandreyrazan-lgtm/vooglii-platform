@@ -1,15 +1,16 @@
 import {
-  Bot,
   BarChart3,
   Bell,
   Blocks,
-  BriefcaseBusiness,
+  Bot,
   Boxes,
+  BriefcaseBusiness,
   Cable,
   FileText,
   LayoutDashboard,
   Megaphone,
   Settings,
+  TrendingUp,
   Users
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -65,6 +66,13 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
     description: "Остатки, пополнение и стабильность поставок.",
     icon: Blocks,
     requiredPermissions: ["dashboard:view"]
+  },
+  {
+    label: "Прогноз",
+    href: "/forecast",
+    description: "Прогноз продаж, прибыли, рисков и сценариев.",
+    icon: TrendingUp,
+    requiredPermissions: ["analytics:view"]
   },
   {
     label: "Автоматизация",

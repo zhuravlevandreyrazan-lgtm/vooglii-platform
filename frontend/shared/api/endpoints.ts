@@ -6,6 +6,8 @@ export const apiEndpoints = {
   advertising: "/api/advertising",
   products: "/api/products",
   inventory: "/api/inventory",
+  forecast: "/api/forecast",
+  forecastSimulate: "/api/forecast/simulate",
   advisor: "/api/advisor",
   advisorQuery: "/api/advisor/query",
   authSession: "/api/auth/session",

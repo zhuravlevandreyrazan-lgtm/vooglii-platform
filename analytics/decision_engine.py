@@ -8,6 +8,7 @@ from analytics.business import get_business_payload, normalize_business_payload
 from analytics.cache import get_stale_cache_value
 from analytics.common import DEFAULT_USER_ID, current_month_days, safe_float, safe_int, safe_text
 from analytics.finance import get_finance_payload
+from analytics.forecast_engine import build_forecast_payload
 from analytics.inventory import get_inventory_payload
 from analytics.products import get_products_payload
 from analytics.system import get_system_payload
@@ -204,6 +205,119 @@ def _forecast_payload(business: dict[str, Any], finance: dict[str, Any], main_op
     }
 
 
+def _forecast_signal_from_row(
+    *,
+    item: dict[str, Any],
+    signal_id: str,
+    decision_type: str,
+    severity: str,
+    priority: str,
+    expected_impact: str,
+    category: str,
+) -> dict[str, Any]:
+    return _build_signal(
+        signal_id=signal_id,
+        decision_type=decision_type,
+        message=safe_text(item.get("title"), "Прогнозный сигнал требует внимания."),
+        reason=safe_text(item.get("reason"), "Сигнал сформирован на основе прогноза."),
+        source="forecast",
+        severity=severity,
+        priority=priority,
+        expected_impact=expected_impact,
+        confidence=item.get("confidence"),
+        related_sku=safe_text(item.get("sku"), "") or None,
+        related_metric=safe_text(item.get("metric"), "forecast"),
+        action=safe_text(item.get("action"), safe_text(item.get("title"), "Откройте прогноз и проверьте сценарий.")),
+        category=category,
+    )
+
+
+def _forecast_payload_from_engine(
+    forecast_payload: dict[str, Any],
+    main_risk: dict[str, Any] | None,
+    main_opportunity: dict[str, Any] | None,
+) -> dict[str, Any]:
+    summary = dict(forecast_payload.get("summary") or {})
+    sales_forecast = dict(forecast_payload.get("salesForecast") or {})
+    profit_forecast = dict(forecast_payload.get("profitForecast") or {})
+    inventory_forecast = dict(forecast_payload.get("inventoryForecast") or {})
+    periods = dict(forecast_payload.get("periods") or {})
+    seven_days = dict(periods.get("sevenDays") or {})
+
+    status = safe_text(summary.get("status"), "insufficient_data")
+    expected_profit = safe_float(profit_forecast.get("expectedOperatingProfit"))
+    expected_revenue = safe_float(seven_days.get("expectedRevenue"))
+    expected_orders = safe_float(seven_days.get("expectedOrders"))
+    expected_units = safe_float(seven_days.get("expectedUnits"))
+    risk_level = safe_text(summary.get("riskLevel"), None)
+    confidence = profit_forecast.get("confidence")
+    if confidence is None:
+        confidence = sales_forecast.get("confidence")
+    if confidence is None:
+        confidence = summary.get("confidence")
+
+    if status == "insufficient_data":
+        return {
+            "status": status,
+            "message": "Для прогноза нужно больше данных по продажам, рекламе и прибыли.",
+            "profit": None,
+            "profitDirection": None,
+            "riskLevel": "unknown",
+            "expectedImpact": safe_text((main_opportunity or {}).get("expectedImpact"), None),
+            "confidence": None,
+            "expectedRevenue": None,
+            "expectedOrders": None,
+            "expectedUnits": None,
+            "primaryRisk": safe_text((main_risk or {}).get("message"), None),
+            "recommendedAction": safe_text((main_opportunity or {}).get("action"), safe_text((main_risk or {}).get("action"), None)),
+        }
+
+    trend = safe_text(seven_days.get("trend"), "").lower()
+    if "рост" in trend:
+        direction = "up"
+    elif "сниж" in trend:
+        direction = "down"
+    else:
+        direction = "flat"
+
+    primary_risk = safe_text((inventory_forecast.get("mainRisk") or {}).get("title"), None) or safe_text((main_risk or {}).get("message"), None)
+    recommended_action = safe_text((main_opportunity or {}).get("action"), None) or safe_text((main_risk or {}).get("action"), None)
+    message = safe_text(summary.get("headline"), None) or safe_text(
+        summary.get("statusText"),
+        "Прогноз обновлен на основе текущей динамики бизнеса.",
+    )
+    if status == "degraded":
+        message = safe_text(summary.get("statusText"), message)
+    summary_parts = []
+    if expected_revenue is not None:
+        summary_parts.append(f"7 дней: выручка около {expected_revenue:.0f}")
+    if expected_profit is not None:
+        summary_parts.append(f"операционная прибыль около {expected_profit:.0f}")
+    if expected_orders is not None:
+        summary_parts.append(f"заказы около {expected_orders:.0f}")
+    if primary_risk:
+        summary_parts.append(f"риск: {primary_risk}")
+    if recommended_action:
+        summary_parts.append(f"действие: {recommended_action}")
+    if summary_parts:
+        message = f"{message} {'; '.join(summary_parts)}."
+
+    return {
+        "status": status,
+        "message": message,
+        "profit": expected_profit,
+        "profitDirection": direction,
+        "riskLevel": risk_level or ("medium" if direction == "flat" else ("low" if direction == "up" else "high")),
+        "expectedImpact": safe_text((main_opportunity or {}).get("expectedImpact"), None),
+        "confidence": confidence,
+        "expectedRevenue": expected_revenue,
+        "expectedOrders": expected_orders,
+        "expectedUnits": expected_units,
+        "primaryRisk": primary_risk,
+        "recommendedAction": recommended_action,
+    }
+
+
 def _cached_reports_snapshot() -> dict[str, Any]:
     return get_stale_cache_value("reports") or {}
 
@@ -216,6 +330,14 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
     inventory = get_inventory_payload(user_id)
     advisor = get_advisor_payload_fast(user_id)
     system = get_system_payload(user_id)
+    forecast_payload = build_forecast_payload(
+        user_id=user_id,
+        business=business,
+        finance=finance,
+        advertising=advertising,
+        inventory=inventory,
+        products=products,
+    )
     reports = _cached_reports_snapshot()
     start_date, end_date = current_month_days()
 
@@ -294,15 +416,8 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
             "mainRisk": None,
             "mainOpportunity": None,
             "todayActions": today_actions,
-            "forecast": {
-                "status": "insufficient_data",
+            "forecast": _forecast_payload_from_engine(forecast_payload, None, None),
                 "message": "Для прогноза нужно больше данных за период.",
-                "profit": None,
-                "profitDirection": None,
-                "riskLevel": "unknown",
-                "expectedImpact": None,
-                "confidence": None,
-            },
             "evidence": evidence,
             "sources": ["business", "finance", "advertising", "products", "inventory", "advisor", "reports", "system"],
             "period": {"date_from": start_date, "date_to": end_date},
@@ -587,6 +702,32 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
         else:
             risk_candidates.append(signal)
 
+    for index, item in enumerate(list(forecast_payload.get("risks") or [])[:3], start=1):
+        risk_candidates.append(
+            _forecast_signal_from_row(
+                item=dict(item or {}),
+                signal_id=safe_text(item.get("id"), f"forecast-risk-{index}"),
+                decision_type="WATCH",
+                severity="high" if index == 1 else "medium",
+                priority="high" if index == 1 else "medium",
+                expected_impact="high",
+                category="risk",
+            )
+        )
+
+    for index, item in enumerate(list(forecast_payload.get("opportunities") or [])[:3], start=1):
+        opportunity_candidates.append(
+            _forecast_signal_from_row(
+                item=dict(item or {}),
+                signal_id=safe_text(item.get("id"), f"forecast-opportunity-{index}"),
+                decision_type="SCALE" if index == 1 else "WATCH",
+                severity="low",
+                priority="high" if index == 1 else "medium",
+                expected_impact="high",
+                category="opportunity",
+            )
+        )
+
     if not opportunity_candidates and has_business_data:
         top_products = list(business.get("topProducts") or [])
         if top_products:
@@ -614,7 +755,7 @@ def get_decision_engine_payload(user_id: int = DEFAULT_USER_ID) -> dict[str, Any
 
     main_risk = risk_candidates[0] if risk_candidates else None
     main_opportunity = opportunity_candidates[0] if opportunity_candidates else None
-    forecast = _forecast_payload(business, finance, main_opportunity)
+    forecast = _forecast_payload_from_engine(forecast_payload, main_risk, main_opportunity)
     confidence_values = [item.get("confidence") for item in [main_risk, main_opportunity] if item and item.get("confidence") is not None]
     summary_confidence = int(round(sum(int(value) for value in confidence_values) / len(confidence_values))) if confidence_values else 65
 
