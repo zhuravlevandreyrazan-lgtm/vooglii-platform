@@ -4,6 +4,8 @@ import base64
 import hashlib
 import json
 import sqlite3
+import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -39,8 +41,34 @@ WORKSPACE_CACHE_KEYS = [
     "reports",
     "system",
 ]
-HEALTH_SECTIONS = ("seller", "statistics", "advertising", "finance")
-SYNC_TYPES = ("sales", "orders", "products", "cards", "stocks", "advertising", "finance", "all")
+HEALTH_SECTIONS = ("seller", "statistics", "advertising", "finance", "products", "prices", "returns", "warehouses")
+SYNC_TYPES = ("sales", "orders", "products", "cards", "prices", "stocks", "advertising", "finance", "returns", "warehouses", "all")
+SYNC_PIPELINE = {
+    "all": ["products", "cards", "prices", "stocks", "sales", "orders", "advertising", "finance", "returns", "warehouses", "analytics_refresh"],
+    "sales": ["sales"],
+    "orders": ["orders"],
+    "products": ["products"],
+    "cards": ["cards"],
+    "prices": ["prices"],
+    "stocks": ["stocks"],
+    "advertising": ["advertising"],
+    "finance": ["finance"],
+    "returns": ["returns"],
+    "warehouses": ["warehouses"],
+}
+DEFAULT_SYNC_SCHEDULES = [
+    {"sync_type": "sales", "interval_minutes": 10},
+    {"sync_type": "orders", "interval_minutes": 10},
+    {"sync_type": "advertising", "interval_minutes": 30},
+    {"sync_type": "stocks", "interval_minutes": 60},
+    {"sync_type": "finance", "interval_minutes": 360},
+    {"sync_type": "cards", "interval_minutes": 1440},
+]
+_JOB_LOCK = threading.Lock()
+_SCHEDULER_LOCK = threading.Lock()
+_ACTIVE_JOB_THREADS: dict[str, threading.Thread] = {}
+_ACTIVE_JOB_KEYS: set[tuple[str, str]] = set()
+_SERVICES_STARTED = False
 LEGACY_ORG_ALIASES = {
     "org_vooglii_demo": "org_vooglii_main",
     "org_test_seller": "org_vooglii_main",
@@ -107,6 +135,26 @@ def _parse_json(value: str | None, default: Any) -> Any:
 
 def _serialize_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
+
+
+def _safe_iso(value: datetime | str | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def invalidate_workspace_caches() -> None:
@@ -530,6 +578,8 @@ def create_cabinet(payload: dict[str, Any]) -> dict[str, Any]:
         if not active_cabinet:
             _set_workspace_state(cur, organization_id=normalized["organization_id"], cabinet_id=cabinet_id)
         conn.commit()
+    ensure_default_sync_schedules(cabinet_id)
+    start_wb_background_services()
     invalidate_workspace_caches()
     return get_cabinet(cabinet_id)
 
@@ -582,6 +632,8 @@ def update_cabinet(cabinet_id: str, payload: dict[str, Any]) -> dict[str, Any]:
                 (1 if connected else 0, "connected" if connected else "disconnected", now, cabinet_id),
             )
         conn.commit()
+    ensure_default_sync_schedules(cabinet_id)
+    start_wb_background_services()
     invalidate_workspace_caches()
     return get_cabinet(cabinet_id)
 
@@ -592,6 +644,7 @@ def delete_cabinet(cabinet_id: str) -> dict[str, Any]:
         cur = conn.cursor()
         cur.execute("DELETE FROM wb_api_health WHERE cabinet_id = ?", (cabinet_id,))
         cur.execute("DELETE FROM wb_sync_jobs WHERE cabinet_id = ?", (cabinet_id,))
+        cur.execute("DELETE FROM wb_sync_schedules WHERE cabinet_id = ?", (cabinet_id,))
         cur.execute("DELETE FROM wb_cabinets WHERE id = ?", (cabinet_id,))
         cur.execute("SELECT organization_id, cabinet_id FROM workspace_state WHERE state_key = 'active'")
         row = cur.fetchone()
@@ -605,6 +658,115 @@ def delete_cabinet(cabinet_id: str) -> dict[str, Any]:
     deleted["status"] = "deleted"
     deleted["connected"] = False
     return deleted
+
+
+def _schedule_status(enabled: bool) -> str:
+    return "healthy" if enabled else "paused"
+
+
+def _next_schedule_run(interval_minutes: int, *, from_dt: datetime | None = None) -> str:
+    base = from_dt or _utc_now()
+    return (base + timedelta(minutes=max(int(interval_minutes or 1), 1))).isoformat()
+
+
+def ensure_default_sync_schedules(cabinet_id: str) -> None:
+    now = _iso_now()
+    with _db_conn() as conn:
+        cur = conn.cursor()
+        for item in DEFAULT_SYNC_SCHEDULES:
+            schedule_id = f"wb_schedule_{cabinet_id}_{item['sync_type']}"
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO wb_sync_schedules(
+                    id, cabinet_id, sync_type, enabled, interval_minutes, status, last_run_at, next_run_at, created_at, updated_at
+                )
+                VALUES(?, ?, ?, 1, ?, 'healthy', NULL, ?, ?, ?)
+                """,
+                (
+                    schedule_id,
+                    cabinet_id,
+                    item["sync_type"],
+                    int(item["interval_minutes"]),
+                    _next_schedule_run(int(item["interval_minutes"])),
+                    now,
+                    now,
+                ),
+            )
+        conn.commit()
+
+
+def list_sync_schedules(cabinet_id: str | None = None) -> list[dict[str, Any]]:
+    with _db_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        query = "SELECT * FROM wb_sync_schedules"
+        params: list[Any] = []
+        if cabinet_id:
+            query += " WHERE cabinet_id = ?"
+            params.append(cabinet_id)
+        query += " ORDER BY sync_type ASC"
+        cur.execute(query, tuple(params))
+        rows = []
+        for row in cur.fetchall():
+            rows.append(
+                {
+                    "id": str(row["id"]),
+                    "cabinetId": str(row["cabinet_id"]),
+                    "type": str(row["sync_type"]),
+                    "enabled": bool(row["enabled"]),
+                    "intervalMinutes": int(row["interval_minutes"] or 0),
+                    "status": str(row["status"] or _schedule_status(bool(row["enabled"]))),
+                    "lastRunAt": row["last_run_at"],
+                    "nextRunAt": row["next_run_at"],
+                    "createdAt": row["created_at"],
+                    "updatedAt": row["updated_at"],
+                }
+            )
+        return rows
+
+
+def update_sync_schedule(schedule_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    with _db_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM wb_sync_schedules WHERE id = ?", (schedule_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise KeyError(schedule_id)
+        enabled = bool(payload.get("enabled")) if "enabled" in payload else bool(row["enabled"])
+        interval_minutes = int(payload.get("intervalMinutes") or row["interval_minutes"] or 60)
+        now = _utc_now()
+        next_run_at = _next_schedule_run(interval_minutes, from_dt=now) if enabled else None
+        cur.execute(
+            """
+            UPDATE wb_sync_schedules
+            SET enabled = ?, interval_minutes = ?, status = ?, next_run_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                1 if enabled else 0,
+                interval_minutes,
+                _schedule_status(enabled),
+                next_run_at,
+                now.isoformat(),
+                schedule_id,
+            ),
+        )
+        conn.commit()
+        cur.execute("SELECT * FROM wb_sync_schedules WHERE id = ?", (schedule_id,))
+        updated = cur.fetchone()
+    return {
+        "id": str(updated["id"]),
+        "cabinetId": str(updated["cabinet_id"]),
+        "type": str(updated["sync_type"]),
+        "enabled": bool(updated["enabled"]),
+        "intervalMinutes": int(updated["interval_minutes"] or 0),
+        "status": str(updated["status"] or _schedule_status(bool(updated["enabled"]))),
+        "lastRunAt": updated["last_run_at"],
+        "nextRunAt": updated["next_run_at"],
+        "createdAt": updated["created_at"],
+        "updatedAt": updated["updated_at"],
+    }
 
 
 def _load_cabinet_tokens(cabinet_id: str) -> dict[str, str | None]:
@@ -629,6 +791,86 @@ def _load_cabinet_tokens(cabinet_id: str) -> dict[str, str | None]:
             "advertising": _decrypt_token(row["advertising_token_encrypted"]),
             "finance": _decrypt_token(row["finance_token_encrypted"]),
         }
+
+
+def discover_cabinet(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = _cabinet_payload_to_row(
+        {
+            "name": payload.get("name") or "WB Cabinet",
+            "sellerId": payload.get("sellerId"),
+            "tokens": payload.get("tokens") or {},
+            "scopes": payload.get("scopes") or [],
+        },
+        existing={"tokens": {}, "scopes": payload.get("scopes") or []},
+    )
+    tokens = normalized["tokens"]
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    capabilities: list[dict[str, Any]] = []
+
+    def _capability(api_name: str, status: str, message: str, available: bool, details: dict[str, Any] | None = None) -> None:
+        capabilities.append(
+            {
+                "api": api_name,
+                "status": status,
+                "available": available,
+                "message": message,
+                "details": details or {},
+            }
+        )
+
+    statistics_token = tokens.get("statistics") or tokens.get("seller")
+    if statistics_token:
+        sales_probe = inspect_sales_api(statistics_token, str(yesterday), str(today), telegram_id=DEFAULT_USER_ID)
+        orders_probe = inspect_orders_api(statistics_token, str(yesterday), str(today), telegram_id=DEFAULT_USER_ID)
+        sales_ok = str((sales_probe or {}).get("status") or "").upper() not in {"ERROR", "FAILED"}
+        orders_ok = str((orders_probe or {}).get("status") or "").upper() not in {"ERROR", "FAILED"}
+        _capability("sales", "ok" if sales_ok else "error", "Проверка продаж завершена.", sales_ok, {"probe": sales_probe})
+        _capability("orders", "ok" if orders_ok else "error", "Проверка заказов завершена.", orders_ok, {"probe": orders_probe})
+    else:
+        _capability("sales", "missing_token", "Нужен statistics или seller token.", False)
+        _capability("orders", "missing_token", "Нужен statistics или seller token.", False)
+
+    seller_token = tokens.get("seller") or tokens.get("statistics")
+    if seller_token:
+        _capability("cards", "degraded", "Отдельный live endpoint карточек не найден; раздел будет собран после загрузки продаж и остатков.", False)
+        _capability("prices", "degraded", "Отдельный live endpoint цен не найден; цены будут читаться из sales/orders payload.", False)
+        _capability("stocks", "ready", "Seller/statistics token подходит для загрузки остатков.", True)
+        _capability("warehouses", "ready", "Склады будут определены по данным остатков.", True)
+    else:
+        _capability("cards", "missing_token", "Нужен seller token.", False)
+        _capability("prices", "missing_token", "Нужен seller token.", False)
+        _capability("stocks", "missing_token", "Нужен seller token.", False)
+        _capability("warehouses", "missing_token", "Нужен seller token.", False)
+
+    advertising_token = tokens.get("advertising")
+    if advertising_token:
+        advertising_probe = ads_probe(advertising_token, days=1, token_source="wb_cabinet_discovery")
+        advertising_ok = str((advertising_probe or {}).get("status") or "").upper() not in {"ERROR", "FAILED"}
+        _capability("advertising", "ok" if advertising_ok else "error", "Проверка рекламы завершена.", advertising_ok, {"probe": advertising_probe})
+    else:
+        _capability("advertising", "missing_token", "Добавьте advertising token для live-рекламы.", False)
+
+    finance_token = tokens.get("finance")
+    if finance_token:
+        finance_probe = fetch_wb_finance_reports_list(str(yesterday), str(today), token=finance_token)
+        finance_ok = str((finance_probe or {}).get("status") or "").upper() not in {"ERROR", "FAILED"}
+        _capability("finance", "ok" if finance_ok else "error", "Проверка финансов завершена.", finance_ok, {"probe": finance_probe})
+        _capability("returns", "ready", "Возвраты будут рассчитаны из live sales rows.", True)
+    else:
+        _capability("finance", "missing_token", "Добавьте finance token для live-финансов.", False)
+        _capability("returns", "degraded", "Возвраты будут доступны после загрузки продаж.", False)
+
+    available_apis = [item["api"] for item in capabilities if item["available"]]
+    return {
+        "cabinetName": normalized["name"],
+        "sellerId": normalized["seller_id"],
+        "sellerName": None,
+        "organizationName": None,
+        "availableApis": available_apis,
+        "capabilities": capabilities,
+        "canConnect": any(item["api"] in {"sales", "orders", "stocks"} and item["available"] for item in capabilities),
+    }
 
 
 def _set_health(cabinet_id: str, section: str, status: str, *, message: str | None = None, error: str | None = None) -> None:
@@ -872,16 +1114,93 @@ def test_cabinet(cabinet_id: str) -> dict[str, Any]:
     }
 
 
-def _insert_sync_job(cur: sqlite3.Cursor, cabinet_id: str, sync_type: str) -> str:
+def _build_stage_map(stages: list[str]) -> list[dict[str, Any]]:
+    return [{"name": stage, "status": "pending", "recordsLoaded": 0, "message": None} for stage in stages]
+
+
+def _insert_sync_job(cur: sqlite3.Cursor, cabinet_id: str, sync_type: str, *, runtime_source: str = "live") -> str:
     job_id = f"sync_{uuid4().hex[:12]}"
+    stages = SYNC_PIPELINE.get(sync_type, [sync_type])
     cur.execute(
         """
         INSERT INTO wb_sync_jobs(id, cabinet_id, type, status, started_at, runtime_source, meta_json)
-        VALUES(?, ?, ?, 'running', ?, 'live', ?)
+        VALUES(?, ?, ?, 'queued', ?, ?, ?)
         """,
-        (job_id, cabinet_id, sync_type, _iso_now(), _serialize_json({})),
+        (
+            job_id,
+            cabinet_id,
+            sync_type,
+            _iso_now(),
+            runtime_source,
+            _serialize_json(
+                {
+                    "progress": 0,
+                    "currentStage": stages[0] if stages else None,
+                    "stages": _build_stage_map(stages),
+                    "results": {},
+                    "failedSections": [],
+                }
+            ),
+        ),
     )
     return job_id
+
+
+def _job_row(job_id: str) -> dict[str, Any]:
+    with _db_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM wb_sync_jobs WHERE id = ?", (job_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise KeyError(job_id)
+        return {
+            "id": str(row["id"]),
+            "cabinetId": str(row["cabinet_id"]),
+            "type": str(row["type"]),
+            "status": str(row["status"]),
+            "startedAt": row["started_at"],
+            "finishedAt": row["finished_at"],
+            "durationMs": row["duration_ms"],
+            "recordsLoaded": int(row["records_loaded"] or 0),
+            "errorMessage": row["error_message"],
+            "runtimeSource": row["runtime_source"],
+            "meta": _parse_json(row["meta_json"], {}),
+        }
+
+
+def _update_sync_job_progress(
+    job_id: str,
+    *,
+    status: str,
+    current_stage: str | None,
+    stage_statuses: list[dict[str, Any]],
+    results: dict[str, Any],
+    failed_sections: list[str],
+    records_loaded: int,
+    error_message: str | None = None,
+) -> None:
+    completed_stages = sum(1 for item in stage_statuses if item.get("status") in {"success", "partial", "degraded", "failed", "skipped"})
+    total_stages = max(len(stage_statuses), 1)
+    progress = int(round(completed_stages / total_stages * 100))
+    meta = {
+        "progress": progress,
+        "currentStage": current_stage,
+        "stages": stage_statuses,
+        "results": results,
+        "failedSections": failed_sections,
+    }
+    with _db_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE wb_sync_jobs
+            SET status = ?, records_loaded = ?, error_message = ?, meta_json = ?
+            WHERE id = ?
+            """,
+            (status, records_loaded, error_message, _serialize_json(meta), job_id),
+        )
+        conn.commit()
 
 
 def _finish_sync_job(
@@ -1059,3 +1378,391 @@ def sync_cabinet(
         "cabinet": get_cabinet(cabinet_id),
         "results": results,
     }
+
+
+def _wb_stage_result_payload(status: str, message: str, *, records_loaded: int = 0, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "status": status,
+        "message": message,
+        "records_loaded": records_loaded,
+        "details": details or {},
+    }
+
+
+def _wb_run_sync_stage(
+    stage: str,
+    *,
+    owner_id: int,
+    tokens: dict[str, str | None],
+    start: date,
+    end: date,
+) -> dict[str, Any]:
+    statistics_token = tokens.get("statistics") or tokens.get("seller")
+    seller_token = tokens.get("seller") or tokens.get("statistics")
+    advertising_token = tokens.get("advertising")
+    finance_token = tokens.get("finance")
+
+    if stage in {"sales", "orders"}:
+        if not statistics_token:
+            return _wb_stage_result_payload("missing_token", "Нужен statistics token.")
+        result = backfill_sales_orders_range(owner_id, statistics_token, str(start), str(end))
+        return {
+            "status": str((result or {}).get("status") or "success").lower(),
+            "message": "Продажи и заказы загружены.",
+            "records_loaded": _derive_records_loaded(result),
+            "details": result,
+        }
+
+    if stage == "stocks":
+        if not seller_token:
+            return _wb_stage_result_payload("missing_token", "Нужен seller token.")
+        loaded, status = load_stocks(owner_id, seller_token)
+        return _wb_stage_result_payload(
+            str(status).lower(),
+            "Остатки загружены." if str(status).upper() == "SUCCESS" else "Остатки не загружены.",
+            records_loaded=int(loaded),
+            details={"result": [loaded, status]},
+        )
+
+    if stage == "advertising":
+        if not advertising_token:
+            return _wb_stage_result_payload("missing_token", "Нужен advertising token.")
+        result = backfill_advertising_period(owner_id, advertising_token, str(start), str(end), token_source="wb_cabinet")
+        return {
+            "status": str((result or {}).get("status") or "success").lower(),
+            "message": "Реклама загружена.",
+            "records_loaded": _derive_records_loaded(result),
+            "details": result,
+        }
+
+    if stage == "finance":
+        if not finance_token:
+            return _wb_stage_result_payload("missing_token", "Нужен finance token.")
+        days = max((end - start).days + 1, 1)
+        loaded, status = load_finance_expenses(owner_id, finance_token, days=days)
+        return _wb_stage_result_payload(
+            str(status).lower(),
+            "Финансы загружены." if str(status).upper() == "SUCCESS" else "Финансы не загружены.",
+            records_loaded=int(loaded),
+            details={"result": [loaded, status]},
+        )
+
+    if stage == "products":
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO products(telegram_id, supplier_article, cost_price, last_price)
+                SELECT telegram_id, supplier_article, 0, MAX(COALESCE(total_price, 0))
+                FROM sales
+                WHERE telegram_id = ? AND substr(sale_date,1,10) BETWEEN ? AND ? AND LENGTH(TRIM(COALESCE(supplier_article,''))) > 0
+                GROUP BY telegram_id, supplier_article
+                """,
+                (owner_id, str(start), str(end)),
+            )
+            inserted = int(cur.rowcount or 0)
+            conn.commit()
+        return _wb_stage_result_payload("derived", "SKU реестр построен из live sales rows.", records_loaded=inserted)
+
+    if stage == "cards":
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT supplier_article)
+                FROM sales
+                WHERE telegram_id = ? AND substr(sale_date,1,10) BETWEEN ? AND ?
+                """,
+                (owner_id, str(start), str(end)),
+            )
+            cards_count = int((cur.fetchone() or [0])[0] or 0)
+        return _wb_stage_result_payload("derived", "Карточки определены по live sales rows.", records_loaded=cards_count)
+
+    if stage == "prices":
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE products
+                SET last_price = COALESCE((
+                    SELECT MAX(COALESCE(s.total_price, 0))
+                    FROM sales s
+                    WHERE s.telegram_id = products.telegram_id AND s.supplier_article = products.supplier_article
+                ), last_price)
+                WHERE telegram_id = ?
+                """,
+                (owner_id,),
+            )
+            updated = int(cur.rowcount or 0)
+            conn.commit()
+        return _wb_stage_result_payload("derived", "Цены обновлены по live sales rows.", records_loaded=updated)
+
+    if stage == "returns":
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM sales
+                WHERE telegram_id = ? AND COALESCE(is_return, 0) = 1 AND substr(sale_date,1,10) BETWEEN ? AND ?
+                """,
+                (owner_id, str(start), str(end)),
+            )
+            returns_count = int((cur.fetchone() or [0])[0] or 0)
+        return _wb_stage_result_payload("derived", "Возвраты рассчитаны по live sales rows.", records_loaded=returns_count)
+
+    if stage == "warehouses":
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(DISTINCT COALESCE(warehouse_name, '')) FROM stocks WHERE telegram_id = ?", (owner_id,))
+            warehouse_count = int((cur.fetchone() or [0])[0] or 0)
+        return _wb_stage_result_payload("derived", "Склады определены по live stocks rows.", records_loaded=warehouse_count)
+
+    if stage == "analytics_refresh":
+        invalidate_workspace_caches()
+        return _wb_stage_result_payload("success", "Кэши аналитики обновлены.")
+
+    return _wb_stage_result_payload("skipped", f"Stage {stage} is not implemented.")
+
+
+def _wb_final_job_status(failed_sections: list[str], stage_statuses: list[dict[str, Any]]) -> str:
+    completed = [item for item in stage_statuses if item.get("status") in {"success", "partial", "degraded"}]
+    if failed_sections and completed:
+        return "partial"
+    if failed_sections and not completed:
+        return "failed"
+    return "success"
+
+
+def _wb_execute_sync_job(
+    job_id: str,
+    cabinet_id: str,
+    *,
+    sync_type: str,
+    date_from: str | None,
+    date_to: str | None,
+    runtime_source: str = "live",
+) -> None:
+    del runtime_source
+    cabinet = get_cabinet(cabinet_id)
+    tokens = _load_cabinet_tokens(cabinet_id)
+    start = date.fromisoformat(date_from) if date_from else (date.today() - timedelta(days=30))
+    end = date.fromisoformat(date_to) if date_to else date.today()
+    owner_id = int(cabinet["dataOwnerId"])
+    stages = SYNC_PIPELINE.get(sync_type, [sync_type])
+    stage_statuses = _build_stage_map(stages)
+    started_at = _utc_now()
+    results: dict[str, Any] = {}
+    failed_sections: list[str] = []
+    records_loaded = 0
+
+    _update_sync_job_progress(job_id, status="running", current_stage=stages[0] if stages else None, stage_statuses=stage_statuses, results=results, failed_sections=failed_sections, records_loaded=records_loaded)
+
+    try:
+        for index, stage in enumerate(stages):
+            stage_statuses[index]["status"] = "running"
+            _update_sync_job_progress(job_id, status="running", current_stage=stage, stage_statuses=stage_statuses, results=results, failed_sections=failed_sections, records_loaded=records_loaded)
+            try:
+                result = _wb_run_sync_stage(stage, owner_id=owner_id, tokens=tokens, start=start, end=end)
+                stage_status = str(result.get("status") or "success").lower()
+                if stage_status in {"error", "failed", "missing_token"}:
+                    failed_sections.append(stage)
+                    stage_statuses[index]["status"] = "failed" if stage_status != "missing_token" else "skipped"
+                    _set_health(cabinet_id, stage if stage in HEALTH_SECTIONS else "seller", stage_status, message=str(result.get("message") or "Stage failed"))
+                elif stage_status == "derived":
+                    stage_statuses[index]["status"] = "degraded"
+                    _set_health(cabinet_id, stage if stage in HEALTH_SECTIONS else "seller", "partial", message=str(result.get("message") or "Derived from live data"))
+                else:
+                    stage_statuses[index]["status"] = "success"
+                    _set_health(cabinet_id, stage if stage in HEALTH_SECTIONS else "seller", "ok", message=str(result.get("message") or "Stage completed"))
+                stage_statuses[index]["recordsLoaded"] = int(result.get("records_loaded") or 0)
+                stage_statuses[index]["message"] = result.get("message")
+                results[stage] = result
+                records_loaded += int(result.get("records_loaded") or 0)
+            except Exception as exc:
+                failed_sections.append(stage)
+                stage_statuses[index]["status"] = "failed"
+                stage_statuses[index]["message"] = str(exc)
+                results[stage] = {"status": "error", "message": str(exc)}
+                _set_health(cabinet_id, stage if stage in HEALTH_SECTIONS else "seller", "error", message="Stage failed.", error=str(exc))
+            _update_sync_job_progress(job_id, status="running", current_stage=stages[index + 1] if index + 1 < len(stages) else None, stage_statuses=stage_statuses, results=results, failed_sections=failed_sections, records_loaded=records_loaded)
+
+        final_status = _wb_final_job_status(failed_sections, stage_statuses)
+        with _db_conn() as conn:
+            cur = conn.cursor()
+            _finish_sync_job(
+                cur,
+                job_id,
+                status=final_status,
+                records_loaded=records_loaded,
+                meta={
+                    "progress": 100,
+                    "currentStage": None,
+                    "stages": stage_statuses,
+                    "results": results,
+                    "failedSections": failed_sections,
+                    "dateFrom": start.isoformat(),
+                    "dateTo": end.isoformat(),
+                },
+                error_message=", ".join(failed_sections) if failed_sections else None,
+                started_at=started_at,
+            )
+            cur.execute(
+                """
+                UPDATE wb_cabinets
+                SET connected = ?, status = ?, data_quality = ?, last_sync_status = ?, sync_message = ?,
+                    last_sync_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    1 if final_status in {"success", "partial"} else 0,
+                    "connected" if final_status in {"success", "partial"} else "error",
+                    "high" if final_status == "success" else "medium" if final_status == "partial" else "pending",
+                    final_status,
+                    "Первая синхронизация завершена." if final_status == "success" else "Синхронизация завершена частично." if final_status == "partial" else "Синхронизация завершилась ошибкой.",
+                    _iso_now() if final_status in {"success", "partial"} else None,
+                    _iso_now(),
+                    cabinet_id,
+                ),
+            )
+            conn.commit()
+        invalidate_workspace_caches()
+    finally:
+        with _JOB_LOCK:
+            _ACTIVE_JOB_THREADS.pop(job_id, None)
+            _ACTIVE_JOB_KEYS.discard((cabinet_id, sync_type))
+
+
+def _wb_spawn_sync_thread(job_id: str, cabinet_id: str, *, sync_type: str, date_from: str | None, date_to: str | None, runtime_source: str) -> None:
+    worker = threading.Thread(
+        target=_wb_execute_sync_job,
+        name=f"wb-sync-{job_id}",
+        args=(job_id, cabinet_id),
+        kwargs={"sync_type": sync_type, "date_from": date_from, "date_to": date_to, "runtime_source": runtime_source},
+        daemon=True,
+    )
+    with _JOB_LOCK:
+        _ACTIVE_JOB_THREADS[job_id] = worker
+        _ACTIVE_JOB_KEYS.add((cabinet_id, sync_type))
+    worker.start()
+
+
+def sync_cabinet(
+    cabinet_id: str,
+    *,
+    sync_type: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    async_job: bool = True,
+    runtime_source: str = "live",
+) -> dict[str, Any]:
+    normalized_type = str(sync_type or "all").strip().lower()
+    if normalized_type not in SYNC_TYPES:
+        raise ValueError(f"Unsupported sync type: {sync_type}")
+    cabinet = get_cabinet(cabinet_id)
+    if cabinet["id"] == "wb_cabinet_unconfigured":
+        raise ValueError("No WB cabinet configured.")
+    start = date.fromisoformat(date_from) if date_from else (date.today() - timedelta(days=30))
+    end = date.fromisoformat(date_to) if date_to else date.today()
+    if end < start:
+        raise ValueError("date_to must be greater than or equal to date_from.")
+    with _JOB_LOCK:
+        if (cabinet_id, normalized_type) in _ACTIVE_JOB_KEYS:
+            latest = get_sync_status(cabinet_id).get("latestJob")
+            return {"job": latest, "cabinet": get_cabinet(cabinet_id), "results": dict((latest or {}).get("meta", {}))}
+    with _db_conn() as conn:
+        cur = conn.cursor()
+        job_id = _insert_sync_job(cur, cabinet_id, normalized_type, runtime_source=runtime_source)
+        conn.commit()
+    if async_job:
+        _wb_spawn_sync_thread(job_id, cabinet_id, sync_type=normalized_type, date_from=start.isoformat(), date_to=end.isoformat(), runtime_source=runtime_source)
+    else:
+        _wb_execute_sync_job(job_id, cabinet_id, sync_type=normalized_type, date_from=start.isoformat(), date_to=end.isoformat(), runtime_source=runtime_source)
+    latest = get_sync_status(cabinet_id).get("latestJob")
+    return {
+        "job": latest,
+        "cabinet": get_cabinet(cabinet_id),
+        "results": dict((latest or {}).get("meta", {})),
+    }
+
+
+def connect_cabinet(cabinet_id: str) -> dict[str, Any]:
+    test_payload = test_cabinet(cabinet_id)
+    cabinet = dict(test_payload.get("cabinet") or {})
+    if not cabinet.get("connected"):
+        return {"cabinet": cabinet, "checks": test_payload.get("checks") or [], "job": None}
+    sync_payload = sync_cabinet(cabinet_id, sync_type="all", async_job=True, runtime_source="wizard_connect")
+    return {
+        "cabinet": sync_payload.get("cabinet") or cabinet,
+        "checks": test_payload.get("checks") or [],
+        "job": sync_payload.get("job"),
+        "results": sync_payload.get("results") or {},
+    }
+
+
+def _refresh_schedule_after_run(schedule_id: str, interval_minutes: int, status: str) -> None:
+    with _db_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE wb_sync_schedules
+            SET last_run_at = ?, next_run_at = ?, status = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (_iso_now(), _next_schedule_run(interval_minutes), status, _iso_now(), schedule_id),
+        )
+        conn.commit()
+
+
+def _monitor_api_health() -> None:
+    cabinets = list_cabinets()
+    now = _utc_now()
+    for cabinet in cabinets:
+        cabinet_id = str(cabinet["id"])
+        health_rows = list_api_health(cabinet_id)
+        if not health_rows:
+            continue
+        last_successes = [
+            _parse_iso_datetime(item.get("lastSuccessAt"))
+            for item in health_rows
+            if item.get("lastSuccessAt")
+        ]
+        freshest = max((item for item in last_successes if item is not None), default=None)
+        if freshest and (now - freshest) > timedelta(hours=12):
+            _set_health(cabinet_id, "seller", "partial", message="Последний успешный запрос устарел. Рекомендуется повторная синхронизация.")
+
+
+def _scheduler_loop() -> None:
+    while True:
+        try:
+            _monitor_api_health()
+            schedules = list_sync_schedules()
+            now = _utc_now()
+            for schedule in schedules:
+                if not schedule.get("enabled"):
+                    continue
+                next_run = _parse_iso_datetime(schedule.get("nextRunAt"))
+                if next_run is not None and next_run > now:
+                    continue
+                cabinet_id = str(schedule.get("cabinetId") or "")
+                sync_type = str(schedule.get("type") or "all")
+                with _JOB_LOCK:
+                    if (cabinet_id, sync_type) in _ACTIVE_JOB_KEYS:
+                        continue
+                payload = sync_cabinet(cabinet_id, sync_type=sync_type, async_job=True, runtime_source="scheduler")
+                latest_job = payload.get("job") or {}
+                schedule_status = "watch" if str(latest_job.get("status") or "").lower() in {"failed", "partial"} else "healthy"
+                _refresh_schedule_after_run(str(schedule.get("id")), int(schedule.get("intervalMinutes") or 60), schedule_status)
+        except Exception as exc:
+            LOGGER.exception("WB scheduler loop failed: %s", exc)
+        time.sleep(30)
+
+
+def start_wb_background_services() -> None:
+    global _SERVICES_STARTED
+    with _SCHEDULER_LOCK:
+        if _SERVICES_STARTED:
+            return
+        worker = threading.Thread(target=_scheduler_loop, name="wb-sync-scheduler", daemon=True)
+        worker.start()
+        _SERVICES_STARTED = True

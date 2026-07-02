@@ -187,6 +187,14 @@ class WbCabinetUpsertRequest(ApiBaseModel):
     tokens: dict[str, str | None] | None = None
 
 
+class WbCabinetDiscoveryRequest(ApiBaseModel):
+    organizationId: str | None = None
+    name: str
+    sellerId: str | None = None
+    scopes: list[str] | None = None
+    tokens: dict[str, str | None] | None = None
+
+
 class WbCabinetSyncRequest(ApiBaseModel):
     type: str = "all"
     dateFrom: str | None = None
@@ -242,6 +250,26 @@ class WbCabinetSyncResponse(ApiBaseModel):
     cabinet: WbCabinetProfile
     job: WbSyncJobRecord | None = None
     results: dict[str, Any]
+    runtime: RuntimeMetadata | None = None
+
+
+class WbCabinetDiscoveryResponse(ApiBaseModel):
+    cabinetName: str
+    sellerId: str | None = None
+    sellerName: str | None = None
+    organizationName: str | None = None
+    availableApis: list[dict[str, Any]] = []
+    capabilities: dict[str, Any] = {}
+    canConnect: bool = False
+    runtime: RuntimeMetadata | None = None
+
+
+class WbCabinetConnectResponse(ApiBaseModel):
+    cabinet: WbCabinetProfile
+    status: str
+    checks: list[dict[str, Any]] = []
+    job: WbSyncJobRecord | None = None
+    results: dict[str, Any] = {}
     runtime: RuntimeMetadata | None = None
 
 
@@ -317,6 +345,7 @@ class ScheduleUpdateRequest(ApiBaseModel):
     cadence: str | None = None
     format: str | None = None
     status: str | None = None
+    intervalMinutes: int | None = None
 
 
 class ScheduleRecordResponse(ApiBaseModel):

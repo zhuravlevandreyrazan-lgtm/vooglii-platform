@@ -3,8 +3,10 @@ export { AuthStatus } from "@/features/auth/auth-status";
 export { useAuthSession } from "@/features/auth/hooks/use-auth-session";
 export {
   connectWbCabinet,
+  connectWbCabinetById,
   createWbCabinet,
   deleteWbCabinet,
+  discoverWbCabinet,
   fetchWbCabinetApiHealth,
   disconnectWbCabinet,
   fetchWbCabinetProfile,

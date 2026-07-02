@@ -288,8 +288,32 @@ def init_db():
         'required_action':'TEXT'
         }.items(): _add(cur,'wb_api_health',c,s)
 
+        cur.execute('''CREATE TABLE IF NOT EXISTS wb_sync_schedules(
+        id TEXT PRIMARY KEY,
+        cabinet_id TEXT NOT NULL,
+        sync_type TEXT NOT NULL,
+        enabled INTEGER DEFAULT 1,
+        interval_minutes INTEGER DEFAULT 60,
+        status TEXT DEFAULT 'healthy',
+        last_run_at TEXT,
+        next_run_at TEXT,
+        created_at TEXT,
+        updated_at TEXT
+        )''')
+        for c,s in {
+        'enabled':'INTEGER DEFAULT 1',
+        'interval_minutes':'INTEGER DEFAULT 60',
+        'status':"TEXT DEFAULT 'healthy'",
+        'last_run_at':'TEXT',
+        'next_run_at':'TEXT',
+        'created_at':'TEXT',
+        'updated_at':'TEXT'
+        }.items(): _add(cur,'wb_sync_schedules',c,s)
+
         for name, table, cols in [('idx_sales_user_date','sales','telegram_id,sale_date'),('idx_orders_user_date','orders','telegram_id,order_date'),('idx_exp_user_date','expenses','telegram_id,expense_date'),('idx_ads_user_date','advertising','telegram_id,advert_date'),('idx_stocks_user','stocks','telegram_id,supplier_article'),('idx_finance_raw_user_rrd','finance_raw_audit','telegram_id,rrd_id'),('idx_finance_raw_user_date','finance_raw_audit','telegram_id,report_date')]:
             cur.execute(f'CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_jobs_cabinet_started ON wb_sync_jobs (cabinet_id, started_at)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_schedules_cabinet_next_run ON wb_sync_schedules (cabinet_id, next_run_at)')
         cur.execute("INSERT OR IGNORE INTO organizations(id,name,plan,status,created_at,updated_at) VALUES('org_vooglii_main','VOOGLII Workspace','starter','active',datetime('now'),datetime('now'))")
         cur.execute("INSERT OR IGNORE INTO workspace_state(state_key,organization_id,cabinet_id,last_changed) VALUES('active','org_vooglii_main',NULL,datetime('now'))")
         conn.commit()

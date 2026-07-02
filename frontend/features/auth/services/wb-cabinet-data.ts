@@ -19,6 +19,21 @@ export type WbSyncPayload = {
   dateTo?: string | null;
 };
 
+export type WbCabinetDiscovery = {
+  cabinetName: string;
+  sellerId?: string | null;
+  sellerName?: string | null;
+  organizationName?: string | null;
+  availableApis: Array<{
+    name?: string;
+    status?: string;
+    reason?: string | null;
+    details?: Record<string, unknown>;
+  }>;
+  capabilities: Record<string, unknown>;
+  canConnect: boolean;
+};
+
 export type WbApiHealthItem = {
   section: string;
   status: string;
@@ -119,6 +134,13 @@ export async function createWbCabinet(input: WbCabinetFormPayload) {
   return normalizeCabinet(payload);
 }
 
+export async function discoverWbCabinet(input: WbCabinetFormPayload) {
+  return requestJson<WbCabinetDiscovery>(apiEndpoints.wbDiscover, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export async function updateWbCabinet(cabinetId: string, input: Partial<WbCabinetFormPayload>) {
   const payload = await requestJson<unknown>(cabinetUrl(cabinetId), {
     method: "PATCH",
@@ -173,6 +195,18 @@ export async function connectWbCabinet() {
     method: "POST"
   });
   return normalizeCabinet(payload);
+}
+
+export async function connectWbCabinetById(cabinetId: string) {
+  return requestJson<{
+    cabinet: WbCabinetProfile;
+    status: string;
+    checks: Array<{ section: string; status: string; message: string; details?: Record<string, unknown> }>;
+    job?: WbSyncJob | null;
+    results?: Record<string, unknown>;
+  }>(`${cabinetUrl(cabinetId)}/connect`, {
+    method: "POST"
+  });
 }
 
 export async function disconnectWbCabinet() {

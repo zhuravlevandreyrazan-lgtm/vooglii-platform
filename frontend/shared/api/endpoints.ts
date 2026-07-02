@@ -31,6 +31,7 @@ export const apiEndpoints = {
   wbCabinetConnect: "/api/wb-cabinet/connect",
   wbCabinetDisconnect: "/api/wb-cabinet/disconnect",
   wbConnectionSummary: "/api/wb/connection-summary",
+  wbDiscover: "/api/wb/discover",
   wbCabinetsManage: "/api/wb/cabinets",
   workspaceContext: "/api/workspace/context",
   reports: "/api/reports",

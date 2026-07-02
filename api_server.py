@@ -72,7 +72,10 @@ from analytics.api_models import (
     UserStatusUpdateRequest,
     VersionResponse,
     WbCabinetProfile,
+    WbCabinetDiscoveryRequest,
+    WbCabinetDiscoveryResponse,
     WbCabinetResponse,
+    WbCabinetConnectResponse,
     WbCabinetSyncRequest,
     WbCabinetSyncResponse,
     WbCabinetTestResponse,
@@ -143,16 +146,22 @@ from analytics.multi_tenant import (
     set_active_cabinet_connection,
 )
 from analytics.wb_cabinet_manager import (
+    connect_cabinet,
     create_cabinet,
     delete_cabinet,
+    discover_cabinet,
     get_cabinet,
     get_connection_summary,
     get_organization,
     get_sync_status,
+    list_sync_jobs,
+    list_sync_schedules,
     list_api_health,
+    start_wb_background_services,
     sync_cabinet,
     test_cabinet,
     update_cabinet,
+    update_sync_schedule,
 )
 from config import DB_NAME
 from db_manager import init_db
@@ -494,6 +503,7 @@ DEV_NOTIFICATION_HISTORY: list[dict[str, Any]] = [
 @app.on_event("startup")
 async def on_startup() -> None:
     init_db()
+    start_wb_background_services()
     app.state.startup_validation = STARTUP_VALIDATION
     app.state.environment = get_build_environment()
     app.state.database_path = DB_NAME
@@ -615,6 +625,66 @@ def _find_by_id(rows: list[dict[str, Any]], item_id: str) -> dict[str, Any]:
         if str(row.get("id")) == item_id:
             return row
     raise KeyError(item_id)
+
+
+def _wb_sync_workspace(sync_type: str) -> str:
+    normalized = str(sync_type or "all").lower()
+    if normalized in {"sales", "orders", "all", "analytics_refresh"}:
+        return "business"
+    if normalized == "advertising":
+        return "advertising"
+    if normalized == "finance":
+        return "finance"
+    if normalized in {"stocks", "warehouses"}:
+        return "inventory"
+    return "products"
+
+
+def _format_job_duration(duration_ms: Any) -> str | None:
+    if not isinstance(duration_ms, int) or duration_ms < 0:
+        return None
+    if duration_ms < 1000:
+        return f"{duration_ms} ms"
+    seconds = round(duration_ms / 1000)
+    return f"{seconds}s"
+
+
+def _map_wb_schedule(row: dict[str, Any]) -> dict[str, Any]:
+    interval_minutes = int(row.get("intervalMinutes") or 60)
+    sync_type = str(row.get("type") or "all")
+    return ScheduleRecord(
+        id=str(row.get("id")),
+        name=f"WB {sync_type.title()} Sync",
+        workspace=_wb_sync_workspace(sync_type),
+        enabled=bool(row.get("enabled")),
+        time=f"Every {interval_minutes} min",
+        timezone="Europe/Moscow",
+        cadence="interval",
+        format="JSON",
+        status=str(row.get("status") or "paused"),
+        lastRunAt=row.get("lastRunAt"),
+        nextRunAt=row.get("nextRunAt"),
+        owner="WB Sync Engine",
+    ).model_dump()
+
+
+def _map_wb_job(row: dict[str, Any]) -> dict[str, Any]:
+    meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
+    progress = meta.get("progress")
+    sync_type = str(row.get("type") or "all")
+    return JobRecord(
+        id=str(row.get("id")),
+        type=f"sync:{sync_type}",
+        workspace=_wb_sync_workspace(sync_type),
+        status=str(row.get("status") or "queued"),
+        progress=int(progress) if isinstance(progress, int) else 0,
+        duration=_format_job_duration(row.get("durationMs")),
+        startedAt=row.get("startedAt"),
+        finishedAt=row.get("finishedAt"),
+        source=str(row.get("runtimeSource") or "live"),
+        owner="WB Sync Engine",
+        message=str(meta.get("currentStage") or row.get("errorMessage") or ""),
+    ).model_dump()
 
 
 def _build_notification_status() -> dict[str, Any]:
@@ -899,6 +969,18 @@ def api_wb_cabinets_v2(actor: dict[str, Any] = Depends(require_permission("setti
     }
 
 
+@app.post("/api/wb/discover", response_model=WbCabinetDiscoveryResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_discover_cabinet(
+    request: WbCabinetDiscoveryRequest,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = discover_cabinet(request.model_dump(exclude_none=True))
+    payload["runtime"] = _auth_runtime(source="live", started_at=started_at)
+    return payload
+
+
 @app.post("/api/wb/cabinets", response_model=WbCabinetResponse, responses={500: {"model": ApiErrorResponse}})
 def api_wb_create_cabinet(
     request: WbCabinetUpsertRequest,
@@ -909,6 +991,26 @@ def api_wb_create_cabinet(
     cabinet = create_cabinet(request.model_dump(exclude_none=True))
     return {
         "cabinet": WbCabinetProfile(**cabinet).model_dump(),
+        "runtime": _auth_runtime(source="live", started_at=started_at),
+    }
+
+
+@app.post("/api/wb/cabinets/{cabinet_id}/connect", response_model=WbCabinetConnectResponse, responses={500: {"model": ApiErrorResponse}})
+def api_wb_connect_cabinet(
+    cabinet_id: str,
+    actor: dict[str, Any] = Depends(require_permission("settings:manage")),
+) -> dict[str, Any]:
+    del actor
+    started_at = now_monotonic_ms()
+    payload = connect_cabinet(cabinet_id)
+    job = payload.get("job")
+    status = str((job or {}).get("status") or ("connected" if (payload.get("cabinet") or {}).get("connected") else "blocked"))
+    return {
+        "cabinet": WbCabinetProfile(**payload["cabinet"]).model_dump(),
+        "status": status,
+        "checks": list(payload.get("checks") or []),
+        "job": job,
+        "results": dict(payload.get("results") or {}),
         "runtime": _auth_runtime(source="live", started_at=started_at),
     }
 
@@ -1114,6 +1216,13 @@ def api_export_detail(
 def api_schedules(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        schedules = [_map_wb_schedule(item) for item in list_sync_schedules(str(active_cabinet["id"]))]
+        return {
+            "schedules": schedules,
+            "runtime": _automation_runtime(started_at=started_at, source="live"),
+        }
     return {
         "schedules": scoped_records(DEV_SCHEDULES),
         "runtime": _automation_runtime(started_at=started_at),
@@ -1156,6 +1265,17 @@ def api_update_schedule(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        update_payload = request.model_dump(exclude_none=True)
+        try:
+            schedule = _map_wb_schedule(update_sync_schedule(schedule_id, update_payload))
+            return {
+                "schedule": schedule,
+                "runtime": _automation_runtime(started_at=started_at, source="live"),
+            }
+        except KeyError:
+            pass
     schedule = _find_by_id(DEV_SCHEDULES, schedule_id)
     updates = request.model_dump(exclude_none=True)
     schedule.update(updates)
@@ -1174,6 +1294,16 @@ def api_delete_schedule(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        try:
+            schedule = _map_wb_schedule(update_sync_schedule(schedule_id, {"enabled": False, "status": "paused"}))
+            return {
+                "schedule": schedule,
+                "runtime": _automation_runtime(started_at=started_at, source="live"),
+            }
+        except KeyError:
+            pass
     schedule = _find_by_id(DEV_SCHEDULES, schedule_id)
     DEV_SCHEDULES.remove(schedule)
     schedule["status"] = "deleted"
@@ -1188,6 +1318,13 @@ def api_delete_schedule(
 def api_jobs(actor: dict[str, Any] = Depends(require_permission("dashboard:view"))) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        jobs = [_map_wb_job(item) for item in list_sync_jobs(str(active_cabinet["id"]))]
+        return {
+            "jobs": jobs,
+            "runtime": _automation_runtime(started_at=started_at, source="live"),
+        }
     return {
         "jobs": scoped_records(DEV_JOBS),
         "runtime": _automation_runtime(started_at=started_at),
@@ -1201,6 +1338,13 @@ def api_job_detail(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        job = _find_by_id([_map_wb_job(item) for item in list_sync_jobs(str(active_cabinet["id"]))], job_id)
+        return {
+            "job": job,
+            "runtime": _automation_runtime(started_at=started_at, source="live"),
+        }
     job = _find_by_id(DEV_JOBS, job_id)
     return {
         "job": scoped_record(job),
@@ -1367,9 +1511,19 @@ def api_wb_cabinet_connect(
 ) -> dict[str, Any]:
     del actor
     started_at = now_monotonic_ms()
-    cabinet = set_active_cabinet_connection(True)
+    active_cabinet = get_active_cabinet()
+    if active_cabinet.get("id") != "wb_cabinet_unconfigured":
+        try:
+            cabinet = dict(connect_cabinet(str(active_cabinet["id"])).get("cabinet") or active_cabinet)
+        except KeyError:
+            cabinet = set_active_cabinet_connection(True)
+    else:
+        cabinet = set_active_cabinet_connection(True)
     payload = _build_auth_payload(resolve_actor(request), cabinet_connected=True)
     payload["cabinet"]["status"] = str(cabinet.get("status") or "connected")
+    payload["cabinet"]["connected"] = bool(cabinet.get("connected", True))
+    payload["cabinet"]["lastSyncAt"] = cabinet.get("lastSyncAt")
+    payload["cabinet"]["syncMessage"] = cabinet.get("syncMessage")
     return {
         "cabinet": payload["cabinet"],
         "runtime": _auth_runtime(started_at=started_at),
