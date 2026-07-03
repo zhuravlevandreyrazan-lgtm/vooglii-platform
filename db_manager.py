@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import time
 from config import DB_NAME
 
 logger = logging.getLogger(__name__)
@@ -10,9 +11,26 @@ def _is_readonly_db_error(exc):
 
 
 def get_conn():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=5)
     conn.execute('PRAGMA foreign_keys = ON')
+    conn.execute('PRAGMA journal_mode = WAL')
+    conn.execute('PRAGMA busy_timeout = 5000')
+    conn.execute('PRAGMA synchronous = NORMAL')
     return conn
+
+
+def execute_with_retry(operation, retries=3, delay_seconds=0.2):
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            return operation()
+        except sqlite3.OperationalError as exc:
+            last_exc = exc
+            if 'locked' not in str(exc or '').lower() or attempt >= retries - 1:
+                raise
+            time.sleep(delay_seconds * (attempt + 1))
+    if last_exc is not None:
+        raise last_exc
 
 
 def _col(cur, table, col):
@@ -138,6 +156,12 @@ def init_db():
         cur.execute('''CREATE TABLE IF NOT EXISTS referrals(id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER, invited_id INTEGER UNIQUE, bonus_days INTEGER DEFAULT 30, created_at TEXT)''')
         cur.execute('''CREATE TABLE IF NOT EXISTS price_history(id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id INTEGER, event_date TEXT, supplier_article TEXT, price REAL, cost_price REAL, source TEXT)''')
         cur.execute('''CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id INTEGER, event_time TEXT, action TEXT, details TEXT)''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS runtime_health(
+        component TEXT PRIMARY KEY,
+        status TEXT,
+        last_heartbeat TEXT,
+        details TEXT
+        )''')
         cur.execute('''CREATE TABLE IF NOT EXISTS competitors(id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id INTEGER, nm_id TEXT, name TEXT, price REAL, rating REAL, reviews INTEGER, position INTEGER, checked_at TEXT)''')
         cur.execute('''CREATE TABLE IF NOT EXISTS api_cooldowns(
         telegram_id INTEGER NOT NULL,
@@ -322,6 +346,44 @@ def init_db():
             logger.warning('Skipping init_db schema writes due to readonly database: %s', exc)
         else:
             raise
+    finally:
+        conn.close()
+
+
+def update_runtime_health(component, status, details=None):
+    conn = get_conn()
+    try:
+        conn.execute(
+            '''
+            INSERT INTO runtime_health(component,status,last_heartbeat,details)
+            VALUES(?,?,datetime('now'),?)
+            ON CONFLICT(component) DO UPDATE SET
+                status=excluded.status,
+                last_heartbeat=excluded.last_heartbeat,
+                details=excluded.details
+            ''',
+            (str(component or ''), str(status or ''), str(details or '')),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_runtime_health(component):
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            'SELECT component,status,last_heartbeat,details FROM runtime_health WHERE component=?',
+            (str(component or ''),),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            'component': row[0],
+            'status': row[1],
+            'last_heartbeat': row[2],
+            'details': row[3],
+        }
     finally:
         conn.close()
 

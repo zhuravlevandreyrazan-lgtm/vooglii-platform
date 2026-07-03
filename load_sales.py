@@ -10,6 +10,7 @@ import httpx
 
 from config import WB_TOKEN, DB_NAME
 from db_manager import init_db, _is_readonly_db_error
+from security.logging import sanitize_log_value
 from update_log import save_update
 
 STAT_API = 'https://statistics-api.wildberries.ru'
@@ -753,12 +754,12 @@ def get_last_cooldown_write_details(telegram_id, api_block):
 
 def _log_ads_token_debug(token, source='unknown'):
     preview = _token_preview(token)
-    print('ADS TOKEN DEBUG')
-    print('source=', source)
-    print('length=', preview['length'])
-    print('prefix=', preview['prefix'])
-    print('suffix=', preview['suffix'])
-    print('type=', _token_kind(token))
+    logger.info(
+        'ADS TOKEN DEBUG source=%s length=%s type=%s',
+        sanitize_log_value(source),
+        int(preview['length'] or 0),
+        _token_kind(token),
+    )
 
 
 def _retry(resp):
@@ -781,33 +782,37 @@ def _is_ad_url(url):
 def _log_ads_request(method, url, params=None, body=None):
     if not _is_ad_url(url):
         return
-    print('ADS REQUEST:')
-    print('method=', method)
-    print('url=', url)
-    print('params=', params)
-    print('body=', body)
+    logger.info(
+        'ADS REQUEST method=%s url=%s params=%s body=%s',
+        sanitize_log_value(method),
+        sanitize_log_value(url),
+        sanitize_log_value(params),
+        sanitize_log_value(body),
+    )
 
 
 def _log_ads_response(url, resp=None, error=None):
     if not _is_ad_url(url):
         return
-    print('ADS RESPONSE:')
     if error is not None:
-        print('error=', repr(error))
+        logger.warning('ADS RESPONSE url=%s error=%s', sanitize_log_value(url), sanitize_log_value(repr(error)))
         return
-    print('status_code=', resp.status_code)
-    print('headers=', dict(resp.headers))
-    print('text=', (resp.text or '')[:2000])
+    logger.info(
+        'ADS RESPONSE url=%s status_code=%s body_sample=%s',
+        sanitize_log_value(url),
+        getattr(resp, 'status_code', 'unknown'),
+        sanitize_log_value((resp.text or '')[:500]),
+    )
 
 
 def _log_ads_fullstats(url, params, status, payload=None):
-    print('ADS FULLSTATS:')
-    print('url=', url)
-    print('params=', params)
-    print('status=', status)
-    if payload is not None:
-        text = str(payload)
-        print('sample=', text[:1000])
+    logger.info(
+        'ADS FULLSTATS url=%s params=%s status=%s payload_sample=%s',
+        sanitize_log_value(url),
+        sanitize_log_value(params),
+        sanitize_log_value(status),
+        sanitize_log_value(str(payload)[:500]) if payload is not None else '-',
+    )
 
 
 def _header_value(headers, *names):
@@ -824,49 +829,48 @@ def _is_finance_report_detail_url(url):
 
 def _log_finance_rate_limit_debug(caller, resp=None, computed_retry_after=None, saved_until=None):
     now_str = _now_str()
-    print('FINANCE RATE LIMIT DEBUG')
-    print('caller=', caller)
-    print('http_status=', resp.status_code if resp is not None else 'unknown')
-    print('retry_after_header=', _header_value(resp.headers, 'Retry-After', 'retry-after') if resp is not None else None)
-    print('x_ratelimit_retry=', _header_value(resp.headers, 'X-Ratelimit-Retry', 'x-ratelimit-retry') if resp is not None else None)
-    print('x_ratelimit_reset=', _header_value(resp.headers, 'X-Ratelimit-Reset', 'x-ratelimit-reset') if resp is not None else None)
-    print('computed_retry_after=', computed_retry_after)
-    print('saved_until=', saved_until)
-    print('current_time=', now_str)
+    logger.info(
+        'FINANCE RATE LIMIT caller=%s http_status=%s retry_after=%s saved_until=%s current_time=%s',
+        sanitize_log_value(caller),
+        resp.status_code if resp is not None else 'unknown',
+        sanitize_log_value(computed_retry_after),
+        sanitize_log_value(saved_until),
+        now_str,
+    )
 
 
 def _log_ads_cooldown_debug(status, retry_after=None, saved_until=None, now=None, remaining=None):
-    print('ADS COOLDOWN DEBUG')
-    print('status=', status)
-    print('retry_after=', retry_after)
-    print('saved_until=', saved_until)
-    print('now=', now)
-    print('remaining=', remaining)
+    logger.info(
+        'ADS COOLDOWN status=%s retry_after=%s saved_until=%s now=%s remaining=%s',
+        sanitize_log_value(status),
+        sanitize_log_value(retry_after),
+        sanitize_log_value(saved_until),
+        sanitize_log_value(now),
+        sanitize_log_value(remaining),
+    )
 
 
 def _log_ads_cooldown_write(caller, status, retry_after=None, saved_until=None):
-    print('ADS COOLDOWN WRITE')
-    print('caller=', caller)
-    print('status=', status)
-    print('retry_after=', retry_after)
-    print('saved_until=', saved_until)
+    logger.info(
+        'ADS COOLDOWN WRITE caller=%s status=%s retry_after=%s saved_until=%s',
+        sanitize_log_value(caller),
+        sanitize_log_value(status),
+        sanitize_log_value(retry_after),
+        sanitize_log_value(saved_until),
+    )
 
 
 def _log_ads_exception(exc):
-    print('ADS EXCEPTION')
-    print('type=', type(exc).__name__)
-    print('message=', str(exc))
-    print('traceback=')
-    print(traceback.format_exc())
+    logger.exception('ADS EXCEPTION type=%s message=%s', type(exc).__name__, sanitize_log_value(str(exc)))
 
 
 def _log_ads_exception_wrapper(caller, exc):
-    print('ADS EXCEPTION WRAPPER')
-    print('caller=', caller)
-    print('type=', type(exc).__name__)
-    print('message=', str(exc))
-    print('traceback=')
-    print(traceback.format_exc())
+    logger.exception(
+        'ADS EXCEPTION WRAPPER caller=%s type=%s message=%s',
+        sanitize_log_value(caller),
+        type(exc).__name__,
+        sanitize_log_value(str(exc)),
+    )
 
 
 def _fullstats_retry_seconds(resp):
@@ -893,19 +897,20 @@ def _fullstats_safe_cooldown_seconds(resp):
 
 
 def _log_fullstats_first_request(stage, campaign_ids, begin, end, resp=None):
-    print('ADS FULLSTATS FIRST REQUEST:')
-    print('stage=', stage)
-    print('campaign_ids=', [int(x) for x in campaign_ids if x is not None])
-    print('campaign_ids_count=', len([x for x in campaign_ids if x is not None]))
-    print('beginDate=', begin)
-    print('endDate=', end)
+    logger.info(
+        'ADS FULLSTATS FIRST REQUEST stage=%s campaign_ids_count=%s begin=%s end=%s',
+        sanitize_log_value(stage),
+        len([x for x in campaign_ids if x is not None]),
+        sanitize_log_value(begin),
+        sanitize_log_value(end),
+    )
     if resp is None:
         return
-    print('http_status=', resp.status_code)
-    print('retry_after=', _header_value(resp.headers, 'Retry-After', 'retry-after'))
-    print('x_ratelimit_retry=', _header_value(resp.headers, 'X-Ratelimit-Retry', 'x-ratelimit-retry'))
-    print('x_ratelimit_reset=', _header_value(resp.headers, 'X-Ratelimit-Reset', 'x-ratelimit-reset'))
-    print('response_first_500_chars=', (resp.text or '')[:500])
+    logger.info(
+        'ADS FULLSTATS FIRST RESPONSE http_status=%s body_sample=%s',
+        resp.status_code,
+        sanitize_log_value((resp.text or '')[:500]),
+    )
 
 
 def _get(url, token, params=None, timeout=60, token_source='unknown', caller='unknown'):

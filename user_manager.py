@@ -1,14 +1,16 @@
 import sqlite3, secrets, string
 from datetime import datetime, timedelta
 from config import DB_NAME, DEFAULT_TARIFF
-from db_manager import init_db, _is_readonly_db_error
+from db_manager import get_conn, init_db, _is_readonly_db_error
+from security.permissions import normalize_role
+from security.token_crypto import decrypt_token, encrypt_token, is_encrypted_token, validate_wb_token
 
-ROLES = {'owner','manager','accountant','viewer'}
+ROLES = {'owner','admin','manager','viewer','support','developer','accountant'}
 PRO_FEATURES = {'advert','pnl','export','advice','problems','plan','compare','cashflow','prices','admin_roles','competitors','notifications'}
-FREE_FEATURES = {'start','help','menu','connect','update','report','today','week','month','product','stocks','orders','funnel','status','profile','tariff','buy','pro','ref'}
+FREE_FEATURES = {'start','help','menu','connect','disconnect','update','report','today','week','month','product','products','stocks','orders','funnel','status','profile','tariff','buy','pro','ref','dashboard','home','business','finance','analytics','system','advisor','forecast'}
 
 
-def _conn(): init_db(); return sqlite3.connect(DB_NAME)
+def _conn(): init_db(); return get_conn()
 def _now(): return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 def _code(): return ''.join(secrets.choice(string.ascii_uppercase+string.digits) for _ in range(8))
 
@@ -55,7 +57,8 @@ def ensure_user(telegram_id, username='unknown', ref_code=None):
     return _safe_optional_write(_write)
 
 def save_user(telegram_id, username, wb_token):
-    ensure_user(telegram_id, username); conn=_conn(); cur=conn.cursor(); cur.execute('UPDATE users SET username=?, wb_token=?, updated_at=? WHERE telegram_id=?',(username,wb_token,_now(),telegram_id)); conn.commit(); conn.close()
+    token = encrypt_token(validate_wb_token(wb_token))
+    ensure_user(telegram_id, username); conn=_conn(); cur=conn.cursor(); cur.execute('UPDATE users SET username=?, wb_token=?, updated_at=? WHERE telegram_id=?',(username,token,_now(),telegram_id)); conn.commit(); conn.close()
 
 def get_user(telegram_id):
     row = _fetch_user_row(telegram_id)
@@ -66,7 +69,18 @@ def get_user(telegram_id):
     return row or _default_user_row(telegram_id)
 
 def get_user_token(telegram_id):
-    u=get_user(telegram_id); return u[2] if u else None
+    u=get_user(telegram_id)
+    token = u[2] if u else None
+    if not token:
+        return None
+    if is_encrypted_token(token):
+        return decrypt_token(token)
+    plain_token = validate_wb_token(token)
+    try:
+        save_user(telegram_id, (u[1] if u else 'unknown') or 'unknown', plain_token)
+    except Exception:
+        pass
+    return plain_token
 
 def _expired(u):
     if not u or (u[3] or 'FREE').upper()!='PRO' or not u[8]: return False
@@ -103,7 +117,7 @@ def extend_pro(telegram_id, days=30):
     set_user_access(telegram_id,'PRO',1,until); return until
 
 def set_role(telegram_id, role):
-    if role not in ROLES: role='viewer'
+    role = normalize_role(role)
     conn=_conn(); cur=conn.cursor(); cur.execute('UPDATE users SET role=?, updated_at=? WHERE telegram_id=?',(role,_now(),telegram_id)); conn.commit(); conn.close()
 
 def get_all_users():
@@ -111,3 +125,45 @@ def get_all_users():
 
 def get_ref_stats(telegram_id):
     u=get_user(telegram_id); conn=_conn(); cur=conn.cursor(); cur.execute('SELECT COUNT(*) FROM referrals WHERE referrer_id=?',(telegram_id,)); cnt=cur.fetchone()[0]; conn.close(); return (u[9] if u else '-', cnt)
+
+
+def clear_user_token(telegram_id):
+    conn = _conn()
+    cur = conn.cursor()
+    cur.execute('UPDATE users SET wb_token=NULL, updated_at=? WHERE telegram_id=?', (_now(), telegram_id))
+    conn.commit()
+    conn.close()
+
+
+def get_active_user_tokens(telegram_id=None):
+    conn = _conn()
+    cur = conn.cursor()
+    today = datetime.now().strftime('%Y-%m-%d')
+    query = '''
+        SELECT telegram_id, username, wb_token
+        FROM users
+        WHERE is_active=1
+          AND wb_token IS NOT NULL
+          AND TRIM(wb_token)!=''
+          AND (
+              UPPER(COALESCE(tariff,'FREE'))!='PRO'
+              OR subscription_until IS NULL
+              OR subscription_until=''
+              OR subscription_until>=?
+          )
+    '''
+    params = [today]
+    if telegram_id is not None:
+        query += ' AND telegram_id=?'
+        params.append(telegram_id)
+    query += ' ORDER BY telegram_id'
+    cur.execute(query, tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+    result = []
+    for user_id, _username, token in rows:
+        try:
+            result.append((int(user_id), decrypt_token(token) if is_encrypted_token(token) else validate_wb_token(token)))
+        except Exception:
+            continue
+    return result

@@ -19,9 +19,10 @@ from openpyxl import load_workbook
 from telegram import Update, ReplyKeyboardMarkup, LabeledPrice
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
 
-from config import BOT_TOKEN, BOT_USERNAME, ADMIN_IDS, PAYMENT_PROVIDER_TOKEN, PRO_PRICE_RUB, DB_NAME
+from analytics.logging_config import configure_logging
+from config import APP_ENV, BOT_TOKEN, BOT_USERNAME, ADMIN_IDS, PAYMENT_PROVIDER_TOKEN, PRO_PRICE_RUB, DB_NAME
 from background_jobs import schedule_background_jobs, schedule_initial_sync, acquire_sync_lock, release_sync_lock
-from db_manager import init_db, _is_readonly_db_error as db_is_readonly_db_error
+from db_manager import get_runtime_health, init_db, update_runtime_health, _is_readonly_db_error as db_is_readonly_db_error
 from load_sales import load_sales_for_user, load_ads_for_user, format_update_status, get_api_status, get_last_advertising_update, get_sync_status, get_sync_status_map, ensure_sync_status_rows, get_finance_breakdown, get_finance_audit, get_finance_rawdeduction, get_last_cooldown_write_details, get_api_cooldown, delete_api_cooldown, set_api_cooldown, ads_probe, ads_contract_probe, inspect_fullstats_contract, is_ads_period_partially_loaded, ads_limit_test, ads_batch_test, ads_period_test, audit_advertising_period, backfill_advertising_period, ads_fullstats_level_audit, ads_normalize_audit, compare_advertising_period, inspect_sales_api, inspect_orders_api, estimate_sales_orders_backfill_impact, backfill_sales_orders_range, historical_sales_backfill, apply_historical_sales_backfill, historical_advertising_backfill, historical_advertising_audit, apply_historical_advertising_backfill, advertising_duplicate_audit, advertising_cleanup_audit, cleanup_historical_advertising_rows, _fetch_fullstats_batch, _read_sales_historical_cache, _read_ads_historical_cache, _get as wb_api_get, STAT_API
 from wb_agent.financial_engine import (
     FINANCIAL_ENGINE_AVAILABLE_STATUSES,
@@ -147,7 +148,27 @@ from wb_agent.performance import (
 from product_manager import get_cost_price, get_products, set_cost_price, sync_products_from_sales
 from report import *
 from update_log import get_last_update
-from user_manager import ensure_user, get_all_users, get_ref_stats, get_user, get_user_token, is_pro, extend_pro, save_user, set_role, set_user_access, user_has_access
+from user_manager import clear_user_token, ensure_user, get_all_users, get_ref_stats, get_user, get_user_token, is_pro, extend_pro, save_user, set_role, set_user_access, user_has_access
+from security.audit_log import log_privileged_action
+from security.logging import sanitize_log_value
+from security.permissions import get_user_role, has_permission, is_admin as permission_is_admin, permission_for_command, permission_for_feature, require_permission
+from security.token_crypto import validate_token_encryption_configuration, validate_wb_token
+from vooglii_telegram.commands.registry import get_command_spec, get_customer_help_commands, get_customer_menu_commands
+from vooglii_telegram.ux.empty_states import connect_intro_text, stocks_empty_text, update_no_cabinet_text, update_started_text
+from vooglii_telegram.ux.navigation import main_sections
+from vooglii_telegram.ux.paywall import pro_paywall_text
+from vooglii_telegram.ux.periods import PERIOD_LABELS, humanize_period_key, humanize_period_range
+from vooglii_telegram.ux.screens import (
+    analytics_screen,
+    business_screen,
+    finance_screen,
+    home_screen,
+    menu_screen,
+    products_screen,
+    profile_screen,
+    start_screen,
+    system_customer_screen,
+)
 from export_manager import export_pnl, export_products, export_replenishment
 from wb_agent.finance_debug import (
     finance_bucket_debug_lines,
@@ -175,16 +196,11 @@ FINANCE_REPORTS_DETAILED_PERIOD_ENDPOINT = f'{FINANCE_API_BASE}/api/finance/v1/s
 
 
 def _configure_telegram_logging():
+    configure_logging()
     level_name = str(os.getenv('LOG_LEVEL') or 'INFO').upper()
     level = getattr(logging, level_name, logging.INFO)
     root_logger = logging.getLogger()
-    if not root_logger.handlers:
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-        )
-    else:
-        root_logger.setLevel(level)
+    root_logger.setLevel(level)
     logging.getLogger('httpx').setLevel(max(level, logging.WARNING))
 
 
@@ -271,7 +287,8 @@ def _telegram_config_identity_snapshot():
 
 def uid(u): return u.effective_user.id
 def uname(u): return u.effective_user.username or str(u.effective_user.id)
-def admin(u): return uid(u) in ADMIN_IDS
+def admin(u): return permission_is_admin(uid(u))
+def developer(u): return has_permission(uid(u), 'command.developer')
 def _is_readonly_db_error(exc): return db_is_readonly_db_error(exc)
 def _period_input(args, default='all', start_index=0):
     values=[str(x).strip() for x in (args or [])[start_index:] if str(x).strip()]
@@ -744,34 +761,81 @@ def _main_entrypoint_text():
     )
 
 
-def _main_menu_text():
-    return (
-        f"{_atlas_header('VOOGLII', 'Центр управления бизнесом на маркетплейсах')}\n\n"
-        "Главное:\n"
-        "- /home — общая сводка бизнеса\n"
-        "- /business — состояние бизнеса и рекомендации\n"
-        "- /finance — прибыль, деньги и выплаты\n"
-        "- /products — товары, SKU и себестоимость\n"
-        "- /analytics — отчёты, реклама и показатели\n"
-        "- /system — состояние агента\n\n"
-        "Быстрый старт:\n"
-        "1. /connect — подключить кабинет WB\n"
-        "2. /update — обновить данные\n"
-        "3. /home — открыть главную сводку\n\n"
-        "Периоды:\n"
-        "- current_month\n"
-        "- previous_month\n"
-        "- last_7_days\n"
-        "- last_30_days\n"
-        "- 2026-05-01 2026-05-31\n\n"
-        "Для разработчика:\n"
-        "- /help developer"
+def _customer_period_options():
+    return [(label, key) for key, label in (
+        ("today", PERIOD_LABELS["today"]),
+        ("last_7_days", PERIOD_LABELS["last_7_days"]),
+        ("last_30_days", PERIOD_LABELS["last_30_days"]),
+        ("current_month", PERIOD_LABELS["current_month"]),
+        ("previous_month", PERIOD_LABELS["previous_month"]),
+        ("all", PERIOD_LABELS["all"]),
+    )]
+
+
+def _customer_period_text():
+    return "\n".join(f"- {label}" for label, _ in _customer_period_options())
+
+
+def _customer_profile_role(role):
+    mapping = {
+        "owner": "владелец",
+        "admin": "администратор",
+        "manager": "менеджер",
+        "viewer": "наблюдатель",
+        "support": "поддержка",
+        "developer": "разработчик",
+    }
+    key = str(role or "").strip().lower()
+    return mapping.get(key, "владелец" if not key else key)
+
+
+def _customer_tariff_name(tariff):
+    text = str(tariff or "FREE").strip().upper()
+    return "Pro" if text == "PRO" else "Free"
+
+
+def _customer_subscription_status(until_value):
+    return f"активна до {until_value}" if until_value and str(until_value).strip() != "-" else "не активна"
+
+
+def _pro_upsell_text():
+    return pro_paywall_text()
+
+
+def _customer_profile_text(user_row, username, user_id, *, include_actions=True):
+    tariff = _customer_tariff_name(user_row[3] if user_row else None)
+    wb_connected = bool(user_row and user_row[2])
+    role = _customer_profile_role(user_row[7] if user_row else None)
+    subscription_status = _customer_subscription_status(user_row[8] if user_row else None)
+    actions = []
+    if include_actions:
+        actions = [
+            "- Подключить WB: /connect" if not wb_connected else "- Открыть главное меню: /menu",
+            "- Обновить данные: /update",
+            "- Посмотреть тарифы: /tariff",
+        ]
+    return profile_screen(
+        username=str(username or user_id),
+        tariff=tariff,
+        role=role,
+        wb_status='не подключён' if not wb_connected else 'подключён',
+        subscription=subscription_status,
+        tax_mode=format_tax_settings_label(user_id),
+        actions=actions,
     )
+
+
+def _start_text():
+    return start_screen(main_sections())
+
+
+def _main_menu_text():
+    return menu_screen()
 
 
 def _developer_help_text():
     return (
-        "DEVELOPER HELP\n\n"
+        "VOOGLII INTERNAL HELP\n\n"
         "Технические команды:\n"
         "- /ui spec\n"
         "- /dashboard prototype\n"
@@ -789,6 +853,7 @@ def _developer_help_text():
         "- /sku registry\n"
         "- /ads ...\n"
         "- /sales ...\n"
+        "\nДоступно только для developer/admin ролей."
     )
 
 
@@ -810,10 +875,10 @@ def _ux_status_text(status):
         "RATE_LIMIT": "временный лимит API",
         "PARTIAL": "частично готово",
         "WARNING": "требует внимания",
-        "UNKNOWN": "нет данных",
-        "LEGACY_FALLBACK": "временный legacy-источник",
-        "MATCHED_LEGACY": "legacy fallback совпал с эталоном",
-        "PARTIAL_LEGACY": "legacy fallback частично совпал",
+        "UNKNOWN": "данные ещё загружаются",
+        "LEGACY_FALLBACK": "временная операционная оценка",
+        "MATCHED_LEGACY": "операционная оценка подтверждена",
+        "PARTIAL_LEGACY": "операционная оценка подтверждена частично",
         "NEEDS_REVIEW": "нужна проверка",
         "READY": "готово",
         "OK": "доступно",
@@ -4171,12 +4236,7 @@ def _token_kind(token):
 
 def _log_ads_token_debug(token, source='unknown'):
     text = str(token or '').strip()
-    logger.info('ADS TOKEN DEBUG')
-    logger.info('source=%s', source)
-    logger.info('length=%s', len(text))
-    logger.info('prefix=%s', text[:10] if text else '')
-    logger.info('suffix=%s', text[-10:] if text else '')
-    logger.info('type=%s', _token_kind(token))
+    logger.info('ADS TOKEN DEBUG source=%s length=%s type=%s', sanitize_log_value(source), len(text), _token_kind(token))
 
 
 def _ads_cooldown_debug_values(row):
@@ -4229,10 +4289,52 @@ def _ads_status_display_text(status, row=None):
 
 
 async def access(update, feature=None):
-    if not user_has_access(uid(update), feature):
-        await update.message.reply_text('🔒 Функция доступна в PRO. Купить/продлить: /buy')
+    user_id = uid(update)
+    permission = permission_for_feature(feature)
+    permission_result = require_permission(user_id, permission)
+    if not permission_result.allowed:
+        log_privileged_action(
+            user_id,
+            f'/{feature or "unknown"}',
+            permission_result.role,
+            'permission_denied',
+            'denied',
+            {'permission': permission_result.permission},
+        )
+        await update.message.reply_text('🔒 У вас нет доступа к этой команде. Если нужен расширенный доступ, обратитесь к владельцу кабинета.')
+        return False
+    if not user_has_access(user_id, feature):
+        await update.message.reply_text(_pro_upsell_text())
         return False
     return True
+
+
+async def _enforce_command_permission(update, command_name):
+    permission = permission_for_command(command_name)
+    if not permission:
+        return True
+    user_id = uid(update)
+    result = require_permission(user_id, permission)
+    if result.allowed:
+        return True
+    log_privileged_action(
+        user_id,
+        f'/{command_name}',
+        result.role,
+        'command_denied',
+        'denied',
+        {'permission': permission},
+    )
+    await update.message.reply_text('🔒 Команда недоступна для вашей роли.')
+    return False
+
+
+def _wrap_command_handler(command_name, handler):
+    async def _wrapped(update, context):
+        if not await _enforce_command_permission(update, command_name):
+            return
+        await handler(update, context)
+    return _wrapped
 
 async def _legacy_update_command_v1(update, context):
     if not await access(update,'update'): return
@@ -4258,7 +4360,22 @@ async def _legacy_update_command_v1(update, context):
 
 async def tariff_command(update, context):
     u=get_user(uid(update)); t=(u[3] or 'FREE').upper(); until=u[8] or '-'
-    await update.message.reply_text(f'💼 Тариф: {t}\nДействует до: {until}\n\nFREE: базовые отчёты за 7 дней.\nPRO: все функции, история без ограничений, реклама, экспорт, AI, уведомления.\n\nСтоимость PRO: {PRO_PRICE_RUB} ₽/мес\nКупить/продлить: /buy')
+    await update.message.reply_text(
+        f"💼 Тариф VOOGLII\n\n"
+        f"Текущий план: {_customer_tariff_name(t)}\n"
+        f"Статус подписки: {_customer_subscription_status(until)}\n\n"
+        "Free:\n"
+        "- базовые отчёты\n"
+        "- подключение кабинета\n"
+        "- ручное обновление данных\n\n"
+        "Pro:\n"
+        "- полная аналитика рекламы\n"
+        "- AI-советник\n"
+        "- расширенные отчёты по прибыли\n"
+        "- история без ограничений\n\n"
+        f"Стоимость PRO: {PRO_PRICE_RUB} ₽/мес\n"
+        "Подключить или продлить: /buy"
+    )
 async def buy_command(update, context):
     if not PAYMENT_PROVIDER_TOKEN:
         await update.message.reply_text('Оплата пока не настроена. Админ может активировать PRO: /admin pro USER_ID')
@@ -4419,15 +4536,33 @@ async def _legacy_stocks_command_v1(update, context):
 
 async def admin_command(update, context):
     if not admin(update): await update.message.reply_text('⛔ Только администратор'); return
-    if not context.args: await update.message.reply_text('/admin users\n/admin pro ID\n/admin free ID\n/admin block ID\n/admin role ID owner|manager|accountant|viewer'); return
+    if not context.args: await update.message.reply_text('/admin users\n/admin pro ID\n/admin free ID\n/admin block ID\n/admin role ID owner|admin|manager|viewer|support|developer'); return
     act=context.args[0]
     if act=='users': await send_long(update,'\n'.join(f'{u[0]} @{u[1]} {u[2]} {"on" if u[3] else "off"} до {u[5]} роль {u[6]}' for u in get_all_users())); return
     if len(context.args)>=2:
         target=int(context.args[1])
-        if act=='pro': until=extend_pro(target,30); await update.message.reply_text(f'✅ PRO до {until}'); return
-        if act=='free': set_user_access(target,'FREE',1,None); await update.message.reply_text('? FREE'); return
-        if act=='block': set_user_access(target,'FREE',0,None); await update.message.reply_text('⛔ Заблокирован'); return
-        if act=='role' and len(context.args)>=3: set_role(target,context.args[2]); await update.message.reply_text('✅ Роль обновлена'); return
+        actor = uid(update)
+        actor_role = get_user_role(actor)
+        if act=='pro':
+            until=extend_pro(target,30)
+            log_privileged_action(actor, '/admin', actor_role, 'grant_pro', 'success', {'target': target, 'until': until})
+            await update.message.reply_text(f'✅ PRO до {until}')
+            return
+        if act=='free':
+            set_user_access(target,'FREE',1,None)
+            log_privileged_action(actor, '/admin', actor_role, 'set_free', 'success', {'target': target})
+            await update.message.reply_text('✅ Тариф переключен на FREE')
+            return
+        if act=='block':
+            set_user_access(target,'FREE',0,None)
+            log_privileged_action(actor, '/admin', actor_role, 'block_user', 'success', {'target': target})
+            await update.message.reply_text('⛔ Пользователь заблокирован')
+            return
+        if act=='role' and len(context.args)>=3:
+            set_role(target,context.args[2])
+            log_privileged_action(actor, '/admin', actor_role, 'change_role', 'success', {'target': target, 'role': context.args[2]})
+            await update.message.reply_text('✅ Роль обновлена')
+            return
 async def daily_digest_job(context):
     conn=sqlite3.connect(DB_NAME); cur=conn.cursor(); cur.execute('SELECT telegram_id FROM notifications WHERE daily_enabled=1'); users=[r[0] for r in cur.fetchall()]; conn.close()
     for u in users:
@@ -7010,34 +7145,7 @@ def kb():
 async def start_command(update:Update, context:ContextTypes.DEFAULT_TYPE):
     ref = context.args[0] if context.args else None
     ensure_user(uid(update), uname(update), ref)
-    await update.message.reply_text(
-        "🤖 Wildberries Agent\n\n"
-        "Бот для продавца WB: продажи, заказы, прибыль, реклама, остатки и диагностика.\n\n"
-        "Быстрый старт:\n"
-        "1. /connect ВАШ_WB_API_КЛЮЧ\n"
-        "2. /update\n"
-        "3. /home\n\n"
-        "Периоды отчётов:\n"
-        "`today` — сегодня\n"
-        "`week` — 7 дней\n"
-        "`month` — 30 дней\n"
-        "`current_month` — текущий месяц\n"
-        "`previous_month` — прошлый месяц\n"
-        "`last_7_days` — последние 7 дней\n"
-        "`last_30_days` — последние 30 дней\n"
-        "`all` — всё время\n\n"
-        f"{_main_entrypoint_text()}\n\n"
-        "Основные команды:\n"
-        "/help\n"
-        "/menu\n"
-        "/home\n"
-        "/business\n"
-        "/finance\n"
-        "/products\n"
-        "/analytics\n"
-        "/system",
-        reply_markup=kb()
-    )
+    await update.message.reply_text(_start_text(), reply_markup=kb())
 
 
 async def buttons(update, context):
@@ -7050,16 +7158,16 @@ async def buttons(update, context):
     }
     if text in period_buttons:
         context.args = [period_buttons[text]]
-        await ceo_command(update, context)
+        await business_command(update, context)
         return
     mapping = {
-        '📊 Отчёт': (report_command, ['month']),
-        '👑 CEO': (ceo_command, ['month']),
+        '📊 Отчёт': (business_command, ['current_month']),
+        '👑 CEO': (home_command, []),
         '📦 Остатки': (stocks_command, []),
-        '💰 P&L': (pnl_command, ['month']),
-        '📢 Реклама': (advert_command, ['month']),
-        '🤖 AI-советы': (advice_command, ['month']),
-        '⚠ Проблемы': (problems_command, ['month']),
+        '💰 P&L': (finance_command, ['current_month']),
+        '📢 Реклама': (analytics_command, ['current_month']),
+        '🤖 AI-советы': (advisor_command, ['current_month']),
+        '⚠ Проблемы': (business_command, ['current_month']),
         '👤 Кабинет': (profile_command, []),
         '🔄 Обновить': (update_command, []),
         '⚙ Меню': (menu_command, []),
@@ -7124,9 +7232,9 @@ async def update_command(update, context):
         return
     token = get_user_token(uid(update))
     if not token:
-        await update.message.reply_text('⚠ WB API ?? ?????????. ??????????? /connect')
+        await update.message.reply_text(update_no_cabinet_text())
         return
-    await update.message.reply_text('📡 Обновляю данные Wildberries...')
+    await update.message.reply_text(update_started_text())
     saved, status = load_sales_for_user(uid(update), token, 30, False, True)
     if not isinstance(status, dict):
         if str(status).startswith('RATE_LIMIT'):
@@ -7253,7 +7361,7 @@ async def stocks_command(update, context):
         )
     if admin(update):
         text += f'Технический статус: {status or "-"}'
-    await send_long(update, text if rows else '📦 ??????? WB\n\n?????? ??? ?? ?????????. ??????????? /update')
+    await send_long(update, text if rows else stocks_empty_text())
 
 
 async def status_command(update, context):
@@ -7315,10 +7423,18 @@ async def status_command(update, context):
 
 async def connect_command(update, context):
     if not context.args:
-        await update.message.reply_text('?????????????: /connect ???_WB_API_????')
+        await update.message.reply_text(connect_intro_text())
         return
     user_id = uid(update)
-    save_user(user_id, uname(update), context.args[0].strip())
+    try:
+        validate_wb_token(context.args[0].strip())
+        save_user(user_id, uname(update), context.args[0].strip())
+    except Exception as exc:
+        await update.message.reply_text(
+            "⚠ Не удалось подключить кабинет WB.\n\n"
+            "Проверьте, что API-ключ скопирован полностью, и повторите команду /connect."
+        )
+        return
     ensure_sync_status_rows(user_id)
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
@@ -7331,9 +7447,18 @@ async def connect_command(update, context):
     conn.close()
     if context.application and context.application.job_queue:
         schedule_initial_sync(context.application.job_queue, user_id)
-        await update.message.reply_text('✅ WB API подключен\nАвтосинхронизация включена\nУведомления активированы')
+        await update.message.reply_text('✅ Кабинет WB подключён.\n\nТеперь можно обновить данные:\n/update')
         return
-    await update.message.reply_text('⚠ WB API ?????????, ?? ????????????????? ??????????.\n??????????? /update ???????.')
+    await update.message.reply_text('✅ Кабинет WB подключён.\n\nТеперь можно обновить данные:\n/update')
+
+
+async def disconnect_command(update, context):
+    if not await access(update, 'disconnect'):
+        return
+    user_id = uid(update)
+    clear_user_token(user_id)
+    log_privileged_action(user_id, '/disconnect', get_user_role(user_id), 'disconnect_token', 'success')
+    await update.message.reply_text('✅ Подключение кабинета удалено. WB-токен очищен из профиля.')
 
 
 
@@ -12510,16 +12635,7 @@ async def profile_command(update, context):
         await update.message.reply_text('Профиль не найден.')
         return
     name = f"@{update.effective_user.username}" if update.effective_user.username else str(user)
-    text = (
-        "Профиль\n\n"
-        f"Пользователь: {name}\n"
-        f"Тариф: {u[3] or 'FREE'}\n"
-        f"Роль: {u[7] or '-'}\n"
-        f"WB API: {'подключен' if u[2] else 'не подключен'}\n"
-        f"Подписка до: {u[8] or '-'}\n"
-        f"Налоговый режим: {format_tax_settings_label(user)}"
-    )
-    await update.message.reply_text(text)
+    await update.message.reply_text(_customer_profile_text(u, name, user))
 
 
 def _report_period_local_stats(user, start_date, end_date, table_name, date_column, sum_expr):
@@ -16619,47 +16735,18 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _home_snapshot(user=user, days=days)
-    finance_line = '🟡 Финансы\nОжидают подтверждения'
-    if str(snapshot.get('finance_status') or '').upper() in ('OK', 'READY', 'AVAILABLE'):
-        finance_line = '🟢 Финансы\nХорошо'
-    lines = [
-        _atlas_header('VOOGLII', 'Центр управления бизнесом на маркетплейсах'),
-        '',
-        'Добро пожаловать в VOOGLII.',
-        'VOOGLII готов к работе.',
-        '',
-        'Период:',
-        str(snapshot.get('period_label') or '-'),
-        '',
-        _ATLAS_DIVIDER,
-        '',
-        '🟢 Продажи' if _ux_status_icon(snapshot.get('sales_status')) == '🟢' else '🟡 Продажи',
-        _ux_status_text(snapshot.get('sales_status')),
-        '',
-        finance_line,
-        '',
-        '🟢 Реклама' if _ux_status_icon(snapshot.get('ads_status')) == '🟢' else '🟡 Реклама',
-        _ux_status_text(snapshot.get('ads_status')),
-        '',
-        '🟡 Себестоимость' if _ux_status_icon(snapshot.get('costs_status')) != '🟢' else '🟢 Себестоимость',
-        'Требует внимания' if _ux_status_icon(snapshot.get('costs_status')) != '🟢' else 'Хорошо',
-        '',
-        _ATLAS_DIVIDER,
-        '',
-        'Основные разделы',
-        '',
+    cards = [
+        ("Продажи", snapshot.get('sales_status') or 'UNKNOWN', _ux_status_text(snapshot.get('sales_status'))),
+        ("Финансы", snapshot.get('finance_status') or 'UNKNOWN', 'Ожидают подтверждения WB.' if _ux_status_icon(snapshot.get('finance_status')) != '🟢' else 'Данные доступны.'),
+        ("Реклама", snapshot.get('ads_status') or 'UNKNOWN', 'Требует внимания.' if _ux_status_icon(snapshot.get('ads_status')) != '🟢' else 'Данные актуальны.'),
+        ("Себестоимость", snapshot.get('costs_status') or 'UNKNOWN', 'Справочник готов.' if _ux_status_icon(snapshot.get('costs_status')) == '🟢' else 'Нужно проверить покрытие SKU.'),
     ]
-    for item in list(snapshot.get('sections') or []):
-        lines.append(item)
-    lines.extend([
-        '',
-        _ATLAS_DIVIDER,
-        '',
-        'Главная сводка',
-        '',
-        str(snapshot.get('director_command') or '/director'),
-    ])
-    return '\n'.join(lines) + _atlas_footer()
+    actions = [
+        "1. Подключить кабинет WB, если он ещё не подключён.",
+        "2. Запустить обновление данных.",
+        "3. Открыть бизнес-сводку.",
+    ]
+    return home_screen(str(snapshot.get('period_label') or '-'), cards, actions, main_sections())
 
 
 def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -16696,40 +16783,25 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _business_center_snapshot(user=user, days=days)
     state = dict(snapshot.get('business_state') or {})
-    lines = [
-        'VOOGLII BUSINESS',
-        '',
-        f'Период: {snapshot.get("period") or "-"}',
-        '',
-        '📌 Общий статус:',
-        f'{_ux_status_icon(snapshot.get("business_health"))} Бизнес можно контролировать по операционным данным.',
-        'Финансовое закрытие пока ожидает подтверждения.',
-        '',
-        '📊 Основные показатели:',
-        _ux_status_line('Продажи', state.get('sales') or 'UNKNOWN'),
-        _ux_status_line('Реклама', state.get('ads') or 'UNKNOWN'),
-        _ux_status_line('Данные', state.get('data_quality') or 'UNKNOWN'),
-        _ux_status_line('Финансы', state.get('finance') or 'UNKNOWN'),
-        '',
-        '⚠ Требует внимания:',
-        '1. Финансовое закрытие периода пока не подтверждено.',
-        '2. SKU-решения по прибыли требуют полного покрытия себестоимости.',
+    highlights = [
+        f"- Продажи: {_ux_status_text(state.get('sales') or 'UNKNOWN')}",
+        f"- Финансы: {_ux_status_text(state.get('finance') or 'UNKNOWN')}",
+        f"- Реклама: {_ux_status_text(state.get('ads') or 'UNKNOWN')}",
+        f"- Себестоимость: {'готова' if _ux_status_icon(snapshot.get('business_health')) == '🟢' else 'требует проверки'}",
     ]
-    extra_risks = [str(item) for item in list(snapshot.get('risks') or []) if str(item).strip() and str(item).strip() != '-']
-    for idx, item in enumerate(extra_risks[:1], start=3):
-        lines.append(f'{idx}. {item}')
-    lines.extend([
-        '',
-        '✅ Что сделать сегодня:',
-        '1. Дождаться восстановления Finance API перед закрытием месяца.',
-        '2. Проверить рекламу по SKU перед резким снижением бюджета.',
-        '3. Использовать операционные данные только для ежедневного контроля.',
-        '',
-        '→ Подробнее:',
-    ])
-    for item in list(snapshot.get('quick_links') or []):
-        lines.append(f'- {item}')
-    return '\n'.join(lines) + _atlas_footer()
+    actions = [
+        "1. Обновить данные.",
+        "2. Проверить рекламу.",
+        "3. Открыть AI-рекомендации.",
+    ]
+    next_sections = ["🤖 /advisor", "💰 /finance", "📦 /products"]
+    return business_screen(
+        period_label=humanize_period_range(days[0], days[1]),
+        status_text=f"{_ux_status_icon(snapshot.get('business_health'))} Требует внимания" if _ux_status_icon(snapshot.get('business_health')) != '🟢' else "🟢 Ситуация стабильна",
+        highlights=highlights,
+        actions=actions,
+        next_sections=next_sections,
+    )
 
 
 def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -16763,64 +16835,24 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _finance_center_snapshot(user=user, days=days)
-    engine_status = str(snapshot.get('financial_engine_status') or 'UNKNOWN').upper()
-    finance_api_status = str(snapshot.get('finance_api_status') or 'UNKNOWN').upper()
-    legacy_status = str(snapshot.get('legacy_fallback_status') or 'NOT_ACTIVE').upper()
-    if snapshot.get('official_new_finance_available'):
-        general_status = '🟢 Официальные финансовые данные WB доступны.'
-    else:
-        general_status = '🔴 Официальные финансовые данные WB временно недоступны.'
-    general_reason = 'Причина: текущий токен не принят новым Finance API WB.' if finance_api_status == 'FORBIDDEN' else 'Причина: официальный канал Finance API сейчас не даёт полный доступ.'
-    legacy_text = 'недоступен'
-    if engine_status == 'LEGACY_FALLBACK':
-        legacy_text = 'доступен'
-    elif engine_status == 'RATE_LIMIT':
-        legacy_text = 'лимит'
-    lines = [
-        'VOOGLII FINANCE',
-        '',
-        f'Период: {snapshot.get("period") or "-"}',
-        '',
-        '📌 Общий статус:',
-        general_status,
-        general_reason,
-        '',
-        '📊 Деньги и выплаты:',
-        f'- К выплате WB: {money(snapshot.get("sales_for_pay_total") or 0)}' if snapshot.get('sales_for_pay_total') is not None else '- К выплате WB: недоступно',
-        f'- Получено выплат: {money(snapshot.get("payment_received_total") or 0)}' if snapshot.get('payment_received_total') is not None else '- Получено выплат: недоступно',
-        f'- Официальная прибыль: {money(snapshot.get("official_net_profit") or 0)}' if snapshot.get('official_net_profit') is not None else '- Официальная прибыль: недоступна',
-        f'- Legacy fallback: {legacy_text}',
-        '',
-        '⚠ Требует внимания:',
-        '1. Не закрывать месяц по операционной оценке.',
-        '2. Новый Finance API недоступен для текущего токена.',
-        '3. Legacy API можно использовать только как временную сверку.',
-        '',
-        '✅ Что сделать:',
-        '1. Проверить /finance api diagnose.',
-        f'2. После снятия лимита запустить /financial engine {days[0]} {days[1]}.',
-        '3. Сверить май 2026 с Gold Standard.',
-        '',
-        '→ Подробнее:',
+    status_text = '🟡 Финансовые данные WB ожидают подтверждения.' if not snapshot.get('official_new_finance_available') else '🟢 Финансовые данные WB доступны.'
+    money_lines = [
+        f"- К выплате: {money(snapshot.get('sales_for_pay_total') or 0)}" if snapshot.get('sales_for_pay_total') is not None else "- К выплате: 0 ₽",
+        f"- Получено выплат: {money(snapshot.get('payment_received_total') or 0)}" if snapshot.get('payment_received_total') is not None else "- Получено выплат: 0 ₽",
+        f"- Прибыль: {money(snapshot.get('official_net_profit') or 0)}" if snapshot.get('official_net_profit') is not None else "- Прибыль: пока не рассчитана",
+        "- Расходы: 0 ₽",
     ]
-    for item in list(snapshot.get('quick_links') or []):
-        lines.append(f'- {item}')
-    lines.extend([
-        '',
-        'Технически:',
-        f'- Новый Finance API WB: {finance_api_status}',
-        f'- Финансовая сверка: {engine_status}',
-        f'- Временный legacy-источник: {legacy_status}',
-    ])
-    risk_items = [
-        str(item) for item in list(snapshot.get('risks') or [])
-        if str(item).strip()
+    important_note = (
+        "Официальные финансовые данные WB сейчас недоступны. Пока можно использовать операционную оценку."
+        if not snapshot.get('official_new_finance_available')
+        else "Финансовые данные подтверждены и готовы для контроля."
+    )
+    actions = [
+        "1. Обновить данные.",
+        "2. Проверить отчёт за прошлый месяц.",
+        "3. Открыть бизнес-сводку.",
     ]
-    if risk_items:
-        lines.append('- Notes:')
-        for item in risk_items[:3]:
-            lines.append(f'  {item}')
-    return '\n'.join(lines) + _atlas_footer()
+    return finance_screen(humanize_period_range(days[0], days[1]), status_text, money_lines, important_note, actions)
 
 
 def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -16848,34 +16880,19 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 def _products_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _products_center_snapshot(user=user, days=days)
-    registry_status = str(snapshot.get('sku_registry_status') or 'UNKNOWN')
-    lines = [
-        'VOOGLII PRODUCTS',
-        '',
-        '📌 Общий статус:',
-        f'{_ux_status_icon(registry_status)} Справочник себестоимости требует внимания.' if float(snapshot.get("cost_coverage_percent") or 0) < 95 else f'{_ux_status_icon(registry_status)} Справочник себестоимости готов к работе.',
-        '',
-        '📊 Основные показатели:',
-        f'- Покрытие себестоимости: {float(snapshot.get("cost_coverage_percent") or 0):.1f}%',
-        f'- SKU с себестоимостью: {int(snapshot.get("known_skus") or 0)}',
-        f'- SKU без себестоимости: {int(snapshot.get("missing_skus") or 0)}',
-        f'- Критичные SKU-риски: {int(snapshot.get("critical_stock_count") or 0)}',
-        f'- Дата остатков: {snapshot.get("stock_snapshot_date") or "-"}',
-        '',
-        '⚠ Требует внимания:',
-        '1. Заполнить себестоимость для отсутствующих SKU.',
-        '2. Не принимать решения по прибыльности SKU до полного покрытия.',
-        '',
-        '✅ Что сделать:',
-        '1. Открыть /sku registry.',
-        f'2. Проверить /money sku {days[0]} {days[1]}.',
-        '3. Проверить /stocks и /forecast.',
-        '',
-        '→ Подробнее:',
+    status_text = '🟢 Себестоимость заполнена.' if float(snapshot.get("cost_coverage_percent") or 0) >= 95 else '🟡 Себестоимость требует проверки.'
+    sku_lines = [
+        f"- С себестоимостью: {int(snapshot.get('known_skus') or 0)}",
+        f"- Без себестоимости: {int(snapshot.get('missing_skus') or 0)}",
+        f"- Критичные риски: {int(snapshot.get('critical_stock_count') or 0)}",
     ]
-    for item in list(snapshot.get('quick_links') or []):
-        lines.append(f'- {item}')
-    return '\n'.join(lines) + _atlas_footer()
+    stock_note = "Данные по остаткам пока не загружены." if not snapshot.get('stock_snapshot_date') or snapshot.get('stock_snapshot_date') == '-' else f"Последнее обновление: {snapshot.get('stock_snapshot_date')}"
+    actions = [
+        "1. Обновить данные.",
+        "2. Проверить остатки.",
+        "3. Открыть прогноз поставок.",
+    ]
+    return products_screen(status_text, sku_lines, stock_note, actions)
 
 
 def _analytics_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -16900,26 +16917,14 @@ def _analytics_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')
 
 def _analytics_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _analytics_center_snapshot(user=user, days=days)
-    lines = [
-        'VOOGLII ANALYTICS',
-        '',
-        '📌 Общий статус:',
-        '🟢 Основные отчёты готовы.',
-        '',
-        '📊 Основные показатели:',
-        f'- Продажи: {_ux_status_text(snapshot.get("sales_available") or "UNKNOWN")}',
-        f'- Реклама: {_ux_status_text(snapshot.get("ads_available") or "UNKNOWN")}',
-        f'- Dashboard: готов',
-        f'- CEO Report: готов',
-        '',
-        '✅ Что открыть:',
+    summary_lines = [
+        f"- Продажи: {_ux_status_text(snapshot.get('sales_available') or 'UNKNOWN')}",
+        f"- Реклама: {_ux_status_text(snapshot.get('ads_available') or 'UNKNOWN')}",
+        "- Главная сводка: готова",
+        "- Управленческий отчёт: готов",
     ]
-    for item in list(snapshot.get('primary_reports') or [])[:4]:
-        lines.append(f'- {item}')
-    lines.extend(['', '→ Дополнительно:'])
-    for item in list(snapshot.get('primary_reports') or [])[4:]:
-        lines.append(f'- {item}')
-    return '\n'.join(lines) + _atlas_footer()
+    actions = ["- /dashboard", "- /report", "- /advert", "- /orders"]
+    return analytics_screen(humanize_period_range(days[0], days[1]), summary_lines, actions)
 
 
 def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -16953,40 +16958,55 @@ def _system_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     product_status = str(snapshot.get('product_readiness') or 'UNKNOWN')
     structure_status = str(snapshot.get('structure_status') or 'UNKNOWN')
     runtime_status = str(snapshot.get('agent_status') or 'UNKNOWN')
-    lines = [
-        'VOOGLII SYSTEM',
-        '',
-        '📌 Общий статус:',
-        '🟡 Агент работает, но есть внешние блокеры.',
-        '',
-        '📊 Состояние:',
-        _ux_status_line('Работа платформы', runtime_status),
-        _ux_status_line('Product readiness', product_status),
-        '🟢 UI Spec: READY',
-        '🟡 Release Candidate: требует проверки',
-        _ux_status_line('Structure readiness', structure_status),
-        '🟡 Performance: есть тяжёлые участки',
-        '',
-        '⚠ Известные блокеры:',
+    if has_permission(user, 'help.developer'):
+        lines = [
+            'VOOGLII SYSTEM',
+            '',
+            '📌 Общий статус:',
+            '🟡 Агент работает, но есть внешние блокеры.',
+            '',
+            '📊 Состояние:',
+            _ux_status_line('Работа платформы', runtime_status),
+            _ux_status_line('Product readiness', product_status),
+            '🟢 UI Spec: READY',
+            '🟡 Release Candidate: требует проверки',
+            _ux_status_line('Structure readiness', structure_status),
+            '🟡 Performance: есть тяжёлые участки',
+            '',
+            '⚠ Известные блокеры:',
+        ]
+        blockers = list(snapshot.get('known_blockers') or [])
+        if blockers:
+            for idx, item in enumerate(blockers, start=1):
+                lines.append(f'{idx}. {item}')
+        else:
+            lines.append('1. Official Financial Engine live validation waits for Finance API.')
+        lines.extend([
+            '',
+            '✅ Что сделать:',
+            '1. Проверить /control center.',
+            '2. Проверить /rc status.',
+            '3. Проверить /performance.',
+            '',
+            '→ Инженерные команды:',
+        ])
+        for item in list(snapshot.get('engineering_commands') or []):
+            lines.append(f'- {item}')
+        return '\n'.join(lines)
+    user_row = get_user(user)
+    wb_connected = bool(user_row and user_row[2])
+    items = [
+        '🟢 Бот работает' if _ux_status_icon(runtime_status) == '🟢' else '🟡 Бот требует внимания',
+        '🟢 База данных доступна',
+        '🟡 Финансовые данные WB частично недоступны' if _ux_status_icon(product_status) != '🟢' else '🟢 Финансовые данные WB доступны',
+        '🟡 Кабинет WB не подключён' if not wb_connected else '🟢 Кабинет WB подключён',
     ]
-    blockers = list(snapshot.get('known_blockers') or [])
-    if blockers:
-        for idx, item in enumerate(blockers, start=1):
-            lines.append(f'{idx}. {item}')
-    else:
-        lines.append('1. Official Financial Engine live validation waits for Finance API.')
-    lines.extend([
-        '',
-        '✅ Что сделать:',
-        '1. Проверить /control center.',
-        '2. Проверить /rc status.',
-        '3. Проверить /performance.',
-        '',
-        '→ Инженерные команды:',
-    ])
-    for item in list(snapshot.get('engineering_commands') or []):
-        lines.append(f'- {item}')
-    return '\n'.join(lines) + _atlas_footer()
+    actions = [
+        '1. Подключить кабинет — /connect' if not wb_connected else '1. Обновить данные — /update',
+        '2. Обновить данные — /update',
+        '3. Открыть главную сводку — /home',
+    ]
+    return system_customer_screen(items, actions)
 
 
 def _command_performance_snapshot(command='director', user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -18345,32 +18365,8 @@ def _advisor_text(period_name, days, user):
 
 def _account_text(user):
     u = get_user(user)
-    wb_connected = 'yes' if (u and u[2]) else 'no'
-    role = str((u[7] if u else None) or 'owner')
-    lines = [
-        'ACCOUNT',
-        f'user id: {user}',
-        f'role: {role}',
-        'plan: local/dev',
-        f'WB cabinet connected: {wb_connected}',
-        'data retention: local SQLite',
-        'available modules:',
-        'reports, finance, sku, advertising, sales, forecast, advisor',
-        '',
-        'LIMITS',
-        'WB cabinets: 1',
-        'users: owner only',
-        'history: local DB',
-        'API mode: user token',
-        '',
-        'NEXT STEPS',
-        'сервер',
-        'backup',
-        'PostgreSQL',
-        'multi-user',
-        'billing',
-    ]
-    return '\n'.join(lines)
+    username = f"@{u[1]}" if (u and u[1]) else str(user)
+    return _customer_profile_text(u, username, user)
 
 
 def _report_mgmt_snapshot(user, days, context=None):
@@ -18973,6 +18969,10 @@ async def health_command(update, context):
 async def system_command(update, context):
     args = [str(x).strip().lower() for x in (context.args or []) if str(x).strip()]
     if args[:1] == ['audit']:
+        if not has_permission(uid(update), 'help.developer'):
+            _, days = _executive_period(['current_month'], 'current_month')
+            await send_long(update, _system_center_text(uid(update), days))
+            return
         await send_long(update, _system_audit_text(uid(update)))
         return
     center_period = _try_center_period(args, 'current_month', executive=True)
@@ -20580,6 +20580,9 @@ async def finance_trace_command(update, context, user, trace_date):
 async def menu_command(update, context):
     args = [str(x).strip().lower() for x in (context.args or []) if str(x).strip()]
     if args == ['developer']:
+        if not has_permission(uid(update), 'help.developer'):
+            await update.message.reply_text('🔒 Developer help доступен только для admin/developer ролей.')
+            return
         await update.message.reply_text(_developer_help_text(), reply_markup=kb())
         return
     await update.message.reply_text(_main_menu_text(), reply_markup=kb())
@@ -20596,7 +20599,7 @@ async def finance_command(update, context):
     args = [str(x).strip().lower() for x in (context.args or []) if str(x).strip()]
     mode = args[0] if args else 'help'
     subcommand = mode
-    logger.info('FINANCE COMMAND START user=%s text=%s', user, raw_text)
+    logger.info('FINANCE COMMAND START user=%s text=%s', user, sanitize_log_value(raw_text))
     logger.info('FINANCE PROMOTIONAUDIT DEBUG args=%s subcommand=%s', args, mode)
 
     try:
@@ -20608,7 +20611,7 @@ async def finance_command(update, context):
 
         if mode == 'validate':
             validate_started = time.monotonic()
-            logger.info('FINANCE VALIDATE START user=%s text=%s', user, raw_text)
+            logger.info('FINANCE VALIDATE START user=%s text=%s', user, sanitize_log_value(raw_text))
             if not await access(update, 'report'):
                 return
             try:
@@ -20902,7 +20905,7 @@ async def topprofit_command(update, context):
     raw_text = ''
     if getattr(update, 'message', None):
         raw_text = getattr(update.message, 'text', '') or ''
-    logger.info('TOPPROFIT COMMAND START user=%s text=%s', user, raw_text)
+    logger.info('TOPPROFIT COMMAND START user=%s text=%s', user, sanitize_log_value(raw_text))
     try:
         if not await access(update, 'report'):
             return
@@ -20955,7 +20958,7 @@ async def losers_command(update, context):
     raw_text = ''
     if getattr(update, 'message', None):
         raw_text = getattr(update.message, 'text', '') or ''
-    logger.info('LOSERS COMMAND START user=%s text=%s', user, raw_text)
+    logger.info('LOSERS COMMAND START user=%s text=%s', user, sanitize_log_value(raw_text))
     try:
         if not await access(update, 'report'):
             return
@@ -21001,41 +21004,155 @@ async def losers_command(update, context):
 
 
 async def error_handler(update, context):
-    print("ERROR:", context.error)
+    user_id = None
+    command_text = ''
+    role = 'unknown'
+    if getattr(update, 'effective_user', None):
+        user_id = getattr(update.effective_user, 'id', None)
+    if getattr(update, 'message', None):
+        command_text = getattr(update.message, 'text', '') or ''
+    if user_id is not None:
+        try:
+            role = get_user_role(user_id)
+        except Exception:
+            role = 'unknown'
+    error_obj = getattr(context, 'error', None)
+    logger.error(
+        'Telegram command failed user_id=%s role=%s command=%s error_type=%s',
+        user_id,
+        role,
+        sanitize_log_value(command_text),
+        type(error_obj).__name__ if error_obj else 'UnknownError',
+        exc_info=(type(error_obj), error_obj, getattr(error_obj, '__traceback__', None)) if error_obj else None,
+    )
+    if getattr(update, 'message', None):
+        await update.message.reply_text(
+            'Команда временно не выполнилась.\n\nЯ уже зафиксировал ошибку в диагностике. Попробуйте повторить позже.'
+        )
+
+
+async def _heartbeat_job(context):
+    update_runtime_health('telegram-bot', 'alive', details='polling')
+
+
+def _command_handlers():
+    return {
+        'start': start_command,
+        'help': menu_command,
+        'menu': menu_command,
+        'connect': connect_command,
+        'disconnect': disconnect_command,
+        'update': update_command,
+        'ads': ads_command,
+        'adsupdate': adsupdate_command,
+        'adsaudit': adsaudit_command,
+        'adsfullstatsprobe': adsfullstatsprobe_command,
+        'apistatus': apistatus_command,
+        'syncstatus': syncstatus_command,
+        'tax': tax_command,
+        'tariff': tariff_command,
+        'buy': buy_command,
+        'pro': buy_command,
+        'profile': profile_command,
+        'ref': ref_command,
+        'ceo': ceo_command,
+        'morning': morning_command,
+        'report': report_command,
+        'dashboard': dashboard_command,
+        'payment': payment_command,
+        'money': money_command,
+        'business': business_command,
+        'director': director_command,
+        'home': home_command,
+        'udl': udl_command,
+        'unified': unified_command,
+        'period': period_command,
+        'command': command_command,
+        'migration': migration_command,
+        'control': control_command,
+        'structure': structure_command,
+        'rc': rc_command,
+        'performance': performance_command,
+        'cfo': cfo_command,
+        'decision': decision_command,
+        'kpi': kpi_command,
+        'today': today_command,
+        'week': week_command,
+        'month': month_command,
+        'orders': orders_command,
+        'funnel': funnel_command,
+        'advert': advert_command,
+        'analytics': analytics_command,
+        'product': product_command,
+        'products': products_command,
+        'stocks': stocks_command,
+        'stock': stock_command,
+        'forecast': forecast_command,
+        'replenishment': replenishment_command,
+        'finance': finance_command,
+        'financial': financial_command,
+        'gold': gold_command,
+        'data': data_command,
+        'profit': profit_command,
+        'advisor': advisor_command,
+        'account': account_command,
+        'sales': sales_command,
+        'sku': sku_command,
+        'topprofit': topprofit_command,
+        'losers': losers_command,
+        'expense': expense_command,
+        'pnl': pnl_command,
+        'problems': problems_command,
+        'advice': advice_command,
+        'categories': categories_command,
+        'plan': plan_command,
+        'compare': compare_command,
+        'cashflow': cashflow_command,
+        'prices': prices_command,
+        'export': export_command,
+        'notify': notify_command,
+        'competitor': competitor_command,
+        'card': card_command,
+        'abc': abc_command,
+        'health': health_command,
+        'system': system_command,
+        'status': status_command,
+        'telegram': telegram_command,
+        'ui': ui_command,
+        'admin': admin_command,
+    }
 
 
 def main():
     _configure_telegram_logging()
+    validate_token_encryption_configuration(require_in_production=True)
     init_db()
     if not BOT_TOKEN:
         raise RuntimeError('BOT_TOKEN не задан. Установите environment variable BOT_TOKEN перед запуском.')
-    app_env = str(os.getenv('APP_ENV') or 'development').strip().lower() or 'development'
+    app_env = APP_ENV
+    update_runtime_health('telegram-bot', 'starting', details=DB_NAME)
     logger.info(
-        'Starting Telegram bot',
-        extra={
-            'app_env': app_env,
-            'db_name': DB_NAME,
-            'bot_username': BOT_USERNAME,
-            'admin_count': len(ADMIN_IDS),
-        },
+        'Starting Telegram bot app_env=%s db_name=%s bot_username=%s admin_count=%s',
+        app_env,
+        DB_NAME,
+        BOT_USERNAME,
+        len(ADMIN_IDS),
     )
-    print("HTTP_PROXY =", os.environ.get("HTTP_PROXY"))
-    print("HTTPS_PROXY =", os.environ.get("HTTPS_PROXY"))
-    print("http_proxy =", os.environ.get("http_proxy"))
-    print("https_proxy =", os.environ.get("https_proxy"))
     try:
-        print("api.telegram.org =", socket.gethostbyname("api.telegram.org"))
+        logger.info('api.telegram.org resolved=%s', socket.gethostbyname("api.telegram.org"))
     except Exception as e:
-        print("DNS ERROR:", e)
+        logger.warning('Telegram DNS resolution failed: %s', sanitize_log_value(str(e)))
     app=Application.builder().token(BOT_TOKEN).build()
     _TELEGRAM_RUNTIME['application'] = app
-    for name,h in {'start':start_command,'help':menu_command,'menu':menu_command,'connect':connect_command,'update':update_command,'ads':ads_command,'adsupdate':adsupdate_command,'adsaudit':adsaudit_command,'adsfullstatsprobe':adsfullstatsprobe_command,'apistatus':apistatus_command,'syncstatus':syncstatus_command,'tax':tax_command,'tariff':tariff_command,'buy':buy_command,'pro':buy_command,'profile':profile_command,'ref':ref_command,'ceo':ceo_command,'morning':morning_command,'report':report_command,'dashboard':dashboard_command,'payment':payment_command,'money':money_command,'business':business_command,'director':director_command,'home':home_command,'udl':udl_command,'unified':unified_command,'period':period_command,'command':command_command,'migration':migration_command,'control':control_command,'structure':structure_command,'rc':rc_command,'performance':performance_command,'cfo':cfo_command,'decision':decision_command,'kpi':kpi_command,'today':today_command,'week':week_command,'month':month_command,'orders':orders_command,'funnel':funnel_command,'advert':advert_command,'analytics':analytics_command,'product':product_command,'products':products_command,'stocks':stocks_command,'stock':stock_command,'forecast':forecast_command,'replenishment':replenishment_command,'finance':finance_command,'financial':financial_command,'gold':gold_command,'data':data_command,'profit':profit_command,'advisor':advisor_command,'account':account_command,'sales':sales_command,'sku':sku_command,'topprofit':topprofit_command,'losers':losers_command,'expense':expense_command,'pnl':pnl_command,'problems':problems_command,'advice':advice_command,'categories':categories_command,'plan':plan_command,'compare':compare_command,'cashflow':cashflow_command,'prices':prices_command,'export':export_command,'notify':notify_command,'competitor':competitor_command,'card':card_command,'abc':abc_command,'health':health_command,'system':system_command,'status':status_command,'telegram':telegram_command,'ui':ui_command,'admin':admin_command}.items(): app.add_handler(CommandHandler(name,h))
+    for name, handler in _command_handlers().items():
+        app.add_handler(CommandHandler(name, _wrap_command_handler(name, handler)))
     app.add_handler(PreCheckoutQueryHandler(precheckout)); app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment)); app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, buttons))
     app.add_error_handler(error_handler)
     if app.job_queue:
         schedule_background_jobs(app.job_queue)
+        app.job_queue.run_repeating(_heartbeat_job, interval=30, first=1, name='telegram_bot_heartbeat')
         logger.info('Telegram background jobs scheduled')
-    print('Telegram Bot Started...')
+    update_runtime_health('telegram-bot', 'alive', details='polling')
     logger.info('Telegram bot polling started')
     app.run_polling()
 if __name__=='__main__': main()

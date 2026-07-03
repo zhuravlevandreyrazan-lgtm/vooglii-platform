@@ -1,4 +1,5 @@
 ﻿import sqlite3
+import logging
 from datetime import datetime, timedelta, time as dt_time
 from time import time
 
@@ -7,6 +8,10 @@ from db_manager import init_db
 from load_sales import sync_block_for_user, update_sync_status
 from report import calculate_tax, format_tax_settings_label, get_advertising_stats, get_cost_fill_stats, get_daily_sales, get_profit_stats, get_profit_stats_after_tax, get_replenishment_plan, get_roi, get_stock_forecast, get_top_product, get_worst_profit_products
 from update_log import save_update
+from user_manager import get_active_user_tokens
+
+
+logger = logging.getLogger(__name__)
 
 
 SYNC_INTERVALS = {
@@ -19,43 +24,7 @@ SYNC_INTERVALS = {
 
 
 def _get_target_users(telegram_id=None):
-    init_db()
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    today = datetime.now().strftime('%Y-%m-%d')
-    if telegram_id is None:
-        cur.execute('''
-        SELECT telegram_id, wb_token
-        FROM users
-        WHERE is_active=1
-          AND wb_token IS NOT NULL
-          AND TRIM(wb_token)!=''
-          AND (
-              UPPER(COALESCE(tariff,'FREE'))!='PRO'
-              OR subscription_until IS NULL
-              OR subscription_until=''
-              OR subscription_until>=?
-          )
-        ORDER BY telegram_id
-        ''', (today,))
-    else:
-        cur.execute('''
-        SELECT telegram_id, wb_token
-        FROM users
-        WHERE telegram_id=?
-          AND is_active=1
-          AND wb_token IS NOT NULL
-          AND TRIM(wb_token)!=''
-          AND (
-              UPPER(COALESCE(tariff,'FREE'))!='PRO'
-              OR subscription_until IS NULL
-              OR subscription_until=''
-              OR subscription_until>=?
-          )
-        ''', (telegram_id, today))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    return get_active_user_tokens(telegram_id)
 
 
 def _job_telegram_id(context):
@@ -121,12 +90,12 @@ def _sync_many(block, telegram_id=None):
         try:
             lock_acquired = acquire_sync_lock(user_id, block)
             if not lock_acquired:
-                print(f'SYNC_SKIP_LOCK:{block}:{user_id}')
+                logger.warning('SYNC_SKIP_LOCK block=%s user_id=%s', block, user_id)
                 continue
             sync_block_for_user(user_id, token, block, 30, save_update_row=True)
         except Exception as e:
             message = f'SYNC_ERROR:{block}:{type(e).__name__}'
-            print(message)
+            logger.exception(message)
             save_update(message, 0, user_id, 0, 0, 0, 0)
             update_sync_status(user_id, block, f'EXCEPTION:{type(e).__name__}')
         finally:

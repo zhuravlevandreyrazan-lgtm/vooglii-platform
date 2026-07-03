@@ -4,23 +4,7 @@ import logging
 import os
 from typing import Any
 
-
-SENSITIVE_MARKERS = [
-    "token",
-    "authorization",
-    "secret",
-    "cookie",
-]
-
-
-class SensitiveDataFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        message = str(record.getMessage())
-        lowered = message.lower()
-        if any(marker in lowered for marker in SENSITIVE_MARKERS):
-            record.msg = "[redacted sensitive log payload]"
-            record.args = ()
-        return True
+from security.logging import SensitiveDataFilter, sanitize_log_value
 
 
 def configure_logging() -> None:
@@ -46,6 +30,5 @@ def get_logger(category: str) -> logging.Logger:
 def safe_log_extra(**kwargs: Any) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, value in kwargs.items():
-        lowered = key.lower()
-        sanitized[key] = "[redacted]" if any(marker in lowered for marker in SENSITIVE_MARKERS) else value
+        sanitized[key] = sanitize_log_value(value) if isinstance(value, str) else value
     return sanitized
