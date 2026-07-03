@@ -1,47 +1,36 @@
 # TELEGRAM BOT V1 RELEASE REPORT
 
-## Что исправлено
+## Completed
 
-- Добавлено шифрование WB-токенов через `security/token_crypto.py`
-- Внедрена централизованная permission-модель в `security/permissions.py`
-- Добавлен audit trail для privileged actions
-- Усилено безопасное логирование и маскирование секретов
-- Добавлены `/disconnect`, heartbeat и release healthcheck
-- Customer help/menu очищены от developer surface
-- Добавлены автономные тесты и `scripts/release_check.py`
+- Customer brand is unified as `VOOGLII` and `VOOGLII Terminal`.
+- `/start` uses the UX 2.0 start screen from `vooglii_telegram/ux/screens.py`.
+- Customer `/system` is separated from the engineering audit surface.
+- Customer `/advisor` now opens the V2 advisor flow by default.
+- Runtime smoke checks cover real registered command handlers.
 
-## Commercial UX Polish v1.0
+## VOOGLII Terminal v1.0 RC
 
-- Во всех customer-facing экранах бренд приведён к `VOOGLII` и `VOOGLII Terminal`
-- Обновлены customer screens: `/start`, `/menu`, `/home`, `/help`, `/profile`, `/account`, `/system`, `/business`, `/finance`, `/products`, `/analytics`
-- Инженерные команды скрыты из customer `/system`
-- `/help developer` оставлен только для developer/admin
-- PRO-lock переписан как коммерческий upsell
+- `/home` builds recommendations from runtime state instead of static prompts.
+- `/finance` explains when WB has not yet published official finance data.
+- `/products` includes concrete SKU risk summaries.
+- `/system` shows customer-safe platform health and next steps.
 
-## Telegram UX 2.0
-
-- Добавлен новый customer UX layer в `vooglii_telegram/ux/`
-- Заменены реальные customer screens `/start`, `/menu`, `/help`, `/home`, `/profile`, `/account`, `/system`, `/business`, `/finance`, `/products`, `/analytics`, `/connect`, `/update`, `/stocks`
-- Убраны запрещённые technical terms из customer surface: `Wildberries Agent`, `/help developer`, `current_month`, `previous_month`, `last_7_days`, `last_30_days`, `Legacy fallback`, `UNKNOWN`, `NOT_ACTIVE`, `Release Candidate`, `UI Spec`, `Product readiness`, `Structure readiness`, `Performance`, `Official Financial Engine`, `local/dev`, `local SQLite`, `PostgreSQL`, `/director`, `/cfo`, `/kpi`, `/decision`, `/control center`, `/rc status`, `/migration readiness`
-- Обновлены кнопочные сценарии, чтобы customer callbacks вели в новый UX
-- `scripts/release_check.py` теперь включает UX 2.0 проверки и `py_compile` для `vooglii_telegram/ux/*.py`
-
-## Какие UX-тесты добавлены
+## Runtime Checks Added
 
 - `tests/test_telegram_customer_ux.py`
 - `tests/test_telegram_customer_ux_v2.py`
-- Проверка реальных customer handlers и renderers
-- Проверка пустых состояний `/connect`, `/update`, `/stocks`
-- Проверка customer `/system`
-- Проверка PRO-lock и `/profile` / `/account`
+- `tests/test_telegram_start_runtime_smoke.py`
+- `tests/test_telegram_runtime_handler_audit.py`
+- `scripts/release_check.py`
 
-## Как проверить руками
+## Manual Verification
 
-- Открыть в Telegram: `/start`, `/menu`, `/help`, `/home`, `/profile`, `/account`, `/system`, `/business`, `/finance`, `/products`, `/analytics`, `/connect`, `/update`, `/stocks`
-- Проверить кнопки: `📅 Сегодня`, `📆 Неделя`, `🗓 Месяц`, `♾ Всё время`, `📊 Отчёт`, `📦 Остатки`, `📢 Реклама`, `⚠ Проблемы`, `🔄 Обновить`, `👑 CEO`, `💰 P&L`, `🤖 AI-советы`, `👤 Кабинет`, `⚙ Меню`
+- Open `/start`, `/home`, `/business`, `/finance`, `/products`, `/system`, `/profile`, `/advisor`.
+- Confirm no customer output contains `Wildberries Agent`, `current_month`, `last_7_days`, `last_30_days`, `Release Candidate`, `UI Spec`, `Product readiness`.
+- Confirm developer-only diagnostics remain hidden from customer roles.
 
-## Что осталось
+## Known Limits
 
-- `telegram_bot.py` всё ещё остаётся крупным монолитом
-- Часть long-tail legacy команд всё ещё содержит старые или технические тексты
-- Нужна отдельная волна UX-полировки для редких диагностических и архивных сценариев
+- `telegram_bot.py` is still a large monolith.
+- Docker-based checks require a local Docker runtime.
+- `scripts/check_telegram_bot_health.py` requires a configured `BOT_TOKEN`.

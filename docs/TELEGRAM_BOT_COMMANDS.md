@@ -2,60 +2,41 @@
 
 ## Customer Commands
 
-- `/start` — запуск VOOGLII Terminal
-- `/help` — клиентская помощь
-- `/menu` — главное меню
-- `/home` — главная сводка
-- `/business` — состояние бизнеса
-- `/finance` — деньги, прибыль и выплаты
-- `/products` — товары, SKU и остатки
-- `/analytics` — расширенные отчёты
-- `/advisor` — AI-рекомендации
-- `/system` — состояние сервиса и данных
-- `/profile` — кабинет и подписка
-- `/account` — alias на клиентский профиль
-- `/connect` — подключение кабинета Wildberries
-- `/disconnect` — удаление WB-токена
-- `/update` — обновление данных
-- `/stocks` — остатки
-- `/forecast` — прогноз пополнения
-- `/tariff` — тарифы VOOGLII
+- `/start` - launch VOOGLII Terminal
+- `/menu` - main navigation
+- `/home` - main business summary
+- `/business` - business status
+- `/finance` - money, profit, payouts
+- `/products` - products, SKU, stock risks
+- `/analytics` - reports and dashboards
+- `/advisor` - VOOGLII Advisor V2
+- `/system` - customer-safe platform health
+- `/profile` - profile and subscription
+- `/account` - alias to customer profile
+- `/connect` - connect WB cabinet
+- `/disconnect` - disconnect WB token
+- `/update` - refresh data
+- `/stocks` - stock screen
+- `/forecast` - replenishment forecast
 
-## Admin Commands
+## Developer/Admin Commands
 
-- `/admin`
-- `/health`
-- `/syncstatus`
-- `/apistatus`
-- `/control`
-- `/migration`
+- `/system audit`
 - `/performance`
-- `/structure`
-
-## Developer Commands
-
-- `/telegram`
-- `/ui`
-- `/rc`
-- `/data`
-- `/adsfullstatsprobe`
+- `/product readiness`
+- `/structure readiness`
+- `/command audit`
+- `/migration readiness`
 
 ## Access Model
 
-- `customer` команды видны в `/help` и `/menu`
-- `admin` команды скрыты из customer UX
-- `developer` команды скрыты и доступны только developer/admin ролям
-- `/help developer` доступен только для developer/admin
+- Customer commands appear in `/menu` and customer help.
+- Developer/admin diagnostics must stay hidden from customer roles.
+- `/help developer` is developer/admin only.
+- `/system` must stay customer-safe unless the user explicitly has developer access.
 
-## Commercial UX Polish v1.0
+## VOOGLII Terminal v1.0 RC Notes
 
-- Бренд customer-facing интерфейса унифицирован как `VOOGLII` и `VOOGLII Terminal`
-- `/menu`, `/help`, `/home`, `/profile`, `/system`, `/business`, `/finance`, `/products`, `/analytics` приведены к клиентскому формату
-- PRO-lock сообщения переписаны в формат value-based upsell
-
-## Telegram UX 2.0
-
-- Добавлен выделенный UX layer в `vooglii_telegram/ux/`
-- Реальные customer handlers используют новые renderers для `/start`, `/menu`, `/help`, `/home`, `/profile`, `/account`, `/system`, `/business`, `/finance`, `/products`, `/analytics`, `/connect`, `/update`, `/stocks`
-- В customer UX больше не должны появляться `Wildberries Agent`, `/help developer`, `current_month`, `last_30_days`, `Legacy fallback`, `UNKNOWN`, `NOT_ACTIVE`, `/director`, `/cfo`, `/kpi`, `/decision`
-- Customer периоды показываются человеческими лейблами: `Сегодня`, `7 дней`, `30 дней`, `Текущий месяц`, `Прошлый месяц`, `Всё время`
+- `/start` must begin with `🏢 VOOGLII Terminal`.
+- `/advisor` opens V2 by default.
+- Customer outputs must not expose internal period tokens like `current_month`, `last_7_days`, `last_30_days`.

@@ -36,6 +36,7 @@ COMMANDS = [
     [sys.executable, "tests/test_telegram_healthcheck.py"],
     [sys.executable, "tests/test_telegram_customer_ux_v2.py"],
     [sys.executable, "tests/test_telegram_start_runtime_smoke.py"],
+    [sys.executable, "tests/test_telegram_runtime_handler_audit.py"],
     [sys.executable, "tests/test_error_handler.py"],
 ]
 

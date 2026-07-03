@@ -2,12 +2,12 @@
 
 ## Before Release
 
-- Убедиться, что задан `BOT_TOKEN`
-- Убедиться, что задан `VOOGLII_TOKEN_ENCRYPTION_KEY`
-- Проверить `APP_ENV`
-- Проверить `DB_DIR`
-- Проверить, что customer help не показывает dev/admin команды
-- Проверить, что customer-facing тексты не содержат `Wildberries Agent`, `????`, `UNKNOWN`, `NOT_ACTIVE`, `Legacy fallback`
+- Verify `BOT_TOKEN`.
+- Verify `VOOGLII_TOKEN_ENCRYPTION_KEY`.
+- Verify `APP_ENV`.
+- Verify `DB_DIR`.
+- Verify customer help/menu do not expose developer or admin commands.
+- Verify customer-facing texts do not contain `Wildberries Agent`, `UNKNOWN`, `NOT_ACTIVE`, `current_month`, `last_7_days`, `last_30_days`.
 
 ## Verification Commands
 
@@ -16,20 +16,28 @@
 - `python scripts/check_telegram_bot_health.py`
 - `python -m py_compile telegram_bot.py vooglii_telegram/ux/*.py`
 - `docker compose config`
-- `docker compose -f docker-compose.yml -f docker-compose.prod.yml config`
+- `docker compose build`
+- `docker compose up -d`
+- `docker compose logs telegram-bot`
 
 ## Production Readiness
 
-- `/help` показывает только customer-команды
-- `/help developer` закрыт для обычного пользователя
-- `/system` не показывает инженерные команды обычному пользователю
-- `/profile` и `/account` выглядят как клиентские экраны
-- `/connect`, `/update`, `/stocks` не содержат mojibake
-- PRO-lock текст выглядит как коммерческий upsell, а не ошибка доступа
+- `/start` begins with `🏢 VOOGLII Terminal`.
+- `/menu`, `/home`, `/business`, `/finance`, `/products`, `/advisor`, `/profile`, `/system` use customer UX.
+- Customer `/system` does not show engineering diagnostics.
+- Developer `/system audit` remains available only for developer/admin roles.
+- `/advisor` opens the V2 advisor flow by default.
 
-## Telegram UX 2.0
+## Runtime Audit
 
-- Проверить customer-версии экранов `/start`, `/menu`, `/help`, `/home`, `/profile`, `/account`, `/system`, `/business`, `/finance`, `/products`, `/analytics`, `/connect`, `/update`, `/stocks`
-- Проверить новый UX-регрессионный набор `tests/test_telegram_customer_ux_v2.py`
-- Проверить, что `scripts/release_check.py` падает при возврате запрещённых customer tokens
-- Если Docker доступен, дополнительно проверить `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` и `docker compose logs telegram-bot --tail=200`
+- Run `tests/test_telegram_start_runtime_smoke.py`.
+- Run `tests/test_telegram_runtime_handler_audit.py`.
+- Release check must fail if a real registered `CommandHandler` returns legacy UX.
+
+## VOOGLII Terminal v1.0 RC
+
+- Runtime audit verifies real registered handlers, not only helper renderers.
+- Customer `/system` is dynamic and role-aware.
+- Customer `/home` actions are generated from current business state.
+- Customer `/finance` explains why profit may still be unavailable.
+- Customer `/products` shows concrete SKU risk summaries.

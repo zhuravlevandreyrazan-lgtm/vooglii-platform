@@ -897,6 +897,29 @@ def _ux_status_line(label, status):
     return f'{_ux_status_icon(status)} {label}: {_ux_status_text(status)}'
 
 
+def _ux_status_is_ok(status):
+    return _ux_status_icon(status) == '🟢'
+
+
+def _customer_last_update_label(value):
+    dt = parse_dt(value)
+    if not dt:
+        return 'ещё не было'
+    return dt.strftime('%d.%m.%Y %H:%M')
+
+
+def _customer_actions(*items):
+    actions = []
+    seen = set()
+    for item in items:
+        text = str(item or '').strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        actions.append(f'{len(actions) + 1}. {text}')
+    return actions
+
+
 _ATLAS_DIVIDER = '━━━━━━━━━━━━━━'
 
 
@@ -16715,6 +16738,9 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     unified_snapshot = dict(light_context.get('unified_data_snapshot') or {})
     ads_snapshot = dict(light_context.get('ads_snapshot') or {})
     sku_registry_snapshot = dict(light_context.get('sku_registry_snapshot') or {})
+    health_snapshot = _health_snapshot(user)
+    user_row = get_user(user)
+    wb_connected = bool(user_row and user_row[2])
     return {
         'status': 'OK',
         'period_label': _atlas_month_label(days),
@@ -16722,6 +16748,8 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'finance_status': financial_engine_snapshot.get('status') or 'UNKNOWN',
         'ads_status': ads_snapshot.get('status') or ((unified_snapshot.get('advertising') or {}).get('status')) or 'UNKNOWN',
         'costs_status': 'WARNING' if float(sku_registry_snapshot.get('coverage_percent') or 0) < 95 else (sku_registry_snapshot.get('registry_status') or 'UNKNOWN'),
+        'wb_connected': wb_connected,
+        'last_updates': dict(health_snapshot.get('last_updates') or {}),
         'sections': [
             '📊 Business',
             '💰 Finance',
@@ -16735,17 +16763,39 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _home_snapshot(user=user, days=days)
+    sales_ok = _ux_status_is_ok(snapshot.get('sales_status'))
+    finance_ok = _ux_status_is_ok(snapshot.get('finance_status'))
+    ads_ok = _ux_status_is_ok(snapshot.get('ads_status'))
+    costs_ok = _ux_status_is_ok(snapshot.get('costs_status'))
     cards = [
-        ("Продажи", snapshot.get('sales_status') or 'UNKNOWN', _ux_status_text(snapshot.get('sales_status'))),
-        ("Финансы", snapshot.get('finance_status') or 'UNKNOWN', 'Ожидают подтверждения WB.' if _ux_status_icon(snapshot.get('finance_status')) != '🟢' else 'Данные доступны.'),
-        ("Реклама", snapshot.get('ads_status') or 'UNKNOWN', 'Требует внимания.' if _ux_status_icon(snapshot.get('ads_status')) != '🟢' else 'Данные актуальны.'),
-        ("Себестоимость", snapshot.get('costs_status') or 'UNKNOWN', 'Справочник готов.' if _ux_status_icon(snapshot.get('costs_status')) == '🟢' else 'Нужно проверить покрытие SKU.'),
+        (
+            "Продажи",
+            snapshot.get('sales_status') or 'UNKNOWN',
+            "Продажи загружены и готовы к анализу." if sales_ok else "Нужно обновить или проверить загрузку продаж.",
+        ),
+        (
+            "Финансы",
+            snapshot.get('finance_status') or 'UNKNOWN',
+            "WB уже передал финансовые данные." if finance_ok else "WB ещё подтверждает финансовые данные.",
+        ),
+        (
+            "Реклама",
+            snapshot.get('ads_status') or 'UNKNOWN',
+            "Рекламные данные актуальны." if ads_ok else "Есть вопросы к рекламе или её загрузке.",
+        ),
+        (
+            "Себестоимость",
+            snapshot.get('costs_status') or 'UNKNOWN',
+            "Справочник себестоимости заполнен." if costs_ok else "Есть SKU без себестоимости или с неполными данными.",
+        ),
     ]
-    actions = [
-        "1. Подключить кабинет WB, если он ещё не подключён.",
-        "2. Запустить обновление данных.",
-        "3. Открыть бизнес-сводку.",
-    ]
+    actions = _customer_actions(
+        "Подключить кабинет WB через /connect." if not snapshot.get('wb_connected') else "",
+        "Обновить данные через /update." if not (sales_ok and ads_ok) else "",
+        "Открыть /finance и проверить прибыль." if not finance_ok else "",
+        "Открыть /products и заполнить себестоимость." if not costs_ok else "",
+        "Открыть /business и посмотреть ключевые итоги.",
+    )
     return home_screen(str(snapshot.get('period_label') or '-'), cards, actions, main_sections())
 
 
@@ -16783,17 +16833,26 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _business_center_snapshot(user=user, days=days)
     state = dict(snapshot.get('business_state') or {})
+    recommendation = str(snapshot.get('main_recommendation') or '').strip()
+    recommendation_action = str(snapshot.get('main_recommendation_action') or '').strip()
+    today_actions = [str(item).strip() for item in list(snapshot.get('today_actions') or []) if str(item).strip()]
+    risk_lines = [str(item).strip() for item in list(snapshot.get('risks') or []) if str(item).strip() and str(item).strip() != '-']
     highlights = [
         f"- Продажи: {_ux_status_text(state.get('sales') or 'UNKNOWN')}",
         f"- Финансы: {_ux_status_text(state.get('finance') or 'UNKNOWN')}",
         f"- Реклама: {_ux_status_text(state.get('ads') or 'UNKNOWN')}",
         f"- Себестоимость: {'готова' if _ux_status_icon(snapshot.get('business_health')) == '🟢' else 'требует проверки'}",
     ]
-    actions = [
-        "1. Обновить данные.",
-        "2. Проверить рекламу.",
-        "3. Открыть AI-рекомендации.",
-    ]
+    if recommendation and recommendation != '-':
+        highlights.append(f"- Главная рекомендация: {recommendation}")
+    if risk_lines:
+        highlights.append(f"- Главное сейчас: {risk_lines[0]}")
+    actions = _customer_actions(
+        recommendation_action,
+        today_actions[0] if len(today_actions) > 0 else "",
+        today_actions[1] if len(today_actions) > 1 else "",
+        "Открыть /advisor для следующего шага.",
+    )
     next_sections = ["🤖 /advisor", "💰 /finance", "📦 /products"]
     return business_screen(
         period_label=humanize_period_range(days[0], days[1]),
@@ -16808,6 +16867,7 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     finance_api_snapshot = _finance_api_status_snapshot(user)
     financial_engine_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
     payment_snapshot = _payment_reconciliation_snapshot(user, days[0], days[1])
+    finance_health = get_finance_difference_snapshot(user, days[0], days[1])
     period_label = f"{days[0]}..{days[1]}"
     engine_status = str(financial_engine_snapshot.get('status') or 'UNKNOWN')
     return {
@@ -16822,6 +16882,7 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'payment_received_total': payment_snapshot.get('weekly_payout_total_all'),
         'sales_for_pay_total': payment_snapshot.get('sales_for_pay_total'),
         'profit_audit_safety_status': 'OFFICIAL_READY' if bool(financial_engine_snapshot.get('official_new_finance_available')) else ('LEGACY_FALLBACK' if engine_status == 'LEGACY_FALLBACK' else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE'),
+        'coverage_percent': float(finance_health.get('coverage_percent') or 0),
         'risks': list(financial_engine_snapshot.get('warnings') or [])[:3],
         'quick_links': [
             '/finance api status',
@@ -16835,7 +16896,8 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     snapshot = _finance_center_snapshot(user=user, days=days)
-    status_text = '🟡 Финансовые данные WB ожидают подтверждения.' if not snapshot.get('official_new_finance_available') else '🟢 Финансовые данные WB доступны.'
+    official_available = bool(snapshot.get('official_new_finance_available'))
+    status_text = '🟡 Финансовые данные WB ожидают подтверждения.' if not official_available else '🟢 Финансовые данные WB доступны.'
     money_lines = [
         f"- К выплате: {money(snapshot.get('sales_for_pay_total') or 0)}" if snapshot.get('sales_for_pay_total') is not None else "- К выплате: 0 ₽",
         f"- Получено выплат: {money(snapshot.get('payment_received_total') or 0)}" if snapshot.get('payment_received_total') is not None else "- Получено выплат: 0 ₽",
@@ -16843,15 +16905,16 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         "- Расходы: 0 ₽",
     ]
     important_note = (
-        "Официальные финансовые данные WB сейчас недоступны. Пока можно использовать операционную оценку."
-        if not snapshot.get('official_new_finance_available')
+        "WB ещё не предоставил официальные финансовые данные. Как только они появятся, VOOGLII автоматически пересчитает прибыль."
+        if not official_available
         else "Финансовые данные подтверждены и готовы для контроля."
     )
-    actions = [
-        "1. Обновить данные.",
-        "2. Проверить отчёт за прошлый месяц.",
-        "3. Открыть бизнес-сводку.",
-    ]
+    actions = _customer_actions(
+        "Обновить данные через /update." if not official_available else "",
+        "Открыть /business и сверить общую картину." if not official_available else "",
+        "Проверить рекламные расходы в /analytics." if float(snapshot.get('coverage_percent') or 0) < 95 else "",
+        "Открыть /finance validate для детальной сверки." if official_available else "",
+    )
     return finance_screen(humanize_period_range(days[0], days[1]), status_text, money_lines, important_note, actions)
 
 
@@ -16859,6 +16922,17 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
     sku_registry_snapshot = _sku_registry_snapshot(user, days)
     forecast_rows = get_stock_forecast(user, 7, 30)
     critical_rows = [row for row in forecast_rows if row.get('risk_level') in ('no_stock', 'critical', 'high')]
+    top_risks = []
+    for row in critical_rows[:3]:
+        article = str(row.get('article') or '-')
+        days_left = row.get('days_left')
+        if row.get('risk_level') == 'no_stock':
+            detail = f'{article} — остаток уже закончился'
+        elif days_left is not None:
+            detail = f'{article} — хватит примерно на {days_left} дн.'
+        else:
+            detail = f'{article} — нужно проверить остатки'
+        top_risks.append(detail)
     return {
         'status': 'OK',
         'period': f"{days[0]}..{days[1]}",
@@ -16867,6 +16941,7 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'known_skus': len(list(sku_registry_snapshot.get('known_skus') or [])),
         'missing_skus': len(list(sku_registry_snapshot.get('missing_skus') or [])),
         'critical_stock_count': len(critical_rows),
+        'top_risks': top_risks,
         'stock_snapshot_date': _stock_snapshot_date(user) or '-',
         'quick_links': [
             '/sku registry',
@@ -16884,14 +16959,19 @@ def _products_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     sku_lines = [
         f"- С себестоимостью: {int(snapshot.get('known_skus') or 0)}",
         f"- Без себестоимости: {int(snapshot.get('missing_skus') or 0)}",
-        f"- Критичные риски: {int(snapshot.get('critical_stock_count') or 0)}",
+        f"- Критичные риски: {int(snapshot.get('critical_stock_count') or 0)} товар(а)",
     ]
+    top_risks = list(snapshot.get('top_risks') or [])
+    if top_risks:
+        sku_lines.append("- Основные проблемы:")
+        sku_lines.extend([f"  • {item}" for item in top_risks])
     stock_note = "Данные по остаткам пока не загружены." if not snapshot.get('stock_snapshot_date') or snapshot.get('stock_snapshot_date') == '-' else f"Последнее обновление: {snapshot.get('stock_snapshot_date')}"
-    actions = [
-        "1. Обновить данные.",
-        "2. Проверить остатки.",
-        "3. Открыть прогноз поставок.",
-    ]
+    actions = _customer_actions(
+        "Обновить данные через /update." if snapshot.get('stock_snapshot_date') in (None, '-') else "",
+        "Открыть /stocks и проверить остатки." if int(snapshot.get('critical_stock_count') or 0) > 0 else "",
+        "Заполнить себестоимость для SKU без цены." if int(snapshot.get('missing_skus') or 0) > 0 else "",
+        "Открыть /forecast и проверить поставки." if int(snapshot.get('critical_stock_count') or 0) > 0 else "",
+    )
     return products_screen(status_text, sku_lines, stock_note, actions)
 
 
@@ -16920,8 +17000,8 @@ def _analytics_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     summary_lines = [
         f"- Продажи: {_ux_status_text(snapshot.get('sales_available') or 'UNKNOWN')}",
         f"- Реклама: {_ux_status_text(snapshot.get('ads_available') or 'UNKNOWN')}",
-        "- Главная сводка: готова",
-        "- Управленческий отчёт: готов",
+        "- Главная сводка: доступна",
+        "- Управленческий отчёт: доступен",
     ]
     actions = ["- /dashboard", "- /report", "- /advert", "- /orders"]
     return analytics_screen(humanize_period_range(days[0], days[1]), summary_lines, actions)
@@ -16931,10 +17011,20 @@ def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     health_snapshot = _health_snapshot(user)
     product_readiness_snapshot = _product_readiness_snapshot(user=user)
     structure_snapshot = _project_structure_readiness_snapshot(user=user, days=days)
+    finance_status = str((((health_snapshot.get('quality') or {}).get('finance') or {}).get('status')) or 'UNKNOWN')
+    ads_status = str((((health_snapshot.get('quality') or {}).get('advertising') or {}).get('status')) or 'UNKNOWN')
+    sales_status = str((((health_snapshot.get('quality') or {}).get('sales') or {}).get('status')) or 'UNKNOWN')
+    user_row = get_user(user)
     return {
         'status': 'OK',
         'period': f"{days[0]}..{days[1]}",
         'agent_status': health_snapshot.get('bot_status') or health_snapshot.get('verdict') or 'UNKNOWN',
+        'database_status': health_snapshot.get('database_status') or 'UNKNOWN',
+        'last_updates': dict(health_snapshot.get('last_updates') or {}),
+        'sales_status': sales_status,
+        'finance_status': finance_status,
+        'ads_status': ads_status,
+        'wb_connected': bool(user_row and user_row[2]),
         'product_readiness': product_readiness_snapshot.get('product_status') or 'UNKNOWN',
         'rc_status': 'SEE_RC_STATUS',
         'performance_status': 'SEE_PERFORMANCE',
@@ -16993,19 +17083,26 @@ def _system_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         for item in list(snapshot.get('engineering_commands') or []):
             lines.append(f'- {item}')
         return '\n'.join(lines)
-    user_row = get_user(user)
-    wb_connected = bool(user_row and user_row[2])
+    wb_connected = bool(snapshot.get('wb_connected'))
+    finance_status = str(snapshot.get('finance_status') or 'UNKNOWN')
+    ads_status = str(snapshot.get('ads_status') or 'UNKNOWN')
+    sales_status = str(snapshot.get('sales_status') or 'UNKNOWN')
+    last_updates = dict(snapshot.get('last_updates') or {})
     items = [
         '🟢 Бот работает' if _ux_status_icon(runtime_status) == '🟢' else '🟡 Бот требует внимания',
-        '🟢 База данных доступна',
-        '🟡 Финансовые данные WB частично недоступны' if _ux_status_icon(product_status) != '🟢' else '🟢 Финансовые данные WB доступны',
         '🟡 Кабинет WB не подключён' if not wb_connected else '🟢 Кабинет WB подключён',
+        '🟢 База данных доступна' if _ux_status_is_ok(snapshot.get('database_status')) else '🔴 База данных недоступна',
+        f'{"🟢" if _ux_status_is_ok(sales_status) else "🟡"} Продажи: {"актуальны" if _ux_status_is_ok(sales_status) else "нужно обновление"}',
+        f'{"🟢" if _ux_status_is_ok(finance_status) else "🟡"} Финансовые данные WB: {"доступны" if _ux_status_is_ok(finance_status) else "ожидают подтверждения"}',
+        f'{"🟢" if _ux_status_is_ok(ads_status) else "🟡"} Реклама: {"обновлена" if _ux_status_is_ok(ads_status) else "требует проверки"}',
+        f'🕒 Последнее обновление: {_customer_last_update_label(last_updates.get("sales"))}',
     ]
-    actions = [
-        '1. Подключить кабинет — /connect' if not wb_connected else '1. Обновить данные — /update',
-        '2. Обновить данные — /update',
-        '3. Открыть главную сводку — /home',
-    ]
+    actions = _customer_actions(
+        'Подключить кабинет — /connect' if not wb_connected else '',
+        'Обновить данные — /update' if not (_ux_status_is_ok(sales_status) and _ux_status_is_ok(ads_status)) else 'Открыть главную сводку — /home',
+        'Открыть /finance и проверить прибыль' if not _ux_status_is_ok(finance_status) else '',
+        'Проверить кабинет — /profile' if wb_connected else '',
+    )
     return system_customer_screen(items, actions)
 
 
@@ -19028,6 +19125,11 @@ async def advisor_command(update, context):
         return
     args = [str(x).strip() for x in (context.args or []) if str(x).strip()]
     mode = str(args[0]).lower() if args else ''
+    if not args:
+        request_context = _snapshot_context()
+        _, days = _executive_period(['current_month'], 'current_month')
+        await send_long(update, _advisor_v2_text(uid(update), days, context=request_context))
+        return
     if mode == 'readiness':
         try:
             _, days = period(args, 'month', 1)
