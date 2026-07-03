@@ -40,3 +40,10 @@
 - `/start` must begin with `🏢 VOOGLII Terminal`.
 - `/advisor` opens V2 by default.
 - Customer outputs must not expose internal period tokens like `current_month`, `last_7_days`, `last_30_days`.
+
+## Telegram Bot Safe Decomposition v1
+
+- Bootstrap moved into `vooglii_telegram/app.py`.
+- Command registry is now exported through `vooglii_telegram/registry.py`.
+- Customer handler entrypoints are now mirrored in `vooglii_telegram/handlers/`.
+- Docker command remains unchanged: `python -u telegram_bot.py`.

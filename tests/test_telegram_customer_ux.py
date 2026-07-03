@@ -56,6 +56,7 @@ def test_customer_system_hides_engineering_commands(monkeypatch):
     assert "/control center" not in text
     assert "/performance" not in text
     assert "/rc status" not in text
+    assert "Последнее обновление" not in text
 
 
 def test_developer_system_keeps_engineering_commands(monkeypatch):
@@ -70,7 +71,7 @@ def test_developer_system_keeps_engineering_commands(monkeypatch):
             "engineering_commands": ["/control center", "/performance", "/rc status"],
         },
     )
-    monkeypatch.setattr(telegram_bot, "has_permission", lambda user_id, permission: True)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda user_id: "developer")
 
     text = telegram_bot._system_center_text(1, ("2026-07-01", "2026-07-31"))
 
@@ -110,7 +111,7 @@ def test_customer_surfaces_have_no_mojibake(monkeypatch):
             "period": "2026-07-01..2026-07-31",
             "business_health": "WARNING",
             "business_state": {"sales": "OK", "ads": "WARNING", "data_quality": "OK", "finance": "WARNING"},
-            "risks": ["Требуется дождаться официальных финансовых данных."],
+            "risks": ["Требуется дождаться подтверждения финансовых данных WB."],
         },
     )
     monkeypatch.setattr(
@@ -178,3 +179,6 @@ def test_customer_surfaces_have_no_mojibake(monkeypatch):
         assert "Wildberries Agent" not in text
         assert "Legacy fallback" not in text
         assert "/help developer" not in text
+        assert "данные ещё загружаются" not in text
+        assert "требует внимания" not in text
+        assert "требует проверки" not in text

@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from ._bot import get_bot
+
+
+async def report_command(update, context):
+    bot = get_bot()
+    return await bot._report_command_entry(update, context)
+
+
+async def dashboard_command(update, context):
+    bot = get_bot()
+    return await bot._dashboard_command_entry(update, context)

@@ -34,3 +34,10 @@
 - `telegram_bot.py` is still a large monolith.
 - Docker-based checks require a local Docker runtime.
 - `scripts/check_telegram_bot_health.py` requires a configured `BOT_TOKEN`.
+
+## Telegram Bot Safe Decomposition v1
+
+- Added `vooglii_telegram/app.py` as extracted bootstrap for application creation, handler registration, polling, error handler, and heartbeat job wiring.
+- Added `vooglii_telegram/registry.py` as extracted command registry entrypoint used by tests and bootstrap.
+- `telegram_bot.py` still contains the production handlers and business logic, but startup now delegates to `vooglii_telegram.app.main`.
+- Added customer handler entry modules in `vooglii_telegram/handlers/` for `/start`, `/menu`, `/help`, `/home`, `/profile`, `/account`, `/business`, `/finance`, `/products`, `/system`, `/advisor`, `/analytics`.

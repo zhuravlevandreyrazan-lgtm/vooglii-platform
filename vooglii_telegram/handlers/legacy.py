@@ -1,0 +1,8 @@
+from __future__ import annotations
+
+from ._bot import get_bot
+
+
+async def adsfullstatsprobe_command(update, context):
+    bot = get_bot()
+    return await bot._adsfullstatsprobe_command_entry(update, context)

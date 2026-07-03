@@ -43,6 +43,22 @@ FORBIDDEN_CUSTOMER_TOKENS = [
     "/migration readiness",
 ]
 
+FORBIDDEN_TECHNICAL_COMMANDS = [
+    "/admin",
+    "/health",
+    "/syncstatus",
+    "/apistatus",
+    "/control",
+    "/migration",
+    "/performance",
+    "/structure",
+    "/telegram",
+    "/ui",
+    "/rc",
+    "/data",
+    "/adsfullstatsprobe",
+]
+
 
 class _Message:
     def __init__(self, text: str = ""):
@@ -228,6 +244,92 @@ def test_connect_update_and_stocks_handlers_use_customer_empty_states(monkeypatc
     assert "/connect ВАШ_API_КЛЮЧ" in connect_text
     assert "Кабинет WB не подключён" in update_text
     assert "Данные по остаткам пока не загружены." in stocks_text
+
+
+def test_adsupdate_partial_status_is_customer_safe(monkeypatch):
+    async def _access(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(telegram_bot, "access", _access)
+    monkeypatch.setattr(telegram_bot, "get_user_token", lambda _user_id: "token")
+    monkeypatch.setattr(telegram_bot, "get_api_cooldown", lambda _user_id, _block: None)
+    monkeypatch.setattr(
+        telegram_bot,
+        "load_ads_for_user",
+        lambda _user_id, _token, _days: (
+            0,
+            {
+                "blocks": {
+                    "advertising": {
+                        "status": "ADS_PARTIAL_MISSING_IDS:demo",
+                        "details": {
+                            "campaigns_sent": 5,
+                            "advert_ids_received": 3,
+                            "advert_ids_missing": 2,
+                            "missing_advert_ids": [111, 222],
+                        },
+                    }
+                }
+            },
+        ),
+    )
+
+    update = _Update("/adsupdate")
+    _run(telegram_bot.adsupdate_command(update, _Context()))
+
+    text = update.message.replies[-1]
+    _assert_clean(text)
+    assert "Рекламные данные обновлены частично" in text
+    assert "Часть кампаний пока не удалось связать с товарами WB" in text
+    assert "ADS_PARTIAL_MISSING_IDS" not in text
+    assert "missing ids" not in text
+
+
+def test_customer_menu_help_and_system_hide_technical_commands(monkeypatch):
+    outputs: list[str] = []
+
+    async def _send_long(update, text, **kwargs):
+        outputs.append(str(text))
+
+    monkeypatch.setattr(telegram_bot, "send_long", _send_long)
+    monkeypatch.setattr(telegram_bot, "has_permission", lambda user_id, permission: False)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda user_id: "owner")
+    monkeypatch.setattr(
+        telegram_bot,
+        "_system_center_snapshot",
+        lambda user, days: {
+            "agent_status": "OK",
+            "database_status": "OK",
+            "sales_status": "OK",
+            "finance_status": "OK",
+            "ads_status": "OK",
+            "wb_connected": True,
+            "last_updates": {},
+            "product_readiness": "WARNING",
+            "structure_status": "READY",
+            "known_blockers": [],
+            "engineering_commands": [
+                "/control center",
+                "/performance",
+                "/rc status",
+                "/migration readiness",
+                "/structure readiness",
+            ],
+        },
+    )
+
+    menu_update = _Update("/menu")
+    help_update = _Update("/help")
+    system_update = _Update("/system")
+
+    _run(telegram_bot.menu_command(menu_update, _Context()))
+    _run(telegram_bot.menu_command(help_update, _Context()))
+    _run(telegram_bot.system_command(system_update, _Context()))
+
+    texts = [menu_update.message.replies[-1], help_update.message.replies[-1], outputs[-1]]
+    for text in texts:
+        for command in FORBIDDEN_TECHNICAL_COMMANDS:
+            assert command not in text, f"technical command leaked into customer surface: {command}"
 
 
 def test_customer_paywall_is_clean(monkeypatch):

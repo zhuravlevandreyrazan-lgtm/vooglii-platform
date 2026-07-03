@@ -41,3 +41,10 @@
 - Customer `/home` actions are generated from current business state.
 - Customer `/finance` explains why profit may still be unavailable.
 - Customer `/products` shows concrete SKU risk summaries.
+
+## Telegram Bot Safe Decomposition v1
+
+- Verify `vooglii_telegram/app.py` and `vooglii_telegram/registry.py` compile successfully.
+- Verify `vooglii_telegram/handlers/*.py` compile successfully.
+- Verify runtime audits still pass after bootstrap extraction.
+- Verify Docker startup stays on `python -u telegram_bot.py`.
