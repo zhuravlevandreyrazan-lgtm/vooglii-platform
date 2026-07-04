@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from load_sales import load_sales_for_user
+from load_sales import load_sales_for_user, normalize_advertising_status
 
 
 def _bot():
@@ -12,12 +12,15 @@ def _bot():
 def normalize_sync_error(error_code):
     status = str(error_code or "")
     bot = _bot()
-    if status.startswith("ADS_PARTIAL_MISSING_IDS"):
+    ads_status = normalize_advertising_status(status)
+    if ads_status == "ADS_PARTIAL":
         return (
             "⚠ Рекламные данные обновлены частично.\n"
             "Часть кампаний пока не удалось связать с товарами WB."
         )
-    if status.startswith("RATE_LIMIT"):
+    if ads_status == "ADS_NO_CAMPAIGNS":
+        return "ℹ Активные рекламные кампании WB не найдены."
+    if ads_status == "ADS_API_LIMIT" or status.startswith("RATE_LIMIT"):
         return f"⏳ Лимит WB API. Повтор через {bot.rate_text(status)}."
     return f"⚠ Ошибка обновления: {status}"
 
@@ -47,6 +50,7 @@ def format_sync_result(result):
         block = blocks.get(name) or {}
         block_status = str(block.get("status") or "PENDING")
         kind = bot._status_kind(block_status)
+        normalized_ads_status = normalize_advertising_status(block_status) if name == "advertising" else ""
         if kind != "cooldown":
             all_limited = False
         if kind == "success":
@@ -54,9 +58,12 @@ def format_sync_result(result):
             lines.append(f"✅ {bot.block_label(name)} обновлены")
         elif kind == "cooldown":
             lines.append(f"⏳ {bot.block_label(name)}: повтор через {bot.rate_text(block_status)}")
-        elif block_status.startswith("ADS_PARTIAL_MISSING_IDS"):
+        elif normalized_ads_status == "ADS_PARTIAL":
             lines.append("⚠ Рекламные данные обновлены частично.")
             lines.append("Часть кампаний пока не удалось связать с товарами WB.")
+        elif normalized_ads_status == "ADS_NO_CAMPAIGNS":
+            any_success = True
+            lines.append("ℹ Реклама WB: активные кампании не найдены")
         else:
             lines.append(f"⚠ {bot.block_label(name)}: {bot._user_reason_text(block_status)}")
 
@@ -64,7 +71,7 @@ def format_sync_result(result):
         return (
             "⏳ Обновление сейчас недоступно из-за лимитов WB API\n\n"
             "Повторить можно:\n" + "\n".join(lines) +
-            "\n\nСтарые данные сохранены.\nОтчёты продолжают работать на последних успешных данных."
+            "\n\nСтарые данные сохранены.\nОтчеты продолжают работать на последних успешных данных."
         )
 
     if any_success and any(bot._status_kind((blocks.get(name) or {}).get("status")) != "success" for name in blocks):

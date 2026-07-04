@@ -69,8 +69,16 @@ COMMANDS = [
     [sys.executable, "tests/test_telegram_healthcheck.py"],
     [sys.executable, "tests/test_update_sync_service.py"],
     [sys.executable, "tests/test_telegram_customer_ux_v2.py"],
+    [sys.executable, "tests/test_telegram_rc_final_polish.py"],
     [sys.executable, "tests/test_telegram_start_runtime_smoke.py"],
     [sys.executable, "tests/test_telegram_runtime_handler_audit.py"],
+    [sys.executable, "tests/test_advertising_loader.py"],
+    [sys.executable, "tests/test_ads_health.py"],
+    [sys.executable, "tests/test_ads_sku_linking.py"],
+    [sys.executable, "tests/test_advertising_customer_text.py"],
+    [sys.executable, "tests/test_advertising_customer_ux_v2.py"],
+    [sys.executable, "tests/test_advertising_business_finance_integration.py"],
+    [sys.executable, "tests/test_adsaudit_customer_vs_debug.py"],
     [sys.executable, "tests/test_error_handler.py"],
 ]
 

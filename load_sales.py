@@ -3912,6 +3912,27 @@ def _fetch_advert_ids(token, token_source='unknown'):
     return [], status
 
 
+def normalize_advertising_status(status):
+    raw_status = str(status or '').strip()
+    if not raw_status:
+        return 'ADS_ERROR'
+    if raw_status == 'SUCCESS':
+        return 'ADS_OK'
+    if raw_status.startswith('ADS_PARTIAL') or raw_status.startswith('ADS_PARTIAL_MISSING_IDS'):
+        return 'ADS_PARTIAL'
+    if raw_status == 'NOT_ACTIVE' or raw_status == 'ADS_NO_CAMPAIGNS':
+        return 'ADS_NO_CAMPAIGNS'
+    if raw_status == 'ADS_EMPTY':
+        return 'ADS_EMPTY'
+    if raw_status.startswith('ADS_COOLDOWN') or raw_status.startswith('ADS_STEP_COOLDOWN') or raw_status.startswith('FULLSTATS_429') or raw_status.startswith('RATE_LIMIT'):
+        return 'ADS_API_LIMIT'
+    if raw_status.startswith('ERROR_401') or raw_status.startswith('ERROR_403') or raw_status == 'TOKEN_ERROR':
+        return 'ADS_AUTH_ERROR'
+    if raw_status.startswith('ERROR_') or raw_status.startswith('EXCEPTION:') or raw_status in ('CONNECTION_ERROR', 'INVALID_RESPONSE', 'INVALID_JSON'):
+        return 'ADS_ERROR'
+    return raw_status
+
+
 def _extract_campaign_descriptors(count_payload):
     campaigns = {}
     roots = []
@@ -5464,6 +5485,89 @@ def _aggregate_advertising_rows(rows):
             cr,
         ))
     return aggregated_rows
+
+
+def _advert_sku_link_record(advert_date, campaign_id, campaign_name, article, nm_id, name):
+    article_text = str(article or '').strip()
+    sku_name = str(name or article_text or '').strip() or None
+    try:
+        normalized_nm_id = int(str(nm_id).strip()) if nm_id not in (None, '') else None
+    except Exception:
+        normalized_nm_id = None
+    has_nm_id = normalized_nm_id is not None and normalized_nm_id > 0
+    if has_nm_id and article_text:
+        source = 'fullstats_direct'
+        confidence = 'high'
+    elif article_text:
+        source = 'fullstats_article'
+        confidence = 'medium'
+    elif has_nm_id:
+        source = 'fullstats_nm'
+        confidence = 'medium'
+    else:
+        source = 'unlinked'
+        confidence = 'low'
+    return {
+        'advert_id': str(campaign_id or ''),
+        'advert_date': str(advert_date or '')[:10],
+        'campaign_name': str(campaign_name or ''),
+        'nm_id': normalized_nm_id if has_nm_id else None,
+        'subject_id': None,
+        'sku_name': sku_name,
+        'supplier_article': article_text or None,
+        'source': source,
+        'confidence': confidence,
+    }
+
+
+def _replace_advert_sku_links(cur, telegram_id, rows):
+    scopes = {}
+    latest_rows = {}
+    for key, _tid, advert_date, campaign_id, campaign_name, article, nm_id, _app_type, name, _views, _clicks, _orders, _sum_price, _spend, _ctr, _cpc, _cr in rows:
+        advert_id = str(campaign_id or '').strip()
+        advert_day = str(advert_date or '')[:10]
+        if not advert_id or not advert_day:
+            continue
+        scopes.setdefault(advert_id, set()).add(advert_day)
+        latest_rows[(advert_id, advert_day, str(article or '').strip(), str(nm_id or '').strip(), str(name or '').strip())] = (
+            advert_date, campaign_id, campaign_name, article, nm_id, name
+        )
+    for advert_id, advert_days in scopes.items():
+        for advert_day in advert_days:
+            cur.execute(
+                '''
+                DELETE FROM advert_sku_links
+                WHERE telegram_id=? AND advert_id=? AND substr(advert_date,1,10)=?
+                ''',
+                (telegram_id, advert_id, advert_day),
+            )
+    written = 0
+    last_seen_at = _now_str()
+    for advert_date, campaign_id, campaign_name, article, nm_id, name in latest_rows.values():
+        record = _advert_sku_link_record(advert_date, campaign_id, campaign_name, article, nm_id, name)
+        cur.execute(
+            '''
+            INSERT OR REPLACE INTO advert_sku_links(
+                telegram_id, advert_id, advert_date, campaign_name, nm_id, subject_id,
+                sku_name, supplier_article, source, confidence, last_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                telegram_id,
+                record['advert_id'],
+                record['advert_date'],
+                record['campaign_name'],
+                record['nm_id'],
+                record['subject_id'],
+                record['sku_name'],
+                record['supplier_article'],
+                record['source'],
+                record['confidence'],
+                last_seen_at,
+            ),
+        )
+        written += 1
+    return written
 
 
 def _upsert_advertising_rows(cur, rows):
@@ -7022,6 +7126,7 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
         if status != 'SUCCESS':
             _set_last_ads_run_details(telegram_id, {
                 'status': status,
+                'normalized_status': normalize_advertising_status(status),
                 'loaded': 0,
                 'period_begin': begin,
                 'period_end': end,
@@ -7031,7 +7136,8 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
             return 0, status
         if not batch_ids:
             _set_last_ads_run_details(telegram_id, {
-                'status': 'SUCCESS',
+                'status': 'ADS_NO_CAMPAIGNS',
+                'normalized_status': 'ADS_NO_CAMPAIGNS',
                 'loaded': 0,
                 'total_campaigns': 0,
                 'campaigns_sent': 0,
@@ -7044,8 +7150,8 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
                 'api_cooldown_status': f'ADS_STEP_COOLDOWN:{ADS_SAFE_MIN_COOLDOWN_SECONDS}',
                 'next_safe_seconds': ADS_SAFE_MIN_COOLDOWN_SECONDS,
             })
-            print('ADS RESULT status=SUCCESS loaded=0')
-            return 0, 'SUCCESS'
+            print('ADS RESULT status=ADS_NO_CAMPAIGNS loaded=0')
+            return 0, 'ADS_NO_CAMPAIGNS'
 
         total_campaigns = len(batch_ids)
 
@@ -7065,6 +7171,7 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
             conn = None
             _set_last_ads_run_details(telegram_id, {
                 'status': batch_status,
+                'normalized_status': normalize_advertising_status(batch_status),
                 'loaded': 0,
                 'total_campaigns': total_campaigns,
                 'campaigns_sent': total_campaigns,
@@ -7086,9 +7193,11 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
         response_days_count = prepared['response_days_count']
         response_advert_ids = set(prepared['response_advert_ids'])
         saved, replaced_scopes = _upsert_advertising_rows(cur, parsed_rows) if parsed_rows else (0, {})
+        links_written = _replace_advert_sku_links(cur, telegram_id, parsed_rows) if parsed_rows else 0
 
         missing_ids = [advert_id for advert_id in batch_ids if int(advert_id) not in response_advert_ids]
-        effective_status = 'SUCCESS' if not missing_ids else 'ADS_PARTIAL_MISSING_IDS'
+        effective_status = 'SUCCESS' if not missing_ids else 'ADS_PARTIAL'
+        normalized_status = normalize_advertising_status(effective_status)
         known_after = _merge_advert_id_sources(batch_ids, response_advert_ids)
         _remember_known_advert_ids(telegram_id, known_after)
 
@@ -7097,6 +7206,7 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
         conn = None
         details = {
             'status': effective_status,
+            'normalized_status': normalized_status,
             'total_campaigns': total_campaigns,
             'campaigns_sent': total_campaigns,
             'campaigns_found': len(fetched_ids),
@@ -7109,6 +7219,7 @@ def _load_advertising_range(telegram_id, token, days=30, token_source='unknown',
             'advert_ids_missing': len(missing_ids),
             'missing_advert_ids': missing_ids[:200],
             'replaced_campaign_dates': sum(len(v) for v in replaced_scopes.values()),
+            'links_written': int(links_written or 0),
             'spend_loaded': round(spend_loaded, 2),
             'loaded': saved,
             'api_cooldown_status': f'ADS_STEP_COOLDOWN:{ADS_SAFE_MIN_COOLDOWN_SECONDS}',

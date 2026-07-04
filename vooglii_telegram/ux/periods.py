@@ -41,6 +41,15 @@ def humanize_period_range(start_date: str | None, end_date: str | None) -> str:
     try:
         start_dt = datetime.strptime(start_text, "%Y-%m-%d")
         end_dt = datetime.strptime(end_text, "%Y-%m-%d")
+        today_dt = datetime.now().date()
+        if start_dt.date() == today_dt and end_dt.date() == today_dt:
+            return "Сегодня"
+        if end_dt.date() == today_dt:
+            delta_days = (end_dt.date() - start_dt.date()).days + 1
+            if delta_days == 7:
+                return "Последние 7 дней"
+            if delta_days == 30:
+                return "Последние 30 дней"
         if start_dt.year == end_dt.year and start_dt.month == end_dt.month and start_dt.day == 1:
             return f"{_MONTH_NAMES.get(start_dt.month, start_dt.strftime('%B'))} {start_dt.year}"
     except Exception:

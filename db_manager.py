@@ -129,6 +129,33 @@ def init_db():
         sum_price REAL DEFAULT 0, spend REAL DEFAULT 0, ctr REAL DEFAULT 0, cpc REAL DEFAULT 0, cr REAL DEFAULT 0)''')
         for c, s in {'app_type': 'TEXT', 'name': 'TEXT'}.items():
             _add(cur, 'advertising', c, s)
+        cur.execute('''CREATE TABLE IF NOT EXISTS advert_sku_links(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id INTEGER NOT NULL,
+        advert_id TEXT NOT NULL,
+        advert_date TEXT,
+        campaign_name TEXT,
+        nm_id INTEGER,
+        subject_id TEXT,
+        sku_name TEXT,
+        supplier_article TEXT,
+        source TEXT,
+        confidence TEXT,
+        last_seen_at TEXT,
+        UNIQUE(telegram_id, advert_id, advert_date, supplier_article, nm_id, source)
+        )''')
+        for c, s in {
+            'advert_date': 'TEXT',
+            'campaign_name': 'TEXT',
+            'nm_id': 'INTEGER',
+            'subject_id': 'TEXT',
+            'sku_name': 'TEXT',
+            'supplier_article': 'TEXT',
+            'source': 'TEXT',
+            'confidence': 'TEXT',
+            'last_seen_at': 'TEXT',
+        }.items():
+            _add(cur, 'advert_sku_links', c, s)
 
         cur.execute('''CREATE TABLE IF NOT EXISTS stocks(
         id INTEGER PRIMARY KEY AUTOINCREMENT, unique_key TEXT UNIQUE, telegram_id INTEGER, stock_date TEXT,

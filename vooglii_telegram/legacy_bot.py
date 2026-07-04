@@ -23,7 +23,7 @@ from analytics.logging_config import configure_logging
 from config import APP_ENV, BOT_TOKEN, BOT_USERNAME, ADMIN_IDS, PAYMENT_PROVIDER_TOKEN, PRO_PRICE_RUB, DB_NAME
 from background_jobs import schedule_background_jobs, schedule_initial_sync, acquire_sync_lock, release_sync_lock
 from db_manager import get_runtime_health, init_db, update_runtime_health, _is_readonly_db_error as db_is_readonly_db_error
-from load_sales import load_sales_for_user, load_ads_for_user, format_update_status, get_api_status, get_last_advertising_update, get_sync_status, get_sync_status_map, ensure_sync_status_rows, get_finance_breakdown, get_finance_audit, get_finance_rawdeduction, get_last_cooldown_write_details, get_api_cooldown, delete_api_cooldown, set_api_cooldown, ads_probe, ads_contract_probe, inspect_fullstats_contract, is_ads_period_partially_loaded, ads_limit_test, ads_batch_test, ads_period_test, audit_advertising_period, backfill_advertising_period, ads_fullstats_level_audit, ads_normalize_audit, compare_advertising_period, inspect_sales_api, inspect_orders_api, estimate_sales_orders_backfill_impact, backfill_sales_orders_range, historical_sales_backfill, apply_historical_sales_backfill, historical_advertising_backfill, historical_advertising_audit, apply_historical_advertising_backfill, advertising_duplicate_audit, advertising_cleanup_audit, cleanup_historical_advertising_rows, _fetch_fullstats_batch, _read_sales_historical_cache, _read_ads_historical_cache, _get as wb_api_get, STAT_API
+from load_sales import load_sales_for_user, load_ads_for_user, format_update_status, get_api_status, get_last_advertising_update, get_sync_status, get_sync_status_map, ensure_sync_status_rows, get_finance_breakdown, get_finance_audit, get_finance_rawdeduction, get_last_cooldown_write_details, get_api_cooldown, delete_api_cooldown, set_api_cooldown, ads_probe, ads_contract_probe, inspect_fullstats_contract, is_ads_period_partially_loaded, ads_limit_test, ads_batch_test, ads_period_test, audit_advertising_period, backfill_advertising_period, ads_fullstats_level_audit, ads_normalize_audit, compare_advertising_period, inspect_sales_api, inspect_orders_api, estimate_sales_orders_backfill_impact, backfill_sales_orders_range, historical_sales_backfill, apply_historical_sales_backfill, historical_advertising_backfill, historical_advertising_audit, apply_historical_advertising_backfill, advertising_duplicate_audit, advertising_cleanup_audit, cleanup_historical_advertising_rows, normalize_advertising_status, _fetch_fullstats_batch, _read_sales_historical_cache, _read_ads_historical_cache, _get as wb_api_get, STAT_API
 from wb_agent.financial_engine import (
     FINANCIAL_ENGINE_AVAILABLE_STATUSES,
     FINANCIAL_ENGINE_RUNTIME_UNAVAILABLE_STATUSES,
@@ -990,6 +990,189 @@ def _customer_business_copy(text):
     if value.startswith('Не принимать решения по закрытию месяца до подтверждения финансовых данных WB'):
         value = 'Не закрывать месяц, пока WB не подтвердит финансовые данные.'
     return value
+
+
+def _advertising_quality_label(status):
+    mapping = {
+        'HIGH': '🟢 Высокое',
+        'MEDIUM': '🟡 Частичное',
+        'LOW': '🔴 Низкое',
+    }
+    return mapping.get(str(status or '').strip().upper(), '⚪ Нет данных')
+
+
+def _advertising_customer_snapshot(user, days):
+    start_date, end_date = _period_dates(days)
+    ads_stats = get_advertising_stats(days, user)
+    ads_health = get_advertising_health_snapshot(user, start_date, end_date)
+    quality_snapshot = get_data_quality_snapshot(user, start_date, end_date)
+    advertising_quality = dict((quality_snapshot.get('advertising') or {}))
+    sync_row = (get_sync_status_map(user).get('advertising') or {})
+    raw_status = str(sync_row.get('last_status') or sync_row.get('last_error') or '')
+    normalized_status = normalize_advertising_status(raw_status)
+    status_kind = _status_kind(raw_status)
+    total_spend = round(float(ads_health.get('api_total') or ads_stats[4] or 0), 2)
+    orders = int(ads_stats[2] or 0)
+    cpa = round((total_spend / orders), 2) if orders else None
+    return {
+        'period_label': _atlas_month_label(days),
+        'raw_status': raw_status,
+        'normalized_status': normalized_status,
+        'status_kind': status_kind,
+        'last_success': sync_row.get('last_success'),
+        'coverage_percent': round(float(advertising_quality.get('coverage_percent') or 0), 1),
+        'coverage_status': ads_health.get('coverage_status') or advertising_quality.get('status') or 'LOW',
+        'total_spend': total_spend,
+        'linked_spend': round(float(ads_health.get('linked_spend') or 0), 2),
+        'unlinked_spend': round(float(ads_health.get('unlinked_spend') or 0), 2),
+        'linkability_percent': round(float(ads_health.get('linkability_percent') or 0), 1),
+        'campaigns_total': int(ads_health.get('campaigns_total') or 0),
+        'campaigns_linked': int(ads_health.get('campaigns_linked') or 0),
+        'campaigns_unlinked': int(ads_health.get('campaigns_unlinked') or 0),
+        'api_total': round(float(ads_health.get('api_total') or 0), 2),
+        'local_total': round(float(ads_health.get('local_total') or 0), 2),
+        'delta': round(float(ads_health.get('delta') or 0), 2),
+        'views': int(ads_stats[0] or 0),
+        'clicks': int(ads_stats[1] or 0),
+        'orders': orders,
+        'sum_price': round(float(ads_stats[3] or 0), 2),
+        'ctr': round(float(ads_stats[5] or 0), 2),
+        'cpc': round(float(ads_stats[6] or 0), 2),
+        'roas': round(float(ads_stats[7] or 0), 2),
+        'drr': round(float(ads_stats[8] or 0), 1),
+        'cpa': cpa,
+        'stale': bool(ads_health.get('stale')),
+        'status': str(ads_health.get('status') or 'LOW'),
+    }
+
+
+def _advertising_customer_status_text(snapshot):
+    normalized_status = str(snapshot.get('normalized_status') or '')
+    status_kind = str(snapshot.get('status_kind') or '')
+    total_spend = float(snapshot.get('total_spend') or 0)
+    if normalized_status == 'ADS_NO_CAMPAIGNS' and total_spend <= 0:
+        return 'ℹ Активные рекламные кампании не найдены'
+    if status_kind == 'cooldown':
+        return '🟡 Обновление отложено из-за лимита WB'
+    if normalized_status == 'ADS_PARTIAL':
+        return '🟡 Рекламные данные обновлены частично'
+    if total_spend > 0:
+        return '🟢 Данные актуальны'
+    return '⚪ Данные пока не загружены'
+
+
+def _advertising_business_summary_line(snapshot):
+    total_spend = round(float(snapshot.get('total_spend') or 0), 2)
+    normalized_status = str(snapshot.get('normalized_status') or '')
+    status_kind = str(snapshot.get('status_kind') or '')
+    delta = round(abs(float(snapshot.get('delta') or 0)), 2)
+    if total_spend <= 0 and normalized_status != 'ADS_NO_CAMPAIGNS':
+        return '- Реклама: ⚪ данные пока не загружены'
+    if normalized_status == 'ADS_PARTIAL':
+        if delta > 0:
+            return f'- Реклама: 🟡 {money(total_spend)}, есть расхождение с WB {money(delta)}'
+        return f'- Реклама: 🟡 {money(total_spend)}, часть кампаний WB требует проверки'
+    if status_kind == 'cooldown':
+        return f'- Реклама: 🟡 {money(total_spend)} за период, обновление временно отложено'
+    if normalized_status == 'ADS_NO_CAMPAIGNS':
+        return '- Реклама: ⚪ активные кампании не найдены'
+    if delta > 0:
+        return f'- Реклама: 🟡 {money(total_spend)}, есть расхождение с WB {money(delta)}'
+    return f'- Реклама: 🟢 {money(total_spend)} за период, данные актуальны'
+
+
+def _advertising_system_lines(snapshot):
+    normalized_status = str(snapshot.get('normalized_status') or '')
+    total_campaigns = int(snapshot.get('campaigns_total') or 0)
+    linked_campaigns = int(snapshot.get('campaigns_linked') or 0)
+    delta = round(abs(float(snapshot.get('delta') or 0)), 2)
+    campaign_summary = f'{total_campaigns} кампаний, {linked_campaigns} с расходами' if total_campaigns > 0 else 'Часть кампаний WB требует проверки за выбранный период.'
+    if normalized_status == 'ADS_PARTIAL':
+        title = '🟡 Реклама: частично обновлена'
+        detail = f'{campaign_summary}, есть расхождение с WB' if delta > 0 and total_campaigns > 0 else campaign_summary
+    elif normalized_status == 'ADS_NO_CAMPAIGNS' and total_campaigns <= 0:
+        title = '⚪ Реклама: активные кампании не найдены'
+        detail = 'Расходов по рекламе за период не обнаружено.'
+    elif float(snapshot.get('total_spend') or 0) > 0:
+        title = '🟡 Реклама: обновлена' if delta > 0 else '🟢 Реклама: обновлена'
+        detail = f'{campaign_summary}, есть расхождение с WB' if delta > 0 and total_campaigns > 0 else campaign_summary
+    else:
+        title = '⚪ Реклама: данные пока не загружены'
+        detail = 'После /update VOOGLII покажет рекламные расходы и связь с товарами.'
+    return [title, detail]
+
+
+def _customer_all_time_range(user):
+    today = datetime.now().strftime('%Y-%m-%d')
+    ranges = []
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        for table_name, date_column in (
+            ('sales', 'sale_date'),
+            ('orders', 'order_date'),
+            ('advertising', 'advert_date'),
+            ('finance', 'report_date'),
+        ):
+            try:
+                cur.execute(
+                    f"SELECT MIN(substr({date_column},1,10)), MAX(substr({date_column},1,10)) FROM {table_name} WHERE telegram_id=?",
+                    (user,),
+                )
+                row = cur.fetchone() or (None, None)
+            except Exception:
+                continue
+            start_date = str(row[0] or '').strip()
+            end_date = str(row[1] or '').strip()
+            if start_date and end_date:
+                ranges.append((start_date, end_date))
+    except Exception:
+        ranges = []
+    finally:
+        if conn is not None:
+            conn.close()
+    if not ranges:
+        return ('current_month',)
+    start_date = min(item[0] for item in ranges)
+    end_date = max(item[1] for item in ranges)
+    if not end_date:
+        end_date = today
+    return (start_date, end_date)
+
+
+def get_finance_status(user_id, days, financial_engine_snapshot=None):
+    days = _center_days(days)
+    snapshot = dict(financial_engine_snapshot or {})
+    if not snapshot:
+        try:
+            snapshot = dict(_financial_engine_snapshot(days[0], days[1], user=user_id) or {})
+        except Exception:
+            logger.warning(
+                "Finance status fallback used for user=%s period=%s..%s",
+                user_id,
+                days[0],
+                days[1],
+                exc_info=True,
+            )
+            snapshot = {}
+    available = bool(snapshot.get('official_new_finance_available'))
+    return {
+        'available': available,
+        'icon': '🟢' if available else '🟡',
+        'business_text': '🟢 Хорошо' if available else '🟡 Ожидает данные WB',
+        'system_text': '🟢 Финансовые данные WB: доступны' if available else '🟡 Финансовые данные WB: ожидают подтверждения',
+        'finance_text': '🟢 Финансовые данные WB подтверждены.' if available else '🟡 Финансовые данные WB ожидают подтверждения.',
+    }
+
+
+def _center_days(days):
+    if isinstance(days, tuple) and len(days) == 2:
+        return str(days[0]), str(days[1])
+    start_date, end_date = _period_dates(days)
+    if start_date and end_date:
+        return start_date, end_date
+    return _executive_period(['current_month'], 'current_month')[1]
 
 
 _ATLAS_DIVIDER = '━━━━━━━━━━━━━━'
@@ -4441,9 +4624,35 @@ async def tariff_command(update, context):
         "Подключить или продлить: /buy"
     )
 async def buy_command(update, context):
+    lines = [
+        '⭐ VOOGLII PRO',
+        '',
+        'Что входит:',
+        '✔ AI-советник',
+        '✔ Рекламная аналитика',
+        '✔ P&L и прибыль',
+        '✔ Диагностика проблем',
+        '✔ Расширенные отчёты',
+        '',
+        'Стоимость:',
+        f'{int(PRO_PRICE_RUB)} ₽ / месяц',
+    ]
     if not PAYMENT_PROVIDER_TOKEN:
-        await update.message.reply_text('Оплата пока не настроена. Админ может активировать PRO: /admin pro USER_ID')
+        lines.extend([
+            '',
+            'Оплата:',
+            'Скоро будет доступна в боте.',
+            '',
+            'Чтобы подключиться раньше:',
+            'напишите владельцу сервиса.',
+        ])
+        await update.message.reply_text('\n'.join(lines))
         return
+    lines.extend([
+        '',
+        'Оплата доступна. После подтверждения подписка активируется автоматически.',
+    ])
+    await update.message.reply_text('\n'.join(lines))
     await context.bot.send_invoice(chat_id=uid(update), title='PRO подписка VOOGLII', description='Полный доступ на 30 дней', payload=f'pro30:{uid(update)}', provider_token=PAYMENT_PROVIDER_TOKEN, currency='RUB', prices=[LabeledPrice('PRO 30 дней', PRO_PRICE_RUB*100)])
 async def precheckout(update, context): await update.pre_checkout_query.answer(ok=True)
 async def successful_payment(update, context):
@@ -4454,10 +4663,18 @@ async def _legacy_profile_command_v1(update, context):
 async def ref_command(update, context):
     code,cnt=get_ref_stats(uid(update)); await update.message.reply_text(f'🎁 Реферальная ссылка:\nhttps://t.me/{(await context.bot.get_me()).username}?start={code}\n\nПриглашено: {cnt}\nБонус: +30 дней PRO за активного друга.')
 
-async def today_command(update, context): context.args=['today']; await report_command(update,context)
-async def week_command(update, context): context.args=['week']; await report_command(update,context)
-async def month_command(update, context): context.args=['month']; await report_command(update,context)
-async def pnl_command(update, context): await report_command(update,context)
+async def today_command(update, context): context.args=['today']; await business_command(update,context)
+async def week_command(update, context): context.args=['last_7_days']; await business_command(update,context)
+async def month_command(update, context): context.args=['current_month']; await business_command(update,context)
+async def pnl_command(update, context):
+    if not await access(update, 'report'):
+        return
+    center_period = _try_center_period(context.args, 'current_month', executive=True)
+    if center_period is None:
+        await update.message.reply_text('Не удалось открыть P&L за выбранный период.')
+        return
+    _, days = center_period
+    await send_long(update, _pnl_customer_text(uid(update), days))
 async def orders_command(update, context):
     from vooglii_telegram.handlers.sales import orders_command as _impl
     return await _impl(update, context)
@@ -4649,7 +4866,7 @@ async def admin_command(update, context):
 
 
 async def _admin_command_entry(update, context):
-    if not admin(update): await update.message.reply_text('⛔ Только администратор'); return
+    if not (admin(update) or developer(update)): await update.message.reply_text('⛔ Команда недоступна.'); return
     if not context.args: await update.message.reply_text('/admin users\n/admin pro ID\n/admin free ID\n/admin block ID\n/admin role ID owner|admin|manager|viewer|support|developer'); return
     act=context.args[0]
     if act=='users': await send_long(update,'\n'.join(f'{u[0]} @{u[1]} {u[2]} {"on" if u[3] else "off"} до {u[5]} роль {u[6]}' for u in get_all_users())); return
@@ -7276,16 +7493,19 @@ async def buttons(update, context):
         '♾ Всё время': 'all',
     }
     if text in period_buttons:
-        context.args = [period_buttons[text]]
+        if period_buttons[text] == 'all':
+            context.args = list(_customer_all_time_range(uid(update)))
+        else:
+            context.args = [period_buttons[text]]
         await business_command(update, context)
         return
     mapping = {
         '📊 Отчёт': (business_command, ['current_month']),
-        '👑 CEO': (home_command, []),
+        '👑 CEO': (ceo_command, ['current_month']),
         '📦 Остатки': (stocks_command, []),
-        '💰 P&L': (finance_command, ['current_month']),
-        '📢 Реклама': (analytics_command, ['current_month']),
-        '🤖 AI-советы': (advisor_command, ['current_month']),
+        '💰 P&L': (pnl_command, ['current_month']),
+        '📢 Реклама': (advert_command, ['current_month']),
+        '🤖 AI-советы': (advisor_command, []),
         '⚠ Проблемы': (business_command, ['current_month']),
         '👤 Кабинет': (profile_command, []),
         '🔄 Обновить': (update_command, []),
@@ -7436,34 +7656,64 @@ async def _advert_command_entry(update, context):
         return
     p, d = period(context.args)
     user = uid(update)
-    a = get_advertising_stats(d, user)
-    row = (get_sync_status_map(user).get('advertising') or {})
-    status = row.get('last_status') or ''
-    last_success = row.get('last_success')
-    if a[0] == 0 and a[1] == 0 and a[4] == 0 and _status_kind(status) != 'success':
-        text = '📢 Реклама WB\n\n⚠ Реклама не загружена\n'
-        text += f'Причина: {_user_reason_text(row.get("last_error") or status)}'
-        if admin(update):
-            text += f'\nТехнический статус: {status or "-"}'
+    snapshot = _advertising_customer_snapshot(user, d)
+    total_spend = float(snapshot.get('total_spend') or 0)
+    if total_spend <= 0 and str(snapshot.get('normalized_status') or '') not in ('ADS_NO_CAMPAIGNS',) and str(snapshot.get('status_kind') or '') not in ('success', 'cooldown'):
+        text = '📢 Реклама WB\n\n⚠ Реклама пока не загружена.\n'
+        text += f'Причина: {_user_reason_text(snapshot.get("raw_status") or "")}'
         await update.message.reply_text(text)
         return
-    text = (
-        f'📢 Реклама WB ({p})\n\n'
-        f'Расход: {money(a[4])}\n'
-        f'Заказы: {a[2]}\n'
-        f'Сумма заказов: {money(a[3])}\n'
-        f'Показы: {a[0]}\n'
-        f'Клики: {a[1]}\n'
-        f'CTR: {a[5]:.2f}%\n'
-        f'CPC: {money(a[6])}\n'
-        f'ROAS: {a[7]:.2f}\n'
-        f'ДРР: {a[8]:.1f}%'
-    )
-    if last_success:
-        text += f'\nПоследнее успешное обновление: {last_success}'
-    if admin(update):
-        text += f'\nТехнический статус: {status or "-"}'
-    await update.message.reply_text(text)
+    what_is_important = []
+    if str(snapshot.get('normalized_status') or '') == 'ADS_PARTIAL':
+        what_is_important.append('WB не вернул статистику по части кампаний за выбранный период.')
+    if float(snapshot.get('delta') or 0) != 0:
+        what_is_important.append('Общий рекламный расход уже учтён в финансах и сверяется с локальной базой.')
+    if float(snapshot.get('unlinked_spend') or 0) > 0:
+        what_is_important.append('Часть рекламного расхода пока не связана с товарами, поэтому SKU-анализ может быть неполным.')
+    if not what_is_important:
+        what_is_important.append('Рекламные расходы учтены в финансах и готовы для управленческого контроля.')
+    actions = [
+        '1. Проверить кампании с высоким расходом и слабой отдачей.',
+        '2. Не масштабировать рекламу без проверки остатков и маржи.',
+        '3. Открыть рекламный аудит: /adsaudit',
+    ]
+    lines = [
+        '📢 Реклама WB',
+        '',
+        f'Период: {_atlas_month_label(d)}',
+        '',
+        'Статус:',
+        _advertising_customer_status_text(snapshot),
+        '',
+        'Расходы:',
+        f'- Всего: {money(snapshot.get("total_spend") or 0)}',
+        f'- Связано с товарами: {money(snapshot.get("linked_spend") or 0)}',
+        f'- Не связано с товарами: {money(snapshot.get("unlinked_spend") or 0)}',
+        '',
+        'Кампании:',
+        f'- С расходами за период: {int(snapshot.get("campaigns_total") or 0)}',
+        f'- Связано с товарами: {int(snapshot.get("campaigns_linked") or 0)}',
+        f'- Без связи с товарами: {int(snapshot.get("campaigns_unlinked") or 0)}',
+        '',
+        'Качество данных:',
+        f'- Связь с SKU: {float(snapshot.get("linkability_percent") or 0):.1f}%',
+        f'- Статус: {_advertising_quality_label(snapshot.get("status"))}',
+        '',
+        'Показатели:',
+        f'- ДРР: {float(snapshot.get("drr") or 0):.1f}%',
+        f'- ROAS: {float(snapshot.get("roas") or 0):.2f}',
+        f'- CPC: {money(snapshot.get("cpc") or 0)}',
+        f'- CTR: {float(snapshot.get("ctr") or 0):.2f}%',
+        f'- CPA: {money(snapshot.get("cpa") or 0)}' if snapshot.get('cpa') is not None else '- CPA: пока недостаточно данных',
+        '',
+        'Что важно:',
+    ]
+    lines.extend(what_is_important)
+    lines.extend(['', 'Что сделать:'])
+    lines.extend(actions)
+    if snapshot.get('last_success'):
+        lines.extend(['', f'Последнее обновление: {_customer_last_update_label(snapshot.get("last_success"))}'])
+    await send_long(update, '\n'.join(lines))
 
 
 
@@ -7631,8 +7881,11 @@ def _ads_status_user_text(status):
     s = str(status or '')
     if s.startswith('ADS_PARTIAL_PROGRESS'):
         return 'частично загружена\nЗагрузка продолжается поэтапно'
-    if s.startswith('ADS_PARTIAL_MISSING_IDS'):
+    normalized_status = normalize_advertising_status(s)
+    if normalized_status == 'ADS_PARTIAL':
         return '⚠ Рекламные данные обновлены частично.\nЧасть кампаний пока не удалось связать с товарами WB.'
+    if normalized_status == 'ADS_NO_CAMPAIGNS':
+        return 'активные рекламные кампании не найдены'
     if s.startswith('ADS_BATCH_TOO_LARGE'):
         return 'список campaign_id слишком большой для одного fullstats-запроса'
     if s.startswith('ADS_PERIOD_BATCH_FAILED'):
@@ -12416,6 +12669,7 @@ async def _adsupdate_command_entry(update, context):
     if isinstance(status, dict):
         block = (status.get('blocks') or {}).get('advertising') or {}
         s = str(block.get('status') or '')
+        normalized_status = normalize_advertising_status(s)
         details = block.get('details') or {}
         cooldown_row = get_api_cooldown(uid(update), 'advertising') or {}
         next_safe_seconds = _ads_remaining_seconds(cooldown_row)
@@ -12439,16 +12693,17 @@ async def _adsupdate_command_entry(update, context):
                 "Данные не обновлены, старые данные сохранены."
             )
             return
-        if s == 'SUCCESS':
+        if s == 'SUCCESS' or normalized_status == 'ADS_NO_CAMPAIGNS':
             campaigns_sent = int(details.get('campaigns_sent') or details.get('total_campaigns') or 0)
             period_begin = details.get('period_begin') or '-'
             period_end = details.get('period_end') or '-'
             days_received = int(details.get('days_received') or 0)
             spend_loaded = details.get('spend_loaded')
             next_text = f"\nСледующая безопасная попытка через {next_safe_text}" if next_safe_text else ''
+            summary_line = 'Активные кампании не найдены.' if normalized_status == 'ADS_NO_CAMPAIGNS' else 'Обновление завершено.'
             await update.message.reply_text(
                 "Реклама WB\n"
-                "Обновление завершено.\n"
+                f"{summary_line}\n"
                 f"Кампаний отправлено: {campaigns_sent}\n"
                 f"Период: {period_begin} — {period_end}\n"
                 f"Дней получено: {days_received}\n"
@@ -12456,7 +12711,7 @@ async def _adsupdate_command_entry(update, context):
                 f"{next_text}"
             )
             return
-        if s.startswith('ADS_PARTIAL_MISSING_IDS'):
+        if normalized_status == 'ADS_PARTIAL':
             await update.message.reply_text(
                 '⚠ Рекламные данные обновлены частично.\n'
                 'Часть кампаний пока не удалось связать с товарами WB.'
@@ -12472,27 +12727,71 @@ async def adsaudit_command(update, context):
     return await _impl(update, context)
 
 
-async def _adsaudit_command_entry(update, context):
-    if not admin(update):
-        await update.message.reply_text('Команда доступна только владельцу бота.')
-        return
+def _adsaudit_customer_text(result, days):
+    total_spend = round(float(result.get('api_total_spend') or result.get('local_total_spend') or 0), 2)
+    api_daily = list(result.get('api_daily') or [])
+    local_total = round(float(result.get('local_total_spend') or 0), 2)
+    delta = round(abs(float(result.get('api_total_spend') or 0) - local_total), 2)
+    missing_wb = int(len(result.get('missing_from_fullstats') or []))
+    campaigns_found = int(result.get('campaigns_found') or 0)
+    campaigns_loaded = int(result.get('campaigns_loaded') or 0)
+    avg_daily_spend = round((total_spend / len(api_daily)), 2) if api_daily else round(total_spend, 2)
+    linkability_percent = round(float(result.get('linkability_percent') or 0), 1)
+    coverage_percent = round(float(result.get('coverage_percent') or 0), 1)
+    if total_spend <= 0:
+        verdict = '⚪ Реклама за период не обнаружена'
+    elif missing_wb > 0 or delta > 1.0:
+        verdict = '🟡 Реклама требует проверки'
+    else:
+        verdict = '🟢 Реклама учтена корректно'
+    risks = []
+    if missing_wb > 0:
+        risks.append(f'1. WB не вернул статистику по {missing_wb} кампаниям за выбранный период.')
+    if delta > 1.0:
+        risks.append('2. Есть расхождение между рекламными расходами и локальной финансовой базой.')
+    if linkability_percent > 0 and linkability_percent < 95:
+        risks.append('3. SKU-анализ может быть неполным, если часть расходов не связана с товарами.')
+    if not risks:
+        risks.append('1. Критичных расхождений по рекламе за период не обнаружено.')
+    recommendations = [
+        '1. Проверить кампании с максимальным расходом и слабой отдачей.',
+        '2. Масштабировать только SKU с остатками и нормальной маржой.',
+    ]
+    if missing_wb > 0:
+        recommendations.append('3. Перепроверить кампании, по которым WB не вернул статистику за период.')
+    else:
+        recommendations.append('3. Открыть /advert и проверить связь расходов с товарами.')
+    lines = [
+        '📢 Рекламный аудит',
+        '',
+        f'Период: {_atlas_month_label(days)}',
+        '',
+        'Итог:',
+        verdict,
+        '',
+        'Расходы:',
+        f'- Всего: {money(total_spend)}',
+        f'- Средний расход в день: {money(avg_daily_spend)}',
+        '',
+        'Кампании:',
+        f'- Всего найдено: {campaigns_found}',
+        f'- Активно с расходами: {campaigns_loaded}',
+        f'- Без статистики WB: {missing_wb}',
+        '',
+        'Качество данных:',
+        f'- Покрытие локальной базы: {coverage_percent:.1f}%',
+        f'- Расхождение с WB: {money(delta)}',
+        f'- Связь с SKU: {linkability_percent:.1f}%' if linkability_percent > 0 else '- Связь с SKU: пока недостаточно данных',
+        '',
+        'Риски:',
+    ]
+    lines.extend(risks)
+    lines.extend(['', 'Рекомендации:'])
+    lines.extend(recommendations)
+    return '\n'.join(lines)
 
-    try:
-        period_name, days = period(context.args, 'month')
-    except ValueError:
-        await update.message.reply_text(_period_help('adsaudit'))
-        return
 
-    if days is None:
-        await update.message.reply_text('Для adsaudit используйте today, week, month или диапазон дат.')
-        return
-
-    token = get_user_token(uid(update))
-    if not token:
-        await update.message.reply_text('WB API не подключен. Используйте /connect')
-        return
-
-    result = audit_advertising_period(uid(update), token, days, token_source='db.users.wb_token')
+def _adsaudit_debug_text(result, period_name):
     lines = [
         f'ADS AUDIT ({period_name})',
         f'Период: {result.get("period_begin")} - {result.get("period_end")}',
@@ -12600,8 +12899,44 @@ async def _adsaudit_command_entry(update, context):
             )
     else:
         lines.append('Нет данных.')
+    return '\n'.join(lines).strip()
 
-    await send_long(update, '\n'.join(lines).strip())
+
+async def _adsaudit_command_entry(update, context):
+    args = [str(x).strip().lower() for x in (context.args or []) if str(x).strip()]
+    engineering_requested = bool(args and args[0] in ('debug', 'technical'))
+    debug_mode = engineering_requested and _is_engineering_role(uid(update))
+    if engineering_requested and not debug_mode:
+        await update.message.reply_text('Эта диагностика доступна только администратору.')
+        return
+    if not debug_mode and not await access(update, 'advert'):
+        return
+
+    try:
+        period_args = args[1:] if engineering_requested else args
+        period_name, days = period(period_args, 'month')
+    except ValueError:
+        await update.message.reply_text(_period_help('adsaudit'))
+        return
+
+    if days is None:
+        await update.message.reply_text('Для adsaudit используйте today, week, month или диапазон дат.')
+        return
+
+    token = get_user_token(uid(update))
+    if not token:
+        await update.message.reply_text('WB API не подключен. Используйте /connect')
+        return
+
+    result = audit_advertising_period(uid(update), token, days, token_source='db.users.wb_token')
+    if debug_mode:
+        await send_long(update, _adsaudit_debug_text(result, period_name))
+        return
+    customer_snapshot = _advertising_customer_snapshot(uid(update), days)
+    customer_result = dict(result)
+    customer_result['linkability_percent'] = customer_snapshot.get('linkability_percent')
+    customer_result['coverage_percent'] = customer_snapshot.get('coverage_percent')
+    await send_long(update, _adsaudit_customer_text(customer_result, days))
 
 
 async def apistatus_command(update, context):
@@ -12673,8 +13008,11 @@ def format_block_status(status, row=None):
 
 def _user_reason_text(status, row=None):
     s = str(status or '')
-    if s.startswith('ADS_PARTIAL_MISSING_IDS'):
+    normalized_status = normalize_advertising_status(s)
+    if normalized_status == 'ADS_PARTIAL':
         return '⚠ Рекламные данные обновлены частично.\nЧасть кампаний пока не удалось связать с товарами WB.'
+    if normalized_status == 'ADS_NO_CAMPAIGNS':
+        return 'активные рекламные кампании не найдены'
     if s.startswith('ADS_COOLDOWN') or s.startswith('ADS_STEP_COOLDOWN') or s.startswith('FULLSTATS_429_SAFE_COOLDOWN'):
         return f'лимит WB API, следующая безопасная попытка через {_ads_retry_text(s, row)}'
     if s.startswith('ADS_BACKGROUND_THROTTLED'):
@@ -13048,12 +13386,29 @@ def get_advertising_health_snapshot(user, start_date, end_date):
             (user, str(start_date), str(end_date)),
         )
         expenses_advertising_total = round(float((cur.fetchone() or [0])[0] or 0), 2)
+        cur.execute(
+            """
+            SELECT
+                COUNT(DISTINCT campaign_id),
+                COUNT(DISTINCT CASE
+                    WHEN (nm_id IS NOT NULL AND nm_id > 0) OR TRIM(COALESCE(supplier_article, ''))!=''
+                    THEN campaign_id
+                    ELSE NULL
+                END)
+            FROM advertising
+            WHERE telegram_id=? AND substr(advert_date,1,10) BETWEEN ? AND ?
+            """,
+            (user, str(start_date), str(end_date)),
+        )
+        campaign_row = cur.fetchone() or (0, 0)
     finally:
         conn.close()
 
     total_spend = round(float(ad_row[5] or 0), 2)
     linked_spend = round(float(sku_ads.get('linked_ads_spend') or 0), 2)
     unlinked_spend = round(float(sku_ads.get('unlinked_ads_spend') or 0), 2)
+    coverage_percent = round(float(advertising_quality.get('coverage_percent') or 0), 1)
+    coverage_status = str(advertising_quality.get('status') or _coverage_grade(coverage_percent))
     if total_spend > 0:
         linkability_percent = round((linked_spend / total_spend) * 100, 1)
     else:
@@ -13061,10 +13416,16 @@ def get_advertising_health_snapshot(user, start_date, end_date):
     negative_nm_id_rows = int(ad_row[2] or 0)
     duplicate_negative_rows = int(cleanup_audit.get('safe_to_delete_rows') or 0)
     duplicate_negative_spend = round(float(cleanup_audit.get('safe_to_delete_spend') or 0), 2)
+    campaigns_total = int(campaign_row[0] or 0)
+    campaigns_linked = int(campaign_row[1] or 0)
+    campaigns_unlinked = max(0, campaigns_total - campaigns_linked)
     last_success = advertising_quality.get('last_success')
     stale = _freshness_label(last_success) == 'stale'
     local_period_complete = not list(advertising_quality.get('missing_days') or []) and int(ad_row[0] or 0) > 0
     spend_delta_vs_expenses = round(abs(total_spend - expenses_advertising_total), 2)
+    api_total = total_spend
+    local_total = expenses_advertising_total
+    delta = round(local_total - api_total, 2)
     stale_critical = bool(
         stale and not (
             local_period_complete and
@@ -13091,6 +13452,14 @@ def get_advertising_health_snapshot(user, start_date, end_date):
         'linked_spend': linked_spend,
         'unlinked_spend': unlinked_spend,
         'linkability_percent': round(linkability_percent, 1),
+        'campaigns_total': campaigns_total,
+        'campaigns_linked': campaigns_linked,
+        'campaigns_unlinked': campaigns_unlinked,
+        'coverage_percent': coverage_percent,
+        'coverage_status': coverage_status,
+        'api_total': api_total,
+        'local_total': local_total,
+        'delta': delta,
         'duplicate_negative_spend': duplicate_negative_spend,
         'duplicate_negative_rows': duplicate_negative_rows,
         'last_success': last_success,
@@ -16951,12 +17320,15 @@ def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     context = _snapshot_context()
     director_snapshot = _director_snapshot(user, days, context=context)
     advisor_snapshot = _advisor_v2_snapshot(user, days, context=context)
     cfo_snapshot = _cfo_insights_snapshot(user, days, context=context)
     kpi_snapshot = _kpi_snapshot(user, days, context=context)
     decision_snapshot = _decision_snapshot(user, days, context=context)
+    advertising_snapshot = _advertising_customer_snapshot(user, days)
+    products_snapshot = _products_center_snapshot(user, days)
     period_label = f"{days[0]}..{days[1]}"
     return {
         'status': 'OK',
@@ -16971,6 +17343,8 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'cfo_status': cfo_snapshot.get('status') or 'UNKNOWN',
         'decision_status': decision_snapshot.get('status') or 'UNKNOWN',
         'business_state': dict(director_snapshot.get('business_state') or {}),
+        'advertising': advertising_snapshot,
+        'products': products_snapshot,
         'quick_links': [
             f'/director {days[0]} {days[1]}',
             f'/advisor v2 {days[0]} {days[1]}',
@@ -16982,17 +17356,23 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 
 def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     snapshot = _business_center_snapshot(user=user, days=days)
     state = dict(snapshot.get('business_state') or {})
+    advertising_snapshot = dict(snapshot.get('advertising') or {})
+    products_snapshot = dict(snapshot.get('products') or {})
+    finance_status = get_finance_status(user, days)
     recommendation = _customer_business_copy(snapshot.get('main_recommendation') or '')
     recommendation_action = _customer_business_copy(snapshot.get('main_recommendation_action') or '')
     today_actions = [_customer_business_copy(item) for item in list(snapshot.get('today_actions') or []) if str(item).strip()]
     risk_lines = [_customer_business_copy(item) for item in list(snapshot.get('risks') or []) if str(item).strip() and str(item).strip() != '-']
+    advertising_line = _advertising_business_summary_line(advertising_snapshot) if advertising_snapshot else f"- Реклама: {_customer_business_status_text(state.get('ads') or 'UNKNOWN')}"
+    costs_ready = float(products_snapshot.get('cost_coverage_percent') or 0) >= 95
     highlights = [
         f"- Продажи: {_customer_business_status_text(state.get('sales') or 'UNKNOWN')}",
-        f"- Финансы: {_customer_business_status_text(state.get('finance') or 'UNKNOWN')}",
-        f"- Реклама: {_customer_business_status_text(state.get('ads') or 'UNKNOWN')}",
-        f"- Себестоимость: {'готова' if _ux_status_icon(snapshot.get('business_health')) == '🟢' else 'нужно проверить'}",
+        f"- Финансы: {finance_status['business_text']}",
+        advertising_line,
+        f"- Себестоимость: {'готова' if costs_ready else 'нужно проверить'}",
     ]
     if recommendation and recommendation != '-':
         highlights.append(f"- Главная рекомендация: {recommendation}")
@@ -17015,10 +17395,14 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     finance_api_snapshot = _finance_api_status_snapshot(user)
     financial_engine_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
     payment_snapshot = _payment_reconciliation_snapshot(user, days[0], days[1])
     finance_health = get_finance_difference_snapshot(user, days[0], days[1])
+    advertising_snapshot = _advertising_customer_snapshot(user, days)
+    management_snapshot = _report_mgmt_snapshot(user, days)
+    finance_status = get_finance_status(user, days, financial_engine_snapshot=financial_engine_snapshot)
     period_label = f"{days[0]}..{days[1]}"
     engine_status = str(financial_engine_snapshot.get('status') or 'UNKNOWN')
     return {
@@ -17032,6 +17416,13 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'payment_status': payment_snapshot.get('status') or 'UNKNOWN',
         'payment_received_total': payment_snapshot.get('weekly_payout_total_all'),
         'sales_for_pay_total': payment_snapshot.get('sales_for_pay_total'),
+        'advertising_total': advertising_snapshot.get('total_spend'),
+        'logistics_total': management_snapshot.get('logistics'),
+        'storage_total': management_snapshot.get('storage'),
+        'deductions_total': management_snapshot.get('deductions'),
+        'acquiring_total': management_snapshot.get('acquiring'),
+        'other_expenses_total': management_snapshot.get('other'),
+        'finance_status_text': finance_status.get('finance_text'),
         'profit_audit_safety_status': 'OFFICIAL_READY' if bool(financial_engine_snapshot.get('official_new_finance_available')) else ('LEGACY_FALLBACK' if engine_status == 'LEGACY_FALLBACK' else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE'),
         'coverage_percent': float(finance_health.get('coverage_percent') or 0),
         'risks': list(financial_engine_snapshot.get('warnings') or [])[:3],
@@ -17046,15 +17437,29 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     snapshot = _finance_center_snapshot(user=user, days=days)
     official_available = bool(snapshot.get('official_new_finance_available'))
-    status_text = '🟡 Финансовые данные WB ожидают подтверждения.' if not official_available else '🟢 Финансовые данные WB доступны.'
+    status_text = str(snapshot.get('finance_status_text') or ('🟢 Финансовые данные WB подтверждены.' if official_available else '🟡 Финансовые данные WB ожидают подтверждения.'))
     money_lines = [
         f"- К выплате: {money(snapshot.get('sales_for_pay_total') or 0)}" if snapshot.get('sales_for_pay_total') is not None else "- К выплате: 0 ₽",
         f"- Получено выплат: {money(snapshot.get('payment_received_total') or 0)}" if snapshot.get('payment_received_total') is not None else "- Получено выплат: 0 ₽",
         f"- Прибыль: {money(snapshot.get('official_net_profit') or 0)}" if snapshot.get('official_net_profit') is not None else "- Прибыль: пока не рассчитана",
-        "- Расходы: 0 ₽",
     ]
+    if float(snapshot.get('advertising_total') or 0) > 0:
+        money_lines.insert(2, f"- Реклама WB: {money(snapshot.get('advertising_total') or 0)}")
+    if float(snapshot.get('logistics_total') or 0) > 0:
+        money_lines.append(f"- Логистика WB: {money(snapshot.get('logistics_total') or 0)}")
+    if float(snapshot.get('storage_total') or 0) > 0:
+        money_lines.append(f"- Хранение WB: {money(snapshot.get('storage_total') or 0)}")
+    if float(snapshot.get('deductions_total') or 0) > 0:
+        money_lines.append(f"- Удержания WB: {money(snapshot.get('deductions_total') or 0)}")
+    if float(snapshot.get('acquiring_total') or 0) > 0:
+        money_lines.append(f"- Эквайринг WB: {money(snapshot.get('acquiring_total') or 0)}")
+    if float(snapshot.get('other_expenses_total') or 0) > 0:
+        money_lines.append(f"- Прочие расходы: {money(snapshot.get('other_expenses_total') or 0)}")
+    if all(float(snapshot.get(key) or 0) <= 0 for key in ('logistics_total', 'storage_total', 'other_expenses_total')):
+        money_lines.append("- Остальные расходы: ожидают подтверждения" if not official_available else "- Остальные расходы: подтверждены в расчёте")
     important_note = (
         "WB ещё не предоставил официальные финансовые данные. Как только они появятся, VOOGLII автоматически пересчитает прибыль."
         if not official_available
@@ -17069,7 +17474,46 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     return finance_screen(humanize_period_range(days[0], days[1]), status_text, money_lines, important_note, actions)
 
 
+def _pnl_customer_text(user, days):
+    days = _center_days(days)
+    snapshot = _report_mgmt_snapshot(user, days)
+    official_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
+    official_available = bool(official_snapshot.get('official_new_finance_available'))
+    profit_value = official_snapshot.get('official_net_profit') if official_available else snapshot.get('management_profit_with_storage')
+    expense_total = round(
+        float(snapshot.get('cost_price') or 0)
+        + float(snapshot.get('advertising') or 0)
+        + float(snapshot.get('logistics') or 0)
+        + float(snapshot.get('storage') or 0)
+        + float(snapshot.get('other') or 0),
+        2,
+    )
+    margin_value = round((float(profit_value or 0) / float(snapshot.get('revenue') or 0) * 100), 1) if float(snapshot.get('revenue') or 0) > 0 and profit_value is not None else 0.0
+    lines = [
+        '💰 P&L',
+        '',
+        f'Период: {humanize_period_range(days[0], days[1])}',
+        '',
+        'Главное:',
+        f'- Выручка: {money(snapshot.get("revenue") or 0)}',
+        f'- Расходы: {money(expense_total)}',
+        f'- Реклама: {money(snapshot.get("advertising") or 0)}',
+        f'- Логистика: {money(snapshot.get("logistics") or 0)}',
+        f'- Себестоимость: {money(snapshot.get("cost_price") or 0)}',
+        f'- Прибыль: {money(profit_value or 0)}' if profit_value is not None else '- Прибыль: пока не рассчитана',
+        f'- Маржа: {margin_value:.1f}%',
+        '',
+        'Статус:',
+        '🟢 Финансовый результат подтверждён WB.' if official_available else '🟡 Показана операционная оценка до подтверждения Finance API.',
+        '',
+        'Что важно:',
+        'Прибыль рассчитана по подтверждённым финансовым данным WB.' if official_available else 'До подтверждения Finance API VOOGLII показывает операционную оценку по текущим продажам, рекламе и расходам.',
+    ]
+    return '\n'.join(lines)
+
+
 def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     sku_registry_snapshot = _sku_registry_snapshot(user, days)
     forecast_rows = get_stock_forecast(user, 7, 30)
     critical_rows = [row for row in forecast_rows if row.get('risk_level') in ('no_stock', 'critical', 'high')]
@@ -17105,6 +17549,7 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 
 def _products_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     snapshot = _products_center_snapshot(user=user, days=days)
     status_text = '🟢 Себестоимость заполнена.' if float(snapshot.get("cost_coverage_percent") or 0) >= 95 else '🟡 Себестоимость нужно проверить.'
     sku_lines = [
@@ -17127,6 +17572,7 @@ def _products_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _analytics_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     quality_snapshot = _data_quality_snapshot(user, days)
     return {
         'status': 'OK',
@@ -17147,6 +17593,7 @@ def _analytics_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')
 
 
 def _analytics_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     snapshot = _analytics_center_snapshot(user=user, days=days)
     summary_lines = [
         f"- Продажи: {_ux_status_text(snapshot.get('sales_available') or 'UNKNOWN')}",
@@ -17159,9 +17606,11 @@ def _analytics_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     health_snapshot = _health_snapshot(user)
     product_readiness_snapshot = _product_readiness_snapshot(user=user)
     structure_snapshot = _project_structure_readiness_snapshot(user=user, days=days)
+    advertising_snapshot = _advertising_customer_snapshot(user, days)
     finance_status = str((((health_snapshot.get('quality') or {}).get('finance') or {}).get('status')) or 'UNKNOWN')
     ads_status = str((((health_snapshot.get('quality') or {}).get('advertising') or {}).get('status')) or 'UNKNOWN')
     sales_status = str((((health_snapshot.get('quality') or {}).get('sales') or {}).get('status')) or 'UNKNOWN')
@@ -17175,6 +17624,7 @@ def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'sales_status': sales_status,
         'finance_status': finance_status,
         'ads_status': ads_status,
+        'advertising': advertising_snapshot,
         'wb_connected': bool(user_row and user_row[2]),
         'product_readiness': product_readiness_snapshot.get('product_status') or 'UNKNOWN',
         'rc_status': 'SEE_RC_STATUS',
@@ -17195,7 +17645,9 @@ def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _system_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    days = _center_days(days)
     snapshot = _system_center_snapshot(user=user, days=days)
+    finance_status_snapshot = get_finance_status(user, days)
     product_status = str(snapshot.get('product_readiness') or 'UNKNOWN')
     structure_status = str(snapshot.get('structure_status') or 'UNKNOWN')
     runtime_status = str(snapshot.get('agent_status') or 'UNKNOWN')
@@ -17235,24 +17687,27 @@ def _system_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
             lines.append(f'- {item}')
         return '\n'.join(lines)
     wb_connected = bool(snapshot.get('wb_connected'))
-    finance_status = str(snapshot.get('finance_status') or 'UNKNOWN')
     ads_status = str(snapshot.get('ads_status') or 'UNKNOWN')
     sales_status = str(snapshot.get('sales_status') or 'UNKNOWN')
     last_updates = dict(snapshot.get('last_updates') or {})
+    advertising_snapshot = dict(snapshot.get('advertising') or {})
     items = [
         '🟢 Бот работает' if _ux_status_icon(runtime_status) == '🟢' else '🟡 Бот нужно проверить',
         '🟡 Кабинет WB не подключён' if not wb_connected else '🟢 Кабинет WB подключён',
         '🟢 База данных доступна' if _ux_status_is_ok(snapshot.get('database_status')) else '🔴 База данных недоступна',
         f'{"🟢" if _ux_status_is_ok(sales_status) else "🟡"} Продажи: {"актуальны" if _ux_status_is_ok(sales_status) else "данные обновляются"}',
-        f'{"🟢" if _ux_status_is_ok(finance_status) else "🟡"} Финансовые данные WB: {"доступны" if _ux_status_is_ok(finance_status) else "ожидают подтверждения"}',
-        f'{"🟢" if _ux_status_is_ok(ads_status) else "🟡"} Реклама: {"обновлена" if _ux_status_is_ok(ads_status) else "нужно проверить"}',
+        finance_status_snapshot['system_text'],
     ]
+    if advertising_snapshot:
+        items.extend(_advertising_system_lines(advertising_snapshot))
+    else:
+        items.append(f'{"🟢" if _ux_status_is_ok(ads_status) else "🟡"} Реклама: {"обновлена" if _ux_status_is_ok(ads_status) else "нужно проверить"}')
     if parse_dt(last_updates.get("sales")):
         items.append(f'🕒 Последнее обновление: {_customer_last_update_label(last_updates.get("sales"))}')
     actions = _customer_actions(
         'Подключить кабинет — /connect' if not wb_connected else '',
         'Обновить данные — /update' if not (_ux_status_is_ok(sales_status) and _ux_status_is_ok(ads_status)) else 'Открыть главную сводку — /home',
-        'Открыть /finance и проверить прибыль' if not _ux_status_is_ok(finance_status) else '',
+        'Открыть /finance и проверить прибыль' if not finance_status_snapshot['available'] else '',
         'Проверить кабинет — /profile' if wb_connected else '',
     )
     return system_customer_screen(items, actions)
@@ -19386,10 +19841,16 @@ async def _advisor_command_entry(update, context):
         request_context = _snapshot_context()
         await send_long(update, _advisor_v2_text(uid(update), days, context=request_context))
         return
+    center_period = _try_center_period(args, 'current_month', executive=True)
+    if center_period is not None:
+        _, days = center_period
+        request_context = _snapshot_context()
+        await send_long(update, _advisor_v2_text(uid(update), days, context=request_context))
+        return
     try:
         period_name, days = period(context.args, 'month')
     except ValueError:
-        await update.message.reply_text(_period_help('advisor'))
+        await update.message.reply_text('Не удалось открыть рекомендации за выбранный период.')
         return
     await send_long(update, _advisor_text(period_name, days, uid(update)))
 
@@ -19645,9 +20106,9 @@ async def ceo_command(update, context):
         return
     user = uid(update)
     try:
-        p, d = period(context.args, 'month')
+        p, d = _executive_period(context.args, 'current_month')
     except ValueError:
-        await update.message.reply_text(_period_help('ceo'))
+        await update.message.reply_text('Не удалось открыть CEO Dashboard за выбранный период.')
         return
     st = get_profit_stats(d, user)
     o = get_orders_stats(d, user)
@@ -19665,7 +20126,8 @@ async def ceo_command(update, context):
     critical_rows = [row for row in replenishment['items'] if row.get('risk_level') in ('no_stock', 'critical', 'high')]
     urgent_row = critical_rows[0] if critical_rows else (replenishment['items'][0] if replenishment['items'] else None)
     text = (
-        f'📒 CEO-сводка ({p})\n\n'
+        f'👑 CEO Dashboard\n\n'
+        f'Период: {_atlas_month_label(d)}\n\n'
         f'Заказы: {o[0]} | Выкупы: {get_period_stats(d, user)[0]} | Возвраты: {st[12]}\n'
         f'К выплате: {money(st[2])}\n'
         f'Разница WB: {money(st[1])}\n'
