@@ -7640,7 +7640,7 @@ async def _syncstatus_command_entry(update, context):
         api_row = api_rows.get(block) or {}
         extra = [f'Дата snapshot: {snapshot}'] if block == 'stocks' and snapshot else None
         lines.append(format_sync_block_for_user(block, row, api_row, extra))
-        if admin(update):
+        if _is_engineering_role(user):
             lines.append(format_sync_block_for_admin(block, row, api_row))
         lines.append('')
     await send_long(update, '\n'.join(lines).strip())
@@ -7748,7 +7748,7 @@ async def _stocks_command_entry(update, context):
             f'В пути: {to_client or 0}\n'
             f'Склады: {wh or "-"}\n\n'
         )
-    if admin(update):
+    if _is_engineering_role(user):
         text += f'Технический статус: {status or "-"}'
     await send_long(update, text if rows else stocks_empty_text())
 

@@ -219,8 +219,9 @@ def test_registered_admin_handler_blocks_customer_before_legacy(monkeypatch):
     admin_entry_calls: list[str] = []
     handlers = telegram_bot._command_handlers()
 
-    monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "admin", lambda _update: True)
     monkeypatch.setattr(telegram_bot, "developer", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "owner")
 
     async def _unexpected_admin_entry(update, context):
         admin_entry_calls.append("called")
@@ -254,7 +255,8 @@ def test_registered_stocks_handler_hides_technical_status_for_customer(monkeypat
 
     monkeypatch.setattr(telegram_bot, "access", _access)
     monkeypatch.setattr(telegram_bot, "send_long", _send_long)
-    monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "admin", lambda _update: True)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "owner")
     monkeypatch.setattr(telegram_bot, "get_stocks", lambda _user: [("SKU-1", 4, None, 1, 0, "Коледино")])
     monkeypatch.setattr(telegram_bot, "get_sync_status_map", lambda _user: {"stocks": {"last_status": "SUCCESS"}})
     monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-05")
@@ -267,3 +269,31 @@ def test_registered_stocks_handler_hides_technical_status_for_customer(monkeypat
 
     assert "Технический статус" not in text
     assert "SUCCESS" not in text
+
+
+def test_registered_stocks_handler_can_show_debug_for_admin(monkeypatch):
+    outputs: dict[str, str] = {}
+    handlers = telegram_bot._command_handlers()
+
+    async def _access(*args, **kwargs):
+        return True
+
+    async def _send_long(update, text, **kwargs):
+        outputs[update.message.text.split()[0]] = str(text)
+        update.message.replies.append(str(text))
+
+    monkeypatch.setattr(telegram_bot, "access", _access)
+    monkeypatch.setattr(telegram_bot, "send_long", _send_long)
+    monkeypatch.setattr(telegram_bot, "admin", lambda _update: True)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "admin")
+    monkeypatch.setattr(telegram_bot, "get_stocks", lambda _user: [("SKU-1", 4, None, 1, 0, "Коледино")])
+    monkeypatch.setattr(telegram_bot, "get_sync_status_map", lambda _user: {"stocks": {"last_status": "SUCCESS"}})
+    monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-05")
+
+    assert handlers["stocks"].__module__ == "vooglii_telegram.handlers.stocks"
+
+    update = _Update("/stocks")
+    _run(handlers["stocks"](update, _Context()))
+    text = outputs["/stocks"]
+
+    assert "Технический статус: SUCCESS" in text
