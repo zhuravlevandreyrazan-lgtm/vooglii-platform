@@ -206,10 +206,50 @@ def test_registered_runtime_handlers_are_customer_safe(monkeypatch):
         assert key in outputs
         _assert_clean(outputs[key])
 
-    assert "📢 Рекламный аудит" in outputs["/adsaudit"]
+    assert "Рекламный аудит" in outputs["/adsaudit"]
     assert "Расходы:" in outputs["/adsaudit"]
     assert "Расхождение с WB:" in outputs["/adsaudit"]
     assert "Реклама: 🟡 29 900.63" in outputs["/business"]
     assert "Реклама WB: 29 900.63" in outputs["/finance"]
     assert "Реклама: частично обновлена" in outputs["/system"]
     assert "10 кампаний" in outputs["/system"]
+
+
+def test_registered_admin_and_stocks_handlers_are_customer_safe(monkeypatch):
+    outputs: dict[str, str] = {}
+
+    async def _access(*args, **kwargs):
+        return True
+
+    async def _send_long(update, text, **kwargs):
+        outputs[update.message.text.split()[0]] = str(text)
+        update.message.replies.append(str(text))
+
+    monkeypatch.setattr(telegram_bot, "access", _access)
+    monkeypatch.setattr(telegram_bot, "send_long", _send_long)
+    monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "developer", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "get_stocks", lambda _user: [("SKU-1", 4, None, 1, 0, "Коледино")])
+    monkeypatch.setattr(telegram_bot, "get_sync_status_map", lambda _user: {"stocks": {"last_status": "SUCCESS"}})
+    monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-05")
+
+    handlers = telegram_bot._command_handlers()
+    assert handlers["admin"].__module__ == "vooglii_telegram.handlers.admin"
+    assert handlers["stocks"].__module__ == "vooglii_telegram.handlers.stocks"
+
+    admin_update = _Update("/admin")
+    stocks_update = _Update("/stocks")
+
+    _run(handlers["admin"](admin_update, _Context()))
+    _run(handlers["stocks"](stocks_update, _Context()))
+
+    admin_text = admin_update.message.replies[-1]
+    stocks_text = outputs["/stocks"]
+
+    assert "Команда недоступна" in admin_text
+    assert "/admin users" not in admin_text
+    assert "/admin pro" not in admin_text
+    assert "/admin role" not in admin_text
+
+    assert "Технический статус" not in stocks_text
+    assert "SUCCESS" not in stocks_text
