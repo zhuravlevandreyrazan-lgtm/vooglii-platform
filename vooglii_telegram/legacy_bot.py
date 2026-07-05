@@ -5637,6 +5637,12 @@ def _sku_registry_snapshot(user, days=None, context=None):
         finally:
             conn.close()
     snapshot = build_sku_registry_snapshot(sales_skus=sales_skus, finance_skus=finance_skus)
+    if not sales_skus and not finance_skus:
+        snapshot = dict(snapshot or {})
+        snapshot['registry_status'] = 'NO_PERIOD_DATA'
+        snapshot['coverage_percent'] = 0.0
+        snapshot['known_skus'] = []
+        snapshot['missing_skus'] = []
     _context_count(context, 'sku_registry_snapshot')
     return _context_snapshot_put(context, cache_key, snapshot)
 
@@ -17554,6 +17560,7 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'financial_engine_status': engine_status,
         'official_new_finance_available': bool(financial_engine_snapshot.get('official_new_finance_available')),
         'official_net_profit': financial_engine_snapshot.get('official_net_profit'),
+        'profit_total': unified_snapshot.get('net_profit'),
         'legacy_fallback_status': financial_engine_snapshot.get('legacy_gold_validation_status') if engine_status == 'LEGACY_FALLBACK' else 'NOT_ACTIVE',
         'payment_status': payment_snapshot.get('status') or 'UNKNOWN',
         'payment_received_total': unified_snapshot.get('wb_payments_received'),
@@ -17597,7 +17604,7 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     money_lines = [
         f"- К выплате: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
         f"- Получено выплат: {_money_or_state(snapshot.get('payment_received_total'), 'нет данных')}",
-        f"- Прибыль: {_money_or_state(snapshot.get('official_net_profit'), 'пока не рассчитана')}" if snapshot.get('official_net_profit') is not None else "- Прибыль: пока не рассчитана",
+        f"- Прибыль: {_money_or_state(snapshot.get('profit_total'), 'пока не рассчитана')}" if snapshot.get('profit_total') is not None else "- Прибыль: пока не рассчитана",
     ]
     if snapshot.get('advertising_total') is not None:
         money_lines.insert(2, f"- Реклама WB: {_money_or_state(snapshot.get('advertising_total'))}")
@@ -17671,6 +17678,10 @@ def _pnl_customer_text(user, days):
 def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
     sku_registry_snapshot = _sku_registry_snapshot(user, days)
+    known_skus = len(list(sku_registry_snapshot.get('known_skus') or []))
+    missing_skus = len(list(sku_registry_snapshot.get('missing_skus') or []))
+    raw_coverage = float(sku_registry_snapshot.get('coverage_percent') or 0)
+    cost_coverage_percent = raw_coverage if (known_skus + missing_skus) > 0 else 0.0
     forecast_rows = get_stock_forecast(user, 7, 30)
     critical_rows = [row for row in forecast_rows if row.get('risk_level') in ('no_stock', 'critical', 'high')]
     top_risks = []
@@ -17688,9 +17699,9 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'status': 'OK',
         'period': f"{days[0]}..{days[1]}",
         'sku_registry_status': sku_registry_snapshot.get('registry_status') or 'UNKNOWN',
-        'cost_coverage_percent': sku_registry_snapshot.get('coverage_percent'),
-        'known_skus': len(list(sku_registry_snapshot.get('known_skus') or [])),
-        'missing_skus': len(list(sku_registry_snapshot.get('missing_skus') or [])),
+        'cost_coverage_percent': cost_coverage_percent,
+        'known_skus': known_skus,
+        'missing_skus': missing_skus,
         'critical_stock_count': len(critical_rows),
         'top_risks': top_risks,
         'stock_snapshot_date': _stock_snapshot_date(user) or '-',
