@@ -215,8 +215,35 @@ def test_registered_runtime_handlers_are_customer_safe(monkeypatch):
     assert "10 кампаний" in outputs["/system"]
 
 
-def test_registered_admin_and_stocks_handlers_are_customer_safe(monkeypatch):
+def test_registered_admin_handler_blocks_customer_before_legacy(monkeypatch):
+    admin_entry_calls: list[str] = []
+    handlers = telegram_bot._command_handlers()
+
+    monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "developer", lambda _update: False)
+
+    async def _unexpected_admin_entry(update, context):
+        admin_entry_calls.append("called")
+        await update.message.reply_text("/admin users\n/admin pro ID\n/admin role ID")
+
+    monkeypatch.setattr(telegram_bot, "_admin_command_entry", _unexpected_admin_entry)
+
+    assert handlers["admin"].__module__ == "vooglii_telegram.handlers.admin"
+
+    update = _Update("/admin")
+    _run(handlers["admin"](update, _Context()))
+    text = update.message.replies[-1]
+
+    assert text == "⛔ Команда недоступна."
+    assert not admin_entry_calls
+    assert "/admin users" not in text
+    assert "/admin pro" not in text
+    assert "/admin role" not in text
+
+
+def test_registered_stocks_handler_hides_technical_status_for_customer(monkeypatch):
     outputs: dict[str, str] = {}
+    handlers = telegram_bot._command_handlers()
 
     async def _access(*args, **kwargs):
         return True
@@ -228,28 +255,15 @@ def test_registered_admin_and_stocks_handlers_are_customer_safe(monkeypatch):
     monkeypatch.setattr(telegram_bot, "access", _access)
     monkeypatch.setattr(telegram_bot, "send_long", _send_long)
     monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
-    monkeypatch.setattr(telegram_bot, "developer", lambda _update: False)
     monkeypatch.setattr(telegram_bot, "get_stocks", lambda _user: [("SKU-1", 4, None, 1, 0, "Коледино")])
     monkeypatch.setattr(telegram_bot, "get_sync_status_map", lambda _user: {"stocks": {"last_status": "SUCCESS"}})
     monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-05")
 
-    handlers = telegram_bot._command_handlers()
-    assert handlers["admin"].__module__ == "vooglii_telegram.handlers.admin"
     assert handlers["stocks"].__module__ == "vooglii_telegram.handlers.stocks"
 
-    admin_update = _Update("/admin")
-    stocks_update = _Update("/stocks")
+    update = _Update("/stocks")
+    _run(handlers["stocks"](update, _Context()))
+    text = outputs["/stocks"]
 
-    _run(handlers["admin"](admin_update, _Context()))
-    _run(handlers["stocks"](stocks_update, _Context()))
-
-    admin_text = admin_update.message.replies[-1]
-    stocks_text = outputs["/stocks"]
-
-    assert "Команда недоступна" in admin_text
-    assert "/admin users" not in admin_text
-    assert "/admin pro" not in admin_text
-    assert "/admin role" not in admin_text
-
-    assert "Технический статус" not in stocks_text
-    assert "SUCCESS" not in stocks_text
+    assert "Технический статус" not in text
+    assert "SUCCESS" not in text

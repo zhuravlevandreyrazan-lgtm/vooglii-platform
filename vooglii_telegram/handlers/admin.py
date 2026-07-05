@@ -5,6 +5,9 @@ from ._bot import get_bot
 
 async def admin_command(update, context):
     bot = get_bot()
+    if not (bot.admin(update) or bot.developer(update)):
+        await update.message.reply_text("⛔ Команда недоступна.")
+        return
     return await bot._admin_command_entry(update, context)
 
 
