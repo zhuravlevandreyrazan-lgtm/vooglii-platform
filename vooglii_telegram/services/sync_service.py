@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from load_sales import load_sales_for_user, normalize_advertising_status
+from .token_resolver import resolve_wb_token
 
 
 def _bot():
@@ -25,7 +26,12 @@ def normalize_sync_error(error_code):
     return f"⚠ Ошибка обновления: {status}"
 
 
-def run_user_sync(user_id, token, days=30):
+def run_user_sync(user_id, token=None, days=30):
+    if not token:
+        resolution = resolve_wb_token(int(user_id))
+        token = resolution.token
+        if not token:
+            return {"saved": 0, "status": "NO_TOKEN"}
     saved, status = load_sales_for_user(user_id, token, days, False, True)
     return {"saved": saved, "status": status}
 

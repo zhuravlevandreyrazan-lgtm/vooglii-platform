@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from config import DB_NAME
 import telegram_bot
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+from vooglii_telegram.services.token_resolver import resolve_wb_token
 
 
 def _money(value) -> str:
@@ -231,6 +232,16 @@ def main() -> None:
     print(f"DB: {DB_NAME}")
     print(f"user_id: {user_id}")
     print(f"period: {ARGS.date_from}..{ARGS.date_to}")
+
+    token_resolution = resolve_wb_token(user_id)
+    _print_section("WB Token Resolution")
+    print(f"status: {token_resolution.status}")
+    print(f"source: {token_resolution.source}")
+    print(f"token_len: {token_resolution.token_len}")
+    print(f"encrypted: {token_resolution.encrypted}")
+    print(f"can_decrypt: {token_resolution.can_decrypt}")
+    if token_resolution.reason:
+        print(f"reason: {token_resolution.reason}")
 
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()

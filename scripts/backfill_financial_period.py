@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,10 +12,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config import DB_NAME
+from config import DB_NAME, WB_TOKEN
 import db_manager
 import load_sales
 import telegram_bot
+from user_manager import get_user
+from vooglii_telegram.services.token_resolver import resolve_wb_token
 
 
 SOURCE_DB_CANDIDATES = [
@@ -298,7 +301,280 @@ def _restore_from_caches(target_path: Path, user_id: int, start_date: str, end_d
     return {"sales_cache": sales_result, "ads_cache": ads_result}
 
 
-def _run_backfill(user_id: int, start_date: str, end_date: str) -> dict[str, Any]:
+def _upsert_rows_from_payload(
+    target_conn: sqlite3.Connection,
+    table: str,
+    rows: list[dict[str, Any]],
+    insert_columns: list[str],
+    key_columns: list[str],
+) -> dict[str, int]:
+    if not rows:
+        return {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
+    placeholders = ", ".join(["?"] * len(insert_columns))
+    update_columns = [column for column in insert_columns if column not in key_columns]
+    update_clause = ", ".join([f"{column}=excluded.{column}" for column in update_columns])
+    insert_sql = (
+        f"INSERT INTO {table}({', '.join(insert_columns)}) VALUES({placeholders}) "
+        f"ON CONFLICT({', '.join(key_columns)}) DO UPDATE SET {update_clause}"
+    )
+    stats = {"source_rows": len(rows), "inserted": 0, "updated": 0, "skipped": 0}
+    for row in rows:
+        key_values = [row[column] for column in key_columns]
+        existing = target_conn.execute(
+            f"SELECT {', '.join(insert_columns)} FROM {table} WHERE " + " AND ".join([f"{column}=?" for column in key_columns]),
+            tuple(key_values),
+        ).fetchone()
+        values = [row[column] for column in insert_columns]
+        if existing is None:
+            target_conn.execute(insert_sql, tuple(values))
+            stats["inserted"] += 1
+            continue
+        existing_values = [existing[column] for column in insert_columns]
+        if list(existing_values) == values:
+            stats["skipped"] += 1
+            continue
+        target_conn.execute(insert_sql, tuple(values))
+        stats["updated"] += 1
+    return stats
+
+
+def _upsert_finance_raw_rows(target_conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> dict[str, int]:
+    columns = [
+        "telegram_id",
+        "rrd_id",
+        "report_date",
+        "penalty",
+        "deduction",
+        "acceptance",
+        "acceptance_fee",
+        "additional_payment",
+        "acquiring_fee",
+        "nm_id",
+        "supplier_article",
+        "srid",
+        "doc_type_name",
+        "operation_type",
+        "payment_type",
+        "subject_name",
+        "brand_name",
+        "sa_name",
+        "bonus_type_name",
+        "sticker_id",
+        "gi_id",
+        "raw_json",
+        "created_at",
+    ]
+    key_columns = [
+        "telegram_id",
+        "rrd_id",
+        "report_date",
+        "nm_id",
+        "supplier_article",
+        "srid",
+        "doc_type_name",
+        "operation_type",
+        "payment_type",
+        "sa_name",
+        "bonus_type_name",
+        "sticker_id",
+        "gi_id",
+    ]
+    if not rows:
+        return {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
+    stats = {"source_rows": len(rows), "inserted": 0, "updated": 0, "skipped": 0}
+    for row in rows:
+        where_clause = " AND ".join([f"COALESCE({column},'')=COALESCE(?, '')" for column in key_columns])
+        existing = target_conn.execute(
+            f"SELECT rowid AS _rowid, {', '.join(columns)} FROM finance_raw_audit WHERE {where_clause}",
+            tuple(row[column] for column in key_columns),
+        ).fetchone()
+        values = [row[column] for column in columns]
+        if existing is None:
+            target_conn.execute(
+                f"INSERT INTO finance_raw_audit({', '.join(columns)}) VALUES({', '.join(['?'] * len(columns))})",
+                tuple(values),
+            )
+            stats["inserted"] += 1
+            continue
+        existing_values = [existing[column] for column in columns]
+        if existing_values == values:
+            stats["skipped"] += 1
+            continue
+        target_conn.execute(
+            "UPDATE finance_raw_audit SET " + ", ".join([f"{column}=?" for column in columns]) + " WHERE rowid=?",
+            tuple(values) + (existing["_rowid"],),
+        )
+        stats["updated"] += 1
+    return stats
+
+
+def _fetch_finance_api_range(user_id: int, token: str, start_date: str, end_date: str) -> dict[str, Any]:
+    rrdid = 0
+    page = 0
+    raw_rows: list[dict[str, Any]] = []
+    expenses_rows: list[dict[str, Any]] = []
+    while True:
+        page += 1
+        data, status = load_sales._get(
+            f"{load_sales.STAT_API}/api/v5/supplier/reportDetailByPeriod",
+            token,
+            {"dateFrom": start_date, "dateTo": end_date, "limit": 100000, "rrdid": rrdid},
+            timeout=20,
+            caller="scripts.backfill_financial_period->reportDetailByPeriod",
+        )
+        if status != "SUCCESS":
+            return {
+                "status": f"WB_API_UNAVAILABLE_FOR_PERIOD:{status}",
+                "pages_loaded": page,
+                "raw_rows": [],
+                "expense_rows": [],
+            }
+        if not isinstance(data, list):
+            return {
+                "status": "WB_API_UNAVAILABLE_FOR_PERIOD:INVALID_RESPONSE",
+                "pages_loaded": page,
+                "raw_rows": [],
+                "expense_rows": [],
+            }
+        if not data:
+            break
+        for idx, row in enumerate(data):
+            if not isinstance(row, dict):
+                continue
+            d = str(load_sales._first(row, ["sale_dt", "rr_dt", "date", "operation_dt"], end_date))[:10]
+            article = load_sales._first(row, ["sa_name", "supplierArticle", "supplier_article", "supplierArticleName"])
+            nm_id = load_sales._first(row, ["nm_id", "nmID", "nmId"])
+            supplier_article = load_sales._first(row, ["supplier_article", "supplierArticle", "sa_name", "saName"]) or article
+            srid = load_sales._first(row, ["srid", "srId"])
+            doc_type_name = load_sales._first(row, ["doc_type_name", "docTypeName", "doc_type"])
+            operation_type = load_sales._first(row, ["operation_type", "operationType"])
+            payment_type = load_sales._first(row, ["payment_type", "paymentType"])
+            subject_name = load_sales._first(row, ["subject_name", "subjectName"])
+            brand_name = load_sales._first(row, ["brand_name", "brandName"])
+            sa_name = load_sales._first(row, ["sa_name", "saName"])
+            bonus_type_name = load_sales._first(row, ["bonus_type_name", "bonusTypeName"])
+            sticker_id = load_sales._first(row, ["sticker_id", "stickerId"])
+            gi_id = load_sales._first(row, ["gi_id", "giId"])
+            row_rrd = load_sales._first(row, ["rrd_id", "rrdId", "rrdid"], f"{page}:{idx}")
+            penalty = load_sales._num(row.get("penalty"))
+            deduction = load_sales._num(row.get("deduction"))
+            acceptance = load_sales._num(row.get("acceptance"))
+            acceptance_fee = load_sales._num(row.get("acceptance_fee")) + load_sales._num(row.get("acceptanceFee"))
+            additional_payment = load_sales._num(row.get("additional_payment")) + load_sales._num(row.get("additionalPayment"))
+            acquiring_fee = load_sales._num(row.get("acquiring_fee")) + load_sales._num(row.get("acquiringFee"))
+            logistics = sum(abs(load_sales._num(row.get(x))) for x in [
+                "delivery_rub", "deliveryRub", "return_amount", "returnAmount",
+                "rebill_logistic_cost", "rebillLogisticCost", "delivery_amount", "deliveryAmount",
+            ])
+            storage = sum(abs(load_sales._num(row.get(x))) for x in [
+                "storage_fee", "storageFee", "storage", "storage_cost", "storageCost",
+            ])
+            other = sum(abs(v) for v in [penalty, deduction, acceptance, acceptance_fee, additional_payment, acquiring_fee])
+            raw_rows.append(
+                {
+                    "telegram_id": user_id,
+                    "rrd_id": str(row_rrd),
+                    "report_date": d,
+                    "penalty": float(penalty),
+                    "deduction": float(deduction),
+                    "acceptance": float(acceptance),
+                    "acceptance_fee": float(acceptance_fee),
+                    "additional_payment": float(additional_payment),
+                    "acquiring_fee": float(acquiring_fee),
+                    "nm_id": None if nm_id in (None, "") else str(nm_id),
+                    "supplier_article": None if supplier_article in (None, "") else str(supplier_article),
+                    "srid": None if srid in (None, "") else str(srid),
+                    "doc_type_name": None if doc_type_name in (None, "") else str(doc_type_name),
+                    "operation_type": None if operation_type in (None, "") else str(operation_type),
+                    "payment_type": None if payment_type in (None, "") else str(payment_type),
+                    "subject_name": None if subject_name in (None, "") else str(subject_name),
+                    "brand_name": None if brand_name in (None, "") else str(brand_name),
+                    "sa_name": None if sa_name in (None, "") else str(sa_name),
+                    "bonus_type_name": None if bonus_type_name in (None, "") else str(bonus_type_name),
+                    "sticker_id": None if sticker_id in (None, "") else str(sticker_id),
+                    "gi_id": None if gi_id in (None, "") else str(gi_id),
+                    "raw_json": json.dumps(row, ensure_ascii=False, default=str),
+                    "created_at": load_sales._dt(),
+                }
+            )
+            expenses_rows.extend(
+                [
+                    {
+                        "unique_key": f"finance:{user_id}:{row_rrd}:logistics",
+                        "telegram_id": user_id,
+                        "expense_date": d,
+                        "expense_type": "logistics",
+                        "amount": float(logistics),
+                        "supplier_article": article,
+                        "comment": "WB finance logistics",
+                        "source": "api_finance",
+                        "created_at": load_sales._dt(),
+                    },
+                    {
+                        "unique_key": f"finance:{user_id}:{row_rrd}:storage",
+                        "telegram_id": user_id,
+                        "expense_date": d,
+                        "expense_type": "storage",
+                        "amount": float(storage),
+                        "supplier_article": article,
+                        "comment": "WB finance storage",
+                        "source": "api_finance",
+                        "created_at": load_sales._dt(),
+                    },
+                    {
+                        "unique_key": f"finance:{user_id}:{row_rrd}:other",
+                        "telegram_id": user_id,
+                        "expense_date": d,
+                        "expense_type": "other",
+                        "amount": float(other),
+                        "supplier_article": article,
+                        "comment": "WB finance other",
+                        "source": "api_finance",
+                        "created_at": load_sales._dt(),
+                    },
+                ]
+            )
+            next_rrd = load_sales._first(row, ["rrd_id", "rrdId", "rrdid"])
+            if next_rrd:
+                try:
+                    rrdid = int(next_rrd)
+                except Exception:
+                    pass
+        if len(data) < 100000 or page >= 10:
+            break
+    return {
+        "status": "SUCCESS",
+        "pages_loaded": page,
+        "raw_rows": raw_rows,
+        "expense_rows": expenses_rows,
+    }
+
+
+def _run_diagnose(user_id: int, start_date: str, end_date: str) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "diagnose_financial_period.py"),
+        "--user-id",
+        str(user_id),
+        "--from",
+        str(start_date),
+        "--to",
+        str(end_date),
+    ]
+    completed = subprocess.run(command, cwd=str(PROJECT_ROOT), capture_output=True, text=True, encoding="utf-8")
+    return {
+        "status": "SUCCESS" if completed.returncode == 0 else f"FAILED:{completed.returncode}",
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def _resolve_wb_api_token(user_id: int) -> tuple[str | None, str]:
+    resolution = resolve_wb_token(user_id)
+    return resolution.token, resolution.source if resolution.token else "missing"
+
+
+def _run_backfill_from_db(user_id: int, start_date: str, end_date: str) -> dict[str, Any]:
     db_manager.init_db()
     target_path = Path(DB_NAME).resolve()
     source_path, discovered_sources = _discover_source_db(user_id, start_date, end_date)
@@ -418,6 +694,161 @@ def _run_backfill(user_id: int, start_date: str, end_date: str) -> dict[str, Any
     return result
 
 
+def _run_backfill_from_wb_api(user_id: int, start_date: str, end_date: str) -> dict[str, Any]:
+    db_manager.init_db()
+    resolution = resolve_wb_token(user_id)
+    token, token_source = resolution.token, resolution.source
+    user_row = get_user(user_id)
+    target_path = Path(DB_NAME).resolve()
+    result: dict[str, Any] = {
+        "target_db": str(target_path),
+        "source_db": "wb-api",
+        "discovered_sources": [],
+        "tables": {},
+        "user_access": {
+            "telegram_id": int(user_row[0] or user_id) if user_row else user_id,
+            "username": user_row[1] if user_row else None,
+            "tariff": user_row[3] if user_row else None,
+            "role": user_row[7] if user_row else None,
+            "subscription_until": user_row[8] if user_row else None,
+        },
+        "api_blocks": {},
+        "cache_fallbacks": {},
+        "missing": [],
+    }
+    if not token:
+        result["api_blocks"]["token"] = {
+            "status": "WB_API_UNAVAILABLE_FOR_PERIOD:NO_TOKEN",
+            "token_source": resolution.source,
+            "token_len": resolution.token_len,
+            "encrypted": resolution.encrypted,
+            "reason": resolution.reason,
+        }
+        result["missing"] = ["sales", "orders", "advertising", "finance_raw_audit", "expenses", "stocks"]
+        return result
+    result["api_blocks"]["token"] = {
+        "status": "SUCCESS",
+        "token_source": token_source,
+        "token_len": resolution.token_len,
+        "encrypted": resolution.encrypted,
+    }
+
+    target_conn = _connect(target_path)
+    try:
+        before_sales = _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date)
+        before_orders = _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date)
+        before_products = _table_summary(target_conn, "products", None, user_id, start_date, end_date)
+        so_result = load_sales.backfill_sales_orders_range(user_id, token, start_date, end_date)
+        after_sales = _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date)
+        after_orders = _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date)
+        after_products = _table_summary(target_conn, "products", None, user_id, start_date, end_date)
+        result["api_blocks"]["sales"] = {
+            "status": so_result.get("sales_api", {}).get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
+            "rows_in_range": int(so_result.get("sales_api", {}).get("rows_in_range") or 0),
+            "received_rows": int(so_result.get("sales_api", {}).get("received_rows") or 0),
+        }
+        result["api_blocks"]["orders"] = {
+            "status": so_result.get("orders_api", {}).get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
+            "rows_in_range": int(so_result.get("orders_api", {}).get("rows_in_range") or 0),
+            "received_rows": int(so_result.get("orders_api", {}).get("received_rows") or 0),
+        }
+        result["tables"]["sales"] = {"before": before_sales, "after": after_sales, **(so_result.get("sales_db") or {}), "source_rows": int(so_result.get("sales_api", {}).get("rows_in_range") or 0)}
+        result["tables"]["orders"] = {"before": before_orders, "after": after_orders, **(so_result.get("orders_db") or {}), "source_rows": int(so_result.get("orders_api", {}).get("rows_in_range") or 0)}
+        result["tables"]["products"] = {
+            "before": before_products,
+            "after": after_products,
+            "inserted": max(0, int((after_products.get("rows") or 0) - (before_products.get("rows") or 0))),
+            "updated": 0,
+            "skipped": 0,
+            "source_rows": int(so_result.get("sales_api", {}).get("rows_in_range") or 0),
+        }
+
+        advertising_before = _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date)
+        ads_fetch = load_sales.historical_advertising_backfill(user_id, token, start_date, end_date)
+        result["api_blocks"]["advertising"] = {
+            "status": ads_fetch.get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
+            "campaigns_found": int((ads_fetch.get("summary") or {}).get("campaigns_found") or 0),
+            "rows_in_range": int((ads_fetch.get("summary") or {}).get("advertising_rows") or 0),
+        }
+        if ads_fetch.get("status") == "SUCCESS":
+            cur = target_conn.cursor()
+            ads_stats = load_sales._safe_upsert_historical_advertising_rows(cur, user_id, list(ads_fetch.get("rows") or []), start_date, end_date)
+            target_conn.commit()
+        else:
+            ads_stats = {"inserted": 0, "updated": 0, "skipped": 0, "invalid": 0, "errors": 0}
+            result["missing"].append("advertising")
+        advertising_after = _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date)
+        result["tables"]["advertising"] = {
+            "before": advertising_before,
+            "after": advertising_after,
+            **ads_stats,
+            "source_rows": int((ads_fetch.get("summary") or {}).get("advertising_rows") or 0),
+        }
+
+        finance_before = _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date)
+        expenses_before = _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date)
+        finance_fetch = _fetch_finance_api_range(user_id, token, start_date, end_date)
+        result["api_blocks"]["finance"] = {
+            "status": finance_fetch.get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
+            "pages_loaded": int(finance_fetch.get("pages_loaded") or 0),
+            "raw_rows": int(len(finance_fetch.get("raw_rows") or [])),
+            "expense_rows": int(len(finance_fetch.get("expense_rows") or [])),
+        }
+        if finance_fetch.get("status") == "SUCCESS":
+            expense_stats = _upsert_rows_from_payload(
+                target_conn,
+                "expenses",
+                list(finance_fetch.get("expense_rows") or []),
+                ["unique_key", "telegram_id", "expense_date", "expense_type", "amount", "supplier_article", "comment", "source", "created_at"],
+                ["unique_key"],
+            )
+            finance_stats = _upsert_finance_raw_rows(target_conn, list(finance_fetch.get("raw_rows") or []))
+            target_conn.commit()
+        else:
+            expense_stats = {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
+            finance_stats = {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
+            result["missing"].extend(["expenses", "finance_raw_audit"])
+        expenses_after = _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date)
+        finance_after = _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date)
+        result["tables"]["expenses"] = {"before": expenses_before, "after": expenses_after, **expense_stats}
+        result["tables"]["finance_raw_audit"] = {"before": finance_before, "after": finance_after, **finance_stats}
+
+        stocks_before = _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date)
+        today = str(load_sales._today())
+        if str(start_date) <= today <= str(end_date):
+            loaded, stocks_status = load_sales.load_stocks(user_id, token)
+            result["api_blocks"]["stocks"] = {
+                "status": stocks_status,
+                "rows_in_range": int(loaded or 0),
+                "note": "current_snapshot_only",
+            }
+        else:
+            stocks_status = "WB_API_UNAVAILABLE_FOR_PERIOD"
+            result["api_blocks"]["stocks"] = {"status": stocks_status, "rows_in_range": 0, "note": "stocks endpoint returns current snapshot only"}
+            result["missing"].append("stocks")
+        stocks_after = _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date)
+        result["tables"]["stocks"] = {
+            "before": stocks_before,
+            "after": stocks_after,
+            "inserted": max(0, int((stocks_after.get("rows") or 0) - (stocks_before.get("rows") or 0))),
+            "updated": 0,
+            "skipped": 0,
+            "source_rows": int((result["api_blocks"]["stocks"] or {}).get("rows_in_range") or 0),
+        }
+    finally:
+        target_conn.close()
+
+    result["diagnose"] = _run_diagnose(user_id, start_date, end_date)
+    return result
+
+
+def _run_backfill(user_id: int, start_date: str, end_date: str, source: str) -> dict[str, Any]:
+    source_key = str(source or "source-db").strip().lower()
+    if source_key == "wb-api":
+        return _run_backfill_from_wb_api(user_id, start_date, end_date)
+    return _run_backfill_from_db(user_id, start_date, end_date)
+
+
 def _print_summary(result: dict[str, Any]) -> None:
     print(f"TARGET_DB {result.get('target_db')}")
     print(f"SOURCE_DB {result.get('source_db') or '-'}")
@@ -435,6 +866,16 @@ def _print_summary(result: dict[str, Any]) -> None:
     if result.get("cache_fallbacks"):
         print("CACHE_FALLBACKS")
         print(json.dumps(result["cache_fallbacks"], ensure_ascii=False))
+    if result.get("api_blocks"):
+        print("API_BLOCKS")
+        print(json.dumps(result["api_blocks"], ensure_ascii=False))
+    if result.get("diagnose"):
+        print("DIAGNOSE_STATUS", result["diagnose"].get("status"))
+        stdout = str(result["diagnose"].get("stdout") or "").strip()
+        if stdout:
+            print("DIAGNOSE_OUTPUT_BEGIN")
+            print(stdout)
+            print("DIAGNOSE_OUTPUT_END")
 
     missing = sorted(set(result.get("missing") or []))
     if missing:
@@ -449,9 +890,10 @@ def main() -> None:
     parser.add_argument("--user-id", required=True, type=int)
     parser.add_argument("--from", dest="date_from", required=True)
     parser.add_argument("--to", dest="date_to", required=True)
+    parser.add_argument("--source", default="source-db", choices=["source-db", "wb-api"])
     args = parser.parse_args()
 
-    result = _run_backfill(args.user_id, args.date_from, args.date_to)
+    result = _run_backfill(args.user_id, args.date_from, args.date_to, args.source)
     _print_summary(result)
 
 

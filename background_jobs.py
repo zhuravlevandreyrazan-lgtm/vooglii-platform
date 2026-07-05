@@ -8,7 +8,7 @@ from db_manager import init_db
 from load_sales import sync_block_for_user, update_sync_status
 from report import calculate_tax, format_tax_settings_label, get_advertising_stats, get_cost_fill_stats, get_daily_sales, get_profit_stats, get_profit_stats_after_tax, get_replenishment_plan, get_roi, get_stock_forecast, get_top_product, get_worst_profit_products
 from update_log import save_update
-from user_manager import get_active_user_tokens
+from vooglii_telegram.services.token_resolver import resolve_active_wb_tokens
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ SYNC_INTERVALS = {
 
 
 def _get_target_users(telegram_id=None):
-    return get_active_user_tokens(telegram_id)
+    return resolve_active_wb_tokens(telegram_id)
 
 
 def _job_telegram_id(context):
