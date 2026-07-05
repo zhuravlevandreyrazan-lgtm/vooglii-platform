@@ -48,3 +48,24 @@
 - Verify `vooglii_telegram/handlers/*.py` compile successfully.
 - Verify runtime audits still pass after bootstrap extraction.
 - Verify Docker startup stays on `python -u telegram_bot.py`.
+# Telegram Bot Release Checklist
+
+## Financial Consistency
+
+- `tests/test_report_consistency.py` passes
+- `/business` and `/finance` show the same finance status for the same period
+- `/finance` and `/pnl` show the same ad spend / cost price / profit model
+- `/advert` and `/finance` show the same advertising spend
+- customer screens do not show false `0 ₽` for unavailable financial fields
+
+## Customer UX Guardrails
+
+- `/admin` is blocked for non-admin / non-developer users
+- `/stocks` hides technical status for customer roles
+- `/system` shows customer-safe financial status text
+
+## Release Commands
+
+- `python -m pytest`
+- `python scripts/release_check.py`
+- `python -m py_compile telegram_bot.py vooglii_telegram/**/*.py vooglii_finance/**/*.py`

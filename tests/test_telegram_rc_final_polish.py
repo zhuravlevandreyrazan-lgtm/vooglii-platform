@@ -218,6 +218,7 @@ def test_pnl_buy_ceo_stocks_and_admin_are_customer_safe(monkeypatch):
     monkeypatch.setattr(telegram_bot, "get_replenishment_plan", lambda _user: {"items": [], "total_budget": 0.0})
     monkeypatch.setattr(telegram_bot, "admin", lambda _update: False)
     monkeypatch.setattr(telegram_bot, "developer", lambda _update: False)
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "owner")
     monkeypatch.setattr(telegram_bot, "get_sync_status_map", lambda _user: {"stocks": {"last_status": "SUCCESS"}})
     monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-04")
 

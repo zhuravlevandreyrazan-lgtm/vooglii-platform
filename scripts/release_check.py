@@ -57,6 +57,8 @@ COMMANDS = [
         "vooglii_telegram/ux/empty_states.py",
         "vooglii_telegram/ux/paywall.py",
         "vooglii_telegram/ux/periods.py",
+        "vooglii_finance/__init__.py",
+        "vooglii_finance/unified_snapshot.py",
     ],
     [sys.executable, "tests/test_token_crypto.py"],
     [sys.executable, "tests/test_wb_token_storage.py"],
@@ -79,6 +81,7 @@ COMMANDS = [
     [sys.executable, "tests/test_advertising_customer_ux_v2.py"],
     [sys.executable, "tests/test_advertising_business_finance_integration.py"],
     [sys.executable, "tests/test_adsaudit_customer_vs_debug.py"],
+    [sys.executable, "tests/test_report_consistency.py"],
     [sys.executable, "tests/test_error_handler.py"],
 ]
 

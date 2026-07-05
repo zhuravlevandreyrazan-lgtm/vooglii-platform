@@ -5,7 +5,10 @@ from ._bot import get_bot
 
 async def admin_command(update, context):
     bot = get_bot()
-    role = str(bot.get_user_role(bot.uid(update)) or "").strip().lower()
+    try:
+        role = str(bot.get_user_role(bot.uid(update)) or "").strip().lower()
+    except Exception:
+        role = ""
     if role not in {"admin", "developer"}:
         await update.message.reply_text("⛔ Команда недоступна.")
         return

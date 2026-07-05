@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import socket
 import sqlite3
+import sys
 import time
 import tracemalloc
 import unicodedata
@@ -862,11 +863,11 @@ def _developer_help_text():
 
 def _ux_status_icon(status):
     text = str(status or "").strip().upper()
-    if text in ("OK", "READY", "AVAILABLE", "HIGH", "SUCCESS", "ACTIVE", "VERIFIED", "MATCHED_LEGACY"):
+    if text in ("OK", "READY", "AVAILABLE", "HIGH", "SUCCESS", "ACTIVE", "VERIFIED", "MATCHED_LEGACY", "FINANCE_OK", "COST_OK", "ADS_OK"):
         return "🟢"
-    if text in ("WARNING", "PARTIAL", "PARTIAL_LEGACY", "ALMOST_READY", "MIGRATED_PARTIAL", "LEGACY_FALLBACK", "MEDIUM", "LIMITED"):
+    if text in ("WARNING", "PARTIAL", "PARTIAL_LEGACY", "ALMOST_READY", "MIGRATED_PARTIAL", "LEGACY_FALLBACK", "MEDIUM", "LIMITED", "FINANCE_PARTIAL", "FINANCE_WAITING_WB", "COST_PARTIAL", "COST_WAITING", "ADS_PARTIAL", "ADS_WAITING", "ADS_COOLDOWN"):
         return "🟡"
-    if text in ("FORBIDDEN", "RATE_LIMIT", "BLOCKED", "ERROR", "FAILED", "CRITICAL", "LOW", "DENIED", "UNAVAILABLE"):
+    if text in ("FORBIDDEN", "RATE_LIMIT", "BLOCKED", "ERROR", "FAILED", "CRITICAL", "LOW", "DENIED", "UNAVAILABLE", "FINANCE_UNAVAILABLE"):
         return "🔴"
     return "⚪"
 
@@ -892,6 +893,17 @@ def _ux_status_text(status):
         "UNAVAILABLE": "недоступно",
         "SUCCESS": "готово",
         "BLOCKED": "заблокировано",
+        "FINANCE_OK": "подтверждено",
+        "FINANCE_PARTIAL": "частично готово",
+        "FINANCE_WAITING_WB": "ожидает данные WB",
+        "FINANCE_UNAVAILABLE": "недоступно",
+        "COST_OK": "готово",
+        "COST_PARTIAL": "частично готово",
+        "COST_WAITING": "ожидает данные",
+        "ADS_OK": "хорошо",
+        "ADS_PARTIAL": "частично готово",
+        "ADS_WAITING": "данные обновляются",
+        "ADS_COOLDOWN": "обновление отложено",
     }
     return mapping.get(text, str(status or "нет данных"))
 
@@ -1143,27 +1155,56 @@ def _customer_all_time_range(user):
 
 def get_finance_status(user_id, days, financial_engine_snapshot=None):
     days = _center_days(days)
-    snapshot = dict(financial_engine_snapshot or {})
-    if not snapshot:
-        try:
-            snapshot = dict(_financial_engine_snapshot(days[0], days[1], user=user_id) or {})
-        except Exception:
-            logger.warning(
-                "Finance status fallback used for user=%s period=%s..%s",
-                user_id,
-                days[0],
-                days[1],
-                exc_info=True,
-            )
-            snapshot = {}
-    available = bool(snapshot.get('official_new_finance_available'))
-    return {
-        'available': available,
-        'icon': '🟢' if available else '🟡',
-        'business_text': '🟢 Хорошо' if available else '🟡 Ожидает данные WB',
-        'system_text': '🟢 Финансовые данные WB: доступны' if available else '🟡 Финансовые данные WB: ожидают подтверждения',
-        'finance_text': '🟢 Финансовые данные WB подтверждены.' if available else '🟡 Финансовые данные WB ожидают подтверждения.',
-    }
+    try:
+        from vooglii_finance.unified_snapshot import FINANCE_STATUS_TEXT, build_unified_financial_snapshot_dict
+
+        unified_snapshot = build_unified_financial_snapshot_dict(user_id, days, bot=_unified_finance_bot())
+        finance_status = str(unified_snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
+        texts = dict(FINANCE_STATUS_TEXT.get(finance_status) or FINANCE_STATUS_TEXT['FINANCE_WAITING_WB'])
+        return {
+            'available': finance_status == 'FINANCE_OK',
+            'icon': texts['business'][:1],
+            'business_text': texts['business'],
+            'system_text': texts['system'],
+            'finance_text': texts['finance'],
+            'status': finance_status,
+        }
+    except Exception:
+        snapshot = dict(financial_engine_snapshot or {})
+        if not snapshot:
+            try:
+                snapshot = dict(_financial_engine_snapshot(days[0], days[1], user=user_id) or {})
+            except Exception:
+                logger.warning(
+                    "Finance status fallback used for user=%s period=%s..%s",
+                    user_id,
+                    days[0],
+                    days[1],
+                    exc_info=True,
+                )
+                snapshot = {}
+        available = bool(snapshot.get('official_new_finance_available'))
+        return {
+            'available': available,
+            'icon': '🟢' if available else '🟡',
+            'business_text': '🟢 Хорошо' if available else '🟡 Ожидает данные WB',
+            'system_text': '🟢 Финансовые данные WB: доступны' if available else '🟡 Финансовые данные WB: ожидают подтверждения',
+            'finance_text': '🟢 Финансовые данные WB подтверждены.' if available else '🟡 Финансовые данные WB ожидают подтверждения.',
+            'status': 'FINANCE_OK' if available else 'FINANCE_WAITING_WB',
+        }
+
+
+def _money_or_state(value, placeholder='ожидает данные WB'):
+    try:
+        if value is None:
+            return placeholder
+        return money(value)
+    except Exception:
+        return placeholder
+
+
+def _unified_finance_bot():
+    return sys.modules.get('telegram_bot') or sys.modules.get(__name__)
 
 
 def _center_days(days):
@@ -8119,6 +8160,23 @@ async def finance_deduction_command(update, context, period_name, days, user):
             '',
         ])
     await send_long(update, '\n'.join(lines).strip())
+
+
+async def consistency_command(update, context):
+    if not _is_engineering_role(uid(update)):
+        await update.message.reply_text('⛔ Команда недоступна.')
+        return
+    args = [str(x).strip().lower() for x in (context.args or []) if str(x).strip()]
+    if args and args[0] not in ('audit', 'current_month', 'today', 'week', 'month', 'last_7_days', 'last_30_days', 'previous_month'):
+        await update.message.reply_text('Используйте /consistency audit [period]')
+        return
+    period_args = args[1:] if args[:1] == ['audit'] else args
+    try:
+        _, days = _executive_period(period_args, 'current_month')
+    except ValueError:
+        await update.message.reply_text('Используйте /consistency audit [period]')
+        return
+    await send_long(update, _consistency_audit_text(uid(update), days))
 
 
 async def finance_deductionstats_command(update, context, period_name, days, user):
@@ -17251,6 +17309,8 @@ def _dashboard_prototype_text(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 
 def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
     request_context = _snapshot_context()
     start_date, end_date = _period_dates(days)
     light_context = _director_lightweight_context(start_date, end_date, user=user, context=request_context)
@@ -17258,6 +17318,7 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     unified_snapshot = dict(light_context.get('unified_data_snapshot') or {})
     ads_snapshot = dict(light_context.get('ads_snapshot') or {})
     sku_registry_snapshot = dict(light_context.get('sku_registry_snapshot') or {})
+    finance_snapshot = build_unified_financial_snapshot_dict(user, days, context=request_context, bot=_unified_finance_bot())
     health_snapshot = _health_snapshot(user)
     user_row = get_user(user)
     wb_connected = bool(user_row and user_row[2])
@@ -17265,7 +17326,7 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'status': 'OK',
         'period_label': _atlas_month_label(days),
         'sales_status': ((unified_snapshot.get('sales') or {}).get('status')) or 'UNKNOWN',
-        'finance_status': financial_engine_snapshot.get('status') or 'UNKNOWN',
+        'finance_status': finance_snapshot.get('finance_status') or financial_engine_snapshot.get('status') or 'UNKNOWN',
         'ads_status': ads_snapshot.get('status') or ((unified_snapshot.get('advertising') or {}).get('status')) or 'UNKNOWN',
         'costs_status': 'WARNING' if float(sku_registry_snapshot.get('coverage_percent') or 0) < 95 else (sku_registry_snapshot.get('registry_status') or 'UNKNOWN'),
         'wb_connected': wb_connected,
@@ -17322,6 +17383,8 @@ def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
     context = _snapshot_context()
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
     director_snapshot = _director_snapshot(user, days, context=context)
     advisor_snapshot = _advisor_v2_snapshot(user, days, context=context)
     cfo_snapshot = _cfo_insights_snapshot(user, days, context=context)
@@ -17329,6 +17392,7 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
     decision_snapshot = _decision_snapshot(user, days, context=context)
     advertising_snapshot = _advertising_customer_snapshot(user, days)
     products_snapshot = _products_center_snapshot(user, days)
+    unified_snapshot = build_unified_financial_snapshot_dict(user, days, context=context, bot=_unified_finance_bot())
     period_label = f"{days[0]}..{days[1]}"
     return {
         'status': 'OK',
@@ -17345,6 +17409,7 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'business_state': dict(director_snapshot.get('business_state') or {}),
         'advertising': advertising_snapshot,
         'products': products_snapshot,
+        'unified_finance': unified_snapshot,
         'quick_links': [
             f'/director {days[0]} {days[1]}',
             f'/advisor v2 {days[0]} {days[1]}',
@@ -17361,13 +17426,14 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     state = dict(snapshot.get('business_state') or {})
     advertising_snapshot = dict(snapshot.get('advertising') or {})
     products_snapshot = dict(snapshot.get('products') or {})
+    unified_snapshot = dict(snapshot.get('unified_finance') or {})
     finance_status = get_finance_status(user, days)
     recommendation = _customer_business_copy(snapshot.get('main_recommendation') or '')
     recommendation_action = _customer_business_copy(snapshot.get('main_recommendation_action') or '')
     today_actions = [_customer_business_copy(item) for item in list(snapshot.get('today_actions') or []) if str(item).strip()]
     risk_lines = [_customer_business_copy(item) for item in list(snapshot.get('risks') or []) if str(item).strip() and str(item).strip() != '-']
     advertising_line = _advertising_business_summary_line(advertising_snapshot) if advertising_snapshot else f"- Реклама: {_customer_business_status_text(state.get('ads') or 'UNKNOWN')}"
-    costs_ready = float(products_snapshot.get('cost_coverage_percent') or 0) >= 95
+    costs_ready = str(unified_snapshot.get('cost_status') or '') == 'COST_OK' or float(products_snapshot.get('cost_coverage_percent') or 0) >= 95
     highlights = [
         f"- Продажи: {_customer_business_status_text(state.get('sales') or 'UNKNOWN')}",
         f"- Финансы: {finance_status['business_text']}",
@@ -17396,6 +17462,9 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
+    unified_snapshot = build_unified_financial_snapshot_dict(user, days, context=_snapshot_context(), bot=_unified_finance_bot())
     finance_api_snapshot = _finance_api_status_snapshot(user)
     financial_engine_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
     payment_snapshot = _payment_reconciliation_snapshot(user, days[0], days[1])
@@ -17414,18 +17483,23 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'official_net_profit': financial_engine_snapshot.get('official_net_profit'),
         'legacy_fallback_status': financial_engine_snapshot.get('legacy_gold_validation_status') if engine_status == 'LEGACY_FALLBACK' else 'NOT_ACTIVE',
         'payment_status': payment_snapshot.get('status') or 'UNKNOWN',
-        'payment_received_total': payment_snapshot.get('weekly_payout_total_all'),
-        'sales_for_pay_total': payment_snapshot.get('sales_for_pay_total'),
-        'advertising_total': advertising_snapshot.get('total_spend'),
-        'logistics_total': management_snapshot.get('logistics'),
-        'storage_total': management_snapshot.get('storage'),
-        'deductions_total': management_snapshot.get('deductions'),
-        'acquiring_total': management_snapshot.get('acquiring'),
-        'other_expenses_total': management_snapshot.get('other'),
+        'payment_received_total': unified_snapshot.get('wb_payments_received'),
+        'sales_for_pay_total': unified_snapshot.get('wb_payout'),
+        'advertising_total': unified_snapshot.get('advertising_spend'),
+        'cost_price_total': unified_snapshot.get('cost_price'),
+        'logistics_total': unified_snapshot.get('logistics'),
+        'storage_total': unified_snapshot.get('storage'),
+        'deductions_total': unified_snapshot.get('wb_deductions'),
+        'acquiring_total': unified_snapshot.get('acquiring'),
+        'other_expenses_total': unified_snapshot.get('other_expenses'),
+        'unknown_wb_expenses_total': unified_snapshot.get('unknown_wb_expenses'),
+        'expenses_total': unified_snapshot.get('expenses_total'),
         'finance_status_text': finance_status.get('finance_text'),
+        'finance_status': unified_snapshot.get('finance_status'),
         'profit_audit_safety_status': 'OFFICIAL_READY' if bool(financial_engine_snapshot.get('official_new_finance_available')) else ('LEGACY_FALLBACK' if engine_status == 'LEGACY_FALLBACK' else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE'),
         'coverage_percent': float(finance_health.get('coverage_percent') or 0),
         'risks': list(financial_engine_snapshot.get('warnings') or [])[:3],
+        'unified_snapshot': unified_snapshot,
         'quick_links': [
             '/finance api status',
             f'/financial engine {days[0]} {days[1]}',
@@ -17442,23 +17516,27 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     official_available = bool(snapshot.get('official_new_finance_available'))
     status_text = str(snapshot.get('finance_status_text') or ('🟢 Финансовые данные WB подтверждены.' if official_available else '🟡 Финансовые данные WB ожидают подтверждения.'))
     money_lines = [
-        f"- К выплате: {money(snapshot.get('sales_for_pay_total') or 0)}" if snapshot.get('sales_for_pay_total') is not None else "- К выплате: 0 ₽",
-        f"- Получено выплат: {money(snapshot.get('payment_received_total') or 0)}" if snapshot.get('payment_received_total') is not None else "- Получено выплат: 0 ₽",
-        f"- Прибыль: {money(snapshot.get('official_net_profit') or 0)}" if snapshot.get('official_net_profit') is not None else "- Прибыль: пока не рассчитана",
+        f"- К выплате: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
+        f"- Получено выплат: {_money_or_state(snapshot.get('payment_received_total'), 'нет данных')}",
+        f"- Прибыль: {_money_or_state(snapshot.get('official_net_profit'), 'пока не рассчитана')}" if snapshot.get('official_net_profit') is not None else "- Прибыль: пока не рассчитана",
     ]
-    if float(snapshot.get('advertising_total') or 0) > 0:
-        money_lines.insert(2, f"- Реклама WB: {money(snapshot.get('advertising_total') or 0)}")
-    if float(snapshot.get('logistics_total') or 0) > 0:
-        money_lines.append(f"- Логистика WB: {money(snapshot.get('logistics_total') or 0)}")
-    if float(snapshot.get('storage_total') or 0) > 0:
-        money_lines.append(f"- Хранение WB: {money(snapshot.get('storage_total') or 0)}")
-    if float(snapshot.get('deductions_total') or 0) > 0:
-        money_lines.append(f"- Удержания WB: {money(snapshot.get('deductions_total') or 0)}")
-    if float(snapshot.get('acquiring_total') or 0) > 0:
-        money_lines.append(f"- Эквайринг WB: {money(snapshot.get('acquiring_total') or 0)}")
-    if float(snapshot.get('other_expenses_total') or 0) > 0:
-        money_lines.append(f"- Прочие расходы: {money(snapshot.get('other_expenses_total') or 0)}")
-    if all(float(snapshot.get(key) or 0) <= 0 for key in ('logistics_total', 'storage_total', 'other_expenses_total')):
+    if snapshot.get('advertising_total') is not None:
+        money_lines.insert(2, f"- Реклама WB: {_money_or_state(snapshot.get('advertising_total'))}")
+    if snapshot.get('cost_price_total') is not None:
+        money_lines.append(f"- Себестоимость: {_money_or_state(snapshot.get('cost_price_total'), 'не рассчитано')}")
+    if snapshot.get('logistics_total') is not None:
+        money_lines.append(f"- Логистика WB: {_money_or_state(snapshot.get('logistics_total'))}")
+    if snapshot.get('storage_total') is not None:
+        money_lines.append(f"- Хранение WB: {_money_or_state(snapshot.get('storage_total'))}")
+    if snapshot.get('deductions_total') is not None:
+        money_lines.append(f"- Удержания WB: {_money_or_state(snapshot.get('deductions_total'))}")
+    if snapshot.get('acquiring_total') is not None:
+        money_lines.append(f"- Эквайринг WB: {_money_or_state(snapshot.get('acquiring_total'))}")
+    if snapshot.get('other_expenses_total') is not None:
+        money_lines.append(f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses_total'))}")
+    if snapshot.get('unknown_wb_expenses_total') is not None:
+        money_lines.append(f"- Нераспознанные расходы WB: {_money_or_state(snapshot.get('unknown_wb_expenses_total'))}")
+    if all(snapshot.get(key) is None for key in ('logistics_total', 'storage_total', 'other_expenses_total', 'unknown_wb_expenses_total')):
         money_lines.append("- Остальные расходы: ожидают подтверждения" if not official_available else "- Остальные расходы: подтверждены в расчёте")
     important_note = (
         "WB ещё не предоставил официальные финансовые данные. Как только они появятся, VOOGLII автоматически пересчитает прибыль."
@@ -17476,31 +17554,25 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _pnl_customer_text(user, days):
     days = _center_days(days)
-    snapshot = _report_mgmt_snapshot(user, days)
-    official_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
-    official_available = bool(official_snapshot.get('official_new_finance_available'))
-    profit_value = official_snapshot.get('official_net_profit') if official_available else snapshot.get('management_profit_with_storage')
-    expense_total = round(
-        float(snapshot.get('cost_price') or 0)
-        + float(snapshot.get('advertising') or 0)
-        + float(snapshot.get('logistics') or 0)
-        + float(snapshot.get('storage') or 0)
-        + float(snapshot.get('other') or 0),
-        2,
-    )
-    margin_value = round((float(profit_value or 0) / float(snapshot.get('revenue') or 0) * 100), 1) if float(snapshot.get('revenue') or 0) > 0 and profit_value is not None else 0.0
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
+    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    official_available = str(snapshot.get('finance_status') or '') == 'FINANCE_OK'
+    profit_value = snapshot.get('net_profit')
+    expense_total = snapshot.get('expenses_total')
+    margin_value = float(snapshot.get('margin_percent') or 0)
     lines = [
         '💰 P&L',
         '',
         f'Период: {humanize_period_range(days[0], days[1])}',
         '',
         'Главное:',
-        f'- Выручка: {money(snapshot.get("revenue") or 0)}',
-        f'- Расходы: {money(expense_total)}',
-        f'- Реклама: {money(snapshot.get("advertising") or 0)}',
-        f'- Логистика: {money(snapshot.get("logistics") or 0)}',
-        f'- Себестоимость: {money(snapshot.get("cost_price") or 0)}',
-        f'- Прибыль: {money(profit_value or 0)}' if profit_value is not None else '- Прибыль: пока не рассчитана',
+        f'- Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
+        f'- Расходы: {_money_or_state(expense_total, "не рассчитано")}',
+        f'- Реклама: {_money_or_state(snapshot.get("advertising_spend"), "ожидает данные WB")}',
+        f'- Логистика: {_money_or_state(snapshot.get("logistics"), "ожидает данные WB")}',
+        f'- Себестоимость: {_money_or_state(snapshot.get("cost_price"), "не рассчитано")}',
+        f'- Прибыль: {_money_or_state(profit_value, "пока не рассчитана")}' if profit_value is not None else '- Прибыль: пока не рассчитана',
         f'- Маржа: {margin_value:.1f}%',
         '',
         'Статус:',
@@ -17607,11 +17679,14 @@ def _analytics_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
     health_snapshot = _health_snapshot(user)
     product_readiness_snapshot = _product_readiness_snapshot(user=user)
     structure_snapshot = _project_structure_readiness_snapshot(user=user, days=days)
     advertising_snapshot = _advertising_customer_snapshot(user, days)
-    finance_status = str((((health_snapshot.get('quality') or {}).get('finance') or {}).get('status')) or 'UNKNOWN')
+    unified_snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    finance_status = str(unified_snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
     ads_status = str((((health_snapshot.get('quality') or {}).get('advertising') or {}).get('status')) or 'UNKNOWN')
     sales_status = str((((health_snapshot.get('quality') or {}).get('sales') or {}).get('status')) or 'UNKNOWN')
     user_row = get_user(user)
@@ -17625,6 +17700,7 @@ def _system_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'finance_status': finance_status,
         'ads_status': ads_status,
         'advertising': advertising_snapshot,
+        'unified_finance': unified_snapshot,
         'wb_connected': bool(user_row and user_row[2]),
         'product_readiness': product_readiness_snapshot.get('product_status') or 'UNKNOWN',
         'rc_status': 'SEE_RC_STATUS',
@@ -19250,6 +19326,119 @@ def _report_mgmt_text(period_name, days, user):
     return '\n'.join(lines)
 
 
+def _unified_report_text(user, days):
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
+    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    lines = [
+        '📊 Отчёт',
+        '',
+        f'Период: {humanize_period_range(snapshot.get("period_start"), snapshot.get("period_end"))}',
+        '',
+        f'Заказов: {int(snapshot.get("orders_count") or 0)}',
+        f'Выкупов: {int(snapshot.get("sales_count") or 0)}',
+        f'Возвратов: {int(snapshot.get("returns_count") or 0)}',
+        '',
+        f'Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
+        f'К выплате: {_money_or_state(snapshot.get("wb_payout"))}',
+        f'Получено выплат: {_money_or_state(snapshot.get("wb_payments_received"), "нет данных")}',
+        f'Себестоимость: {_money_or_state(snapshot.get("cost_price"), "не рассчитано")}',
+        f'Реклама WB: {_money_or_state(snapshot.get("advertising_spend"), "ожидает данные WB")}',
+        f'Логистика: {_money_or_state(snapshot.get("logistics"), "ожидает данные WB")}',
+        f'Хранение: {_money_or_state(snapshot.get("storage"), "ожидает данные WB")}',
+        f'Эквайринг: {_money_or_state(snapshot.get("acquiring"), "ожидает данные WB")}',
+        f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "ожидает данные WB")}',
+        f'Прочие расходы: {_money_or_state(snapshot.get("other_expenses"), "ожидает данные WB")}',
+        f'Нераспознанные расходы WB: {_money_or_state(snapshot.get("unknown_wb_expenses"), "нет данных")}',
+        f'Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
+        f'Прибыль до налога: {_money_or_state(snapshot.get("profit_before_tax"), "не рассчитано")}',
+        f'Налог: {_money_or_state(snapshot.get("tax_amount"), "не рассчитано")}',
+        f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}',
+        f'Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%',
+        f'ROI: {float(snapshot.get("roi_percent") or 0):.1f}%' if snapshot.get('roi_percent') is not None else 'ROI: не рассчитано',
+        f'ДРР: {float(snapshot.get("drr_percent") or 0):.1f}%' if snapshot.get('drr_percent') is not None else 'ДРР: нет данных',
+        f'ROAS: {float(snapshot.get("roas") or 0):.2f}' if snapshot.get('roas') is not None else 'ROAS: нет данных',
+        '',
+        f'Финансы: {_ux_status_text(snapshot.get("finance_status"))}',
+        f'Реклама: {_ux_status_text(snapshot.get("advertising_status"))}',
+        f'Себестоимость: {_ux_status_text(snapshot.get("cost_status"))}',
+    ]
+    return '\n'.join(lines)
+
+
+def _unified_dashboard_text(user, days):
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
+    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    lines = [
+        '🏢 VOOGLII Dashboard',
+        '',
+        f'Период: {humanize_period_range(snapshot.get("period_start"), snapshot.get("period_end"))}',
+        '',
+        'Главное:',
+        f'- Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
+        f'- К выплате WB: {_money_or_state(snapshot.get("wb_payout"))}',
+        f'- Реклама WB: {_money_or_state(snapshot.get("advertising_spend"), "ожидает данные WB")}',
+        f'- Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
+        f'- Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}',
+        f'- Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%',
+        '',
+        'Статусы:',
+        f'- Финансы: {_ux_status_text(snapshot.get("finance_status"))}',
+        f'- Реклама: {_ux_status_text(snapshot.get("advertising_status"))}',
+        f'- Себестоимость: {_ux_status_text(snapshot.get("cost_status"))}',
+    ]
+    return '\n'.join(lines)
+
+
+def _unified_ceo_text(user, days):
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+
+    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    lines = [
+        '👑 CEO Dashboard',
+        '',
+        f'Период: {humanize_period_range(snapshot.get("period_start"), snapshot.get("period_end"))}',
+        '',
+        f'Заказы: {int(snapshot.get("orders_count") or 0)} | Выкупы: {int(snapshot.get("sales_count") or 0)} | Возвраты: {int(snapshot.get("returns_count") or 0)}',
+        f'Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
+        f'К выплате: {_money_or_state(snapshot.get("wb_payout"))}',
+        f'Реклама: {_money_or_state(snapshot.get("advertising_spend"), "ожидает данные WB")}',
+        f'Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
+        f'Прибыль до налога: {_money_or_state(snapshot.get("profit_before_tax"), "не рассчитано")}',
+        f'Налог: {_money_or_state(snapshot.get("tax_amount"), "не рассчитано")}',
+        f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}',
+        f'Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%',
+        f'ROI: {float(snapshot.get("roi_percent") or 0):.1f}%' if snapshot.get('roi_percent') is not None else 'ROI: не рассчитано',
+        f'ДРР: {float(snapshot.get("drr_percent") or 0):.1f}%' if snapshot.get('drr_percent') is not None else 'ДРР: нет данных',
+        '',
+        f'Статус финансов: {_ux_status_text(snapshot.get("finance_status"))}',
+    ]
+    return '\n'.join(lines)
+
+
+def _consistency_audit_text(user, days):
+    from vooglii_finance.unified_snapshot import build_consistency_audit
+
+    audit = build_consistency_audit(user, days, bot=_unified_finance_bot())
+    lines = [
+        'VOOGLII CONSISTENCY AUDIT',
+        '',
+        f'Период: {humanize_period_range(audit.get("period_start"), audit.get("period_end"))}',
+        '',
+    ]
+    for name, ok in (audit.get('comparisons') or {}).items():
+        lines.append(f'{name}: {"OK" if ok else "MISMATCH"}')
+    lines.extend(['', 'Расхождения:'])
+    mismatches = list(audit.get('mismatches') or [])
+    if mismatches:
+        for item in mismatches:
+            lines.append(f'- {item}')
+    else:
+        lines.append('- не обнаружены')
+    return '\n'.join(lines)
+
+
 async def report_command(update, context):
     from vooglii_telegram.handlers.reports import report_command as _impl
     return await _impl(update, context)
@@ -19292,59 +19481,7 @@ async def _report_command_entry(update, context):
     except ValueError:
         await update.message.reply_text(_period_help('report'))
         return
-    user = uid(update)
-    sales_count, _ = get_period_stats(d, user)
-    orders_count, orders_sum, cancel_count, cancel_sum = get_orders_stats(d, user)
-    st = get_profit_stats(d, user)
-    ad = get_advertising_stats(d, user)
-    finance_analysis = _finance_local_expenses_analysis(user, d)
-    unexplained_expenses = float(finance_analysis.get('hidden_difference') or 0)
-    roi_text, cost_warning = _roi_text_and_cost_warnings(d, user)
-    after_tax, tax_warning = _tax_report_lines(d, user)
-    buyout = sales_count / orders_count * 100 if orders_count else 0
-    text = (
-        f'📊 Отчёт ({p})\n\n'
-        f'Заказов: {orders_count}\n'
-        f'Сумма заказов: {money(orders_sum)}\n'
-        f'Отмен: {cancel_count} на {money(cancel_sum)}\n'
-        f'Выкупов: {sales_count}\n'
-        f'Возвратов: {st[12]}\n'
-        f'Выкуп: {buyout:.1f}%\n\n'
-        f'Выручка: {money(st[0])}\n'
-        f'Расчётная разница WB: {money(st[1])}\n'
-        f'К выплате: {money(st[2])}\n'
-        f'Себестоимость: {money(st[3])}\n'
-        f'Логистика: {money(st[4])}\n'
-        f'Реклама: {money(st[5])}\n'
-        f'Хранение: {money(st[6])}\n'
-        f'Эквайринг: {money(finance_analysis.get("acquiring") or 0)}\n'
-        f'Удержания WB: {money(finance_analysis.get("deduction") or 0)}\n'
-        f'Расходы всего: {money(st[8])}\n'
-        f'Прибыль до налога: {money(after_tax["profit_before_tax"])}\n'
-        f'Налог: {money(after_tax["tax"])}\n'
-        f'Чистая прибыль после налога: {money(after_tax["profit_after_tax"])}\n'
-        f'Маржа: {st[11]:.1f}%\n'
-        f'Маржа после налога: {after_tax["margin_after_tax"]:.1f}%\n'
-        f'ROI: {roi_text}\n'
-        'Расчётная разница WB = сумма заказов/продаж минус к выплате. Может включать комиссии, скидки, корректировки и особенности выплат WB.\n\n'
-        f'Реклама WB: {money(ad[4])} | ROAS {ad[7]:.2f} | ДРР {ad[8]:.1f}%'
-    )
-    extras = []
-    extras.append(f'Нерасшифрованные расходы WB: {money(unexplained_expenses)}')
-    if cost_warning:
-        extras.append(cost_warning)
-    if tax_warning:
-        extras.append(tax_warning)
-    warning = _ad_warning_text(user, d)
-    stale = _stale_sync_warnings(user)
-    if warning:
-        extras.append(warning)
-    if stale:
-        extras.append('⚠ Некоторые данные устарели.\n' + '\n'.join(stale))
-    extras.append('Расчёт налога предварительный. Для официальной отчётности сверяйтесь с бухгалтером.')
-    if extras:
-        text += '\n\n' + '\n\n'.join(extras)
-    await update.message.reply_text(text)
+    await send_long(update, _unified_report_text(uid(update), d))
 
 
 async def data_command(update, context):
@@ -19392,7 +19529,7 @@ async def _dashboard_command_entry(update, context):
     except ValueError:
         await update.message.reply_text(_period_help('dashboard'))
         return
-    await send_long(update, _dashboard_text(period_name, days, uid(update)))
+    await send_long(update, _unified_dashboard_text(uid(update), days))
 
 
 async def ui_command(update, context):
@@ -20110,71 +20247,7 @@ async def ceo_command(update, context):
     except ValueError:
         await update.message.reply_text('Не удалось открыть CEO Dashboard за выбранный период.')
         return
-    st = get_profit_stats(d, user)
-    o = get_orders_stats(d, user)
-    ad = get_advertising_stats(d, user)
-    finance_analysis = _finance_local_expenses_analysis(user, d)
-    unexplained_expenses = float(finance_analysis.get('hidden_difference') or 0)
-    leader = get_top_product(user)
-    grow = get_growth(user)
-    low = [r for r in get_stocks(user) if (r[1] or 0) <= 5][:5]
-    roi_text, cost_warning = _roi_text_and_cost_warnings(d, user)
-    after_tax, tax_warning = _tax_report_lines(d, user)
-    forecast = get_revenue_forecast(user)
-    stock_forecast = get_stock_forecast(user, 7, 30)
-    replenishment = get_replenishment_plan(user)
-    critical_rows = [row for row in replenishment['items'] if row.get('risk_level') in ('no_stock', 'critical', 'high')]
-    urgent_row = critical_rows[0] if critical_rows else (replenishment['items'][0] if replenishment['items'] else None)
-    text = (
-        f'👑 CEO Dashboard\n\n'
-        f'Период: {_atlas_month_label(d)}\n\n'
-        f'Заказы: {o[0]} | Выкупы: {get_period_stats(d, user)[0]} | Возвраты: {st[12]}\n'
-        f'К выплате: {money(st[2])}\n'
-        f'Разница WB: {money(st[1])}\n'
-        f'Эквайринг + удержания WB: {money((finance_analysis.get("acquiring") or 0) + (finance_analysis.get("deduction") or 0))}\n'
-        f'Прибыль до налога: {money(after_tax["profit_before_tax"])}\n'
-        f'Налог: {money(after_tax["tax"])}\n'
-        f'Чистая прибыль после налога: {money(after_tax["profit_after_tax"])}\n'
-        f'Маржа: {st[11]:.1f}%\n'
-        f'Маржа после налога: {after_tax["margin_after_tax"]:.1f}%\n'
-        f'ROI: {roi_text}\n'
-        f'Реклама: {money(ad[4])} | ДРР {ad[8]:.1f}%\n'
-        f'Прогноз payout на 30 дней: {money(forecast)}\n'
-        f'Рост: {grow if grow is not None else "-"}%\n'
-        f'Лидер: {leader[0] if leader else "-"}\n'
-        f'Критические остатки: {", ".join(x[0] for x in low) if low else "нет"}'
-    )
-    extras = []
-    extras.append(f'Нерасшифрованные расходы WB: {money(unexplained_expenses)}')
-    if replenishment['items']:
-        urgent_text = f"{urgent_row['article']}\nДней до окончания: {urgent_row['days_left'] if urgent_row['days_left'] is not None else '-'}" if urgent_row else '-'
-        extras.append(
-            "📦 Закупки\n\n"
-            f"Критических SKU: {len(critical_rows)}\n"
-            f"План закупки: {money(replenishment['total_budget'])}\n"
-            f"Самый срочный:\n{urgent_text}"
-        )
-        if any(row.get('cost_missing') for row in replenishment['items']):
-            extras.append('⚠ Себестоимость не заполнена.\nБюджет закупки может быть занижен.')
-    else:
-        extras.append("📦 Закупки\n\nНе хватает данных для прогноза.")
-    if stock_forecast:
-        extras.append('Прогноз остатков основан на продажах за последние 30 дней.')
-    if cost_warning:
-        extras.append(cost_warning)
-    if tax_warning:
-        extras.append(tax_warning)
-    warning = _ad_warning_text(user, d)
-    stale = _stale_sync_warnings(user)
-    if warning:
-        extras.append(warning)
-    if stale:
-        extras.append('⚠ Некоторые данные устарели.\n' + '\n'.join(stale))
-    extras.extend(after_tax['tax_notes'])
-    extras.append('Расчёт налога предварительный. Для официальной отчётности сверяйтесь с бухгалтером.')
-    if extras:
-        text += '\n\n' + '\n\n'.join(extras)
-    await update.message.reply_text(text)
+    await send_long(update, _unified_ceo_text(user, d))
 
 
 async def finance_audit_command(update, context, period_name, days, user):
@@ -21928,6 +22001,7 @@ def _command_handlers():
         'health': health_command,
         'system': system_command,
         'status': status_command,
+        'consistency': consistency_command,
         'telegram': telegram_command,
         'ui': ui_command,
         'admin': admin_command,
