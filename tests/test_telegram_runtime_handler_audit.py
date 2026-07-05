@@ -216,9 +216,9 @@ def test_registered_runtime_handlers_are_customer_safe(monkeypatch):
     assert "Рекламный аудит" in outputs["/adsaudit"]
     assert "Расходы:" in outputs["/adsaudit"]
     assert "Расхождение с WB:" in outputs["/adsaudit"]
-    assert "Реклама: 🟡 29 900.63" in outputs["/business"]
+    assert "Рекламные данные обновлены частично" in outputs["/business"]
     assert "Реклама WB: 29 900.63" in outputs["/finance"]
-    assert "Реклама: частично обновлена" in outputs["/system"]
+    assert "Рекламные данные обновлены частично" in outputs["/system"]
     assert "10 кампаний" in outputs["/system"]
 
 

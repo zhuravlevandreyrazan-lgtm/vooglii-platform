@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-import re
 import sys
 from types import SimpleNamespace
 
@@ -13,19 +12,22 @@ if str(PROJECT_ROOT) not in sys.path:
 import telegram_bot
 import vooglii_telegram.legacy_bot as legacy_bot
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+from vooglii_telegram.ux.status_labels import (
+    ADS_PARTIAL,
+    COST_READY_PENDING_CALC,
+    FINANCE_PARTIAL,
+    SALES_OK,
+)
 
 
-FORBIDDEN_CUSTOMER_TOKENS = [
-    "Finance API",
-    "KPI Engine",
-    "CFO Insights",
-    "Decision Engine",
-    "UDL",
-    "raw exception",
-    "Не удалось открыть",
-    "last_30_days",
-    "current_month",
-    "Себестоимость: 0.00",
+FORBIDDEN_VARIANTS = [
+    "частично готово",
+    "частично доступны",
+    "ожидает данные WB",
+    "SUCCESS",
+    "FAILED",
+    "UNKNOWN",
+    "NOT_ACTIVE",
 ]
 
 
@@ -61,17 +63,7 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _period_line(text: str) -> str:
-    match = re.search(r"^Период:\s*(.+)$", text, flags=re.MULTILINE)
-    return match.group(1).strip() if match else ""
-
-
-def _assert_customer_safe(text: str):
-    for token in FORBIDDEN_CUSTOMER_TOKENS:
-        assert token not in text, f"forbidden token leaked into customer output: {token}"
-
-
-def _patch_rc2_sources(monkeypatch):
+def _patch_sources(monkeypatch):
     async def _access(*args, **kwargs):
         return True
 
@@ -84,11 +76,7 @@ def _patch_rc2_sources(monkeypatch):
     monkeypatch.setattr(legacy_bot, "send_long", _send_long)
     monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "owner")
     monkeypatch.setattr(legacy_bot, "get_user_role", telegram_bot.get_user_role)
-    monkeypatch.setattr(
-        telegram_bot,
-        "get_user",
-        lambda _user_id: (1, "owner_user", "token", "PRO", None, None, None, "owner", None),
-    )
+    monkeypatch.setattr(telegram_bot, "get_user", lambda _user_id: (1, "owner_user", "token", "PRO", None, None, None, "owner", None))
     monkeypatch.setattr(legacy_bot, "get_user", telegram_bot.get_user)
     monkeypatch.setattr(
         telegram_bot,
@@ -105,13 +93,12 @@ def _patch_rc2_sources(monkeypatch):
     monkeypatch.setattr(legacy_bot, "_product_readiness_snapshot", telegram_bot._product_readiness_snapshot)
     monkeypatch.setattr(telegram_bot, "_project_structure_readiness_snapshot", lambda user=None, days=None, **kwargs: {"status": "READY"})
     monkeypatch.setattr(legacy_bot, "_project_structure_readiness_snapshot", telegram_bot._project_structure_readiness_snapshot)
-    monkeypatch.setattr(telegram_bot, "_sku_registry_snapshot", lambda _user, _days, **kwargs: {"registry_status": "READY", "coverage_percent": 100.0, "known_skus": list(range(14)), "missing_skus": []})
+    monkeypatch.setattr(telegram_bot, "_sku_registry_snapshot", lambda _user, _days, **kwargs: {"registry_status": "READY", "coverage_percent": 100.0, "known_skus": list(range(14)), "missing_skus": [], "critical_stock_count": 3})
     monkeypatch.setattr(legacy_bot, "_sku_registry_snapshot", telegram_bot._sku_registry_snapshot)
-    monkeypatch.setattr(telegram_bot, "get_stock_forecast", lambda _user, _a, _b: [])
+    monkeypatch.setattr(telegram_bot, "get_stock_forecast", lambda _user, _a, _b: [{"article": "SKU-1", "risk_level": "critical", "days_left": 2}])
     monkeypatch.setattr(legacy_bot, "get_stock_forecast", telegram_bot.get_stock_forecast)
     monkeypatch.setattr(telegram_bot, "_stock_snapshot_date", lambda _user: "2026-07-05")
     monkeypatch.setattr(legacy_bot, "_stock_snapshot_date", telegram_bot._stock_snapshot_date)
-
     monkeypatch.setattr(telegram_bot, "_finance_api_status_snapshot", lambda _user: {"status": "WAITING"})
     monkeypatch.setattr(legacy_bot, "_finance_api_status_snapshot", telegram_bot._finance_api_status_snapshot)
     monkeypatch.setattr(
@@ -128,8 +115,6 @@ def _patch_rc2_sources(monkeypatch):
             "acquiring": 0.0,
             "deductions": 0.0,
             "unexplained": 0.0,
-            "period_start": "2026-07-01",
-            "period_end": "2026-07-31",
         },
     )
     monkeypatch.setattr(legacy_bot, "_report_mgmt_snapshot", telegram_bot._report_mgmt_snapshot)
@@ -158,8 +143,8 @@ def _patch_rc2_sources(monkeypatch):
         telegram_bot,
         "get_finance_difference_snapshot",
         lambda _user, _start, _end, context=None, **kwargs: {
-            "coverage_percent": 0.0,
-            "status": "WAITING_WB",
+            "coverage_percent": 42.0,
+            "status": "PARTIAL",
         },
     )
     monkeypatch.setattr(legacy_bot, "get_finance_difference_snapshot", telegram_bot.get_finance_difference_snapshot)
@@ -193,23 +178,12 @@ def _patch_rc2_sources(monkeypatch):
     monkeypatch.setattr(legacy_bot, "get_orders_stats", telegram_bot.get_orders_stats)
     monkeypatch.setattr(telegram_bot, "get_period_stats", lambda _days, _user: (14, 120000.0))
     monkeypatch.setattr(legacy_bot, "get_period_stats", telegram_bot.get_period_stats)
-    monkeypatch.setattr(
-        telegram_bot,
-        "get_profit_stats",
-        lambda _days, _user: (120000.0, 3000.0, 91000.0, 0.0, 0.0, 29900.63, 0.0, 0.0, 29900.63, 0.0, None, 0.0, 3),
-    )
+    monkeypatch.setattr(telegram_bot, "get_profit_stats", lambda _days, _user: (120000.0, 3000.0, 91000.0, 0.0, 0.0, 29900.63, 0.0, 0.0, 29900.63, 0.0, None, 0.0, 3))
     monkeypatch.setattr(legacy_bot, "get_profit_stats", telegram_bot.get_profit_stats)
     monkeypatch.setattr(
         telegram_bot,
         "get_profit_stats_after_tax",
-        lambda _days, _user: {
-            "profit_before_tax": None,
-            "tax": 0.0,
-            "profit_after_tax": 0.0,
-            "margin_after_tax": 0.0,
-            "tax_notes": [],
-            "tax_configured": False,
-        },
+        lambda _days, _user: {"profit_before_tax": None, "tax": 0.0, "profit_after_tax": 0.0, "margin_after_tax": 0.0, "tax_notes": [], "tax_configured": False},
     )
     monkeypatch.setattr(legacy_bot, "get_profit_stats_after_tax", telegram_bot.get_profit_stats_after_tax)
     monkeypatch.setattr(
@@ -221,52 +195,53 @@ def _patch_rc2_sources(monkeypatch):
             "main_recommendation": "Не закрывать месяц, пока WB не подтвердит финансовые данные.",
             "main_recommendation_action": "Открыть /finance и сверить деньги.",
             "today_actions": ["Открыть /advisor."],
-            "risks": ["Финансовые данные WB ещё не подтверждены."],
+            "risks": ["Финансовые данные WB подтверждены частично."],
             "advertising": telegram_bot._advertising_customer_snapshot(user, days),
             "products": telegram_bot._products_center_snapshot(user, days),
             "unified_finance": build_unified_financial_snapshot_dict(user, days, bot=telegram_bot),
         },
     )
     monkeypatch.setattr(legacy_bot, "_business_center_snapshot", telegram_bot._business_center_snapshot)
+
+
+def test_rc3_customer_status_labels_are_consistent(monkeypatch):
+    _patch_sources(monkeypatch)
     monkeypatch.setattr(
         telegram_bot,
-        "_advisor_v2_text",
-        lambda *_args, **_kwargs: "Finance API | KPI Engine | CFO Insights | Decision Engine | UDL",
+        "_home_snapshot",
+        lambda user=100, days=("2026-07-01", "2026-07-31"): {
+            "status": "OK",
+            "period_label": "Июль 2026",
+            "sales_status": "OK",
+            "finance_status": "FINANCE_PARTIAL",
+            "ads_status": "ADS_PARTIAL",
+            "costs_status": "COST_OK",
+            "cost_value": None,
+            "cost_coverage_percent": 100.0,
+            "wb_connected": True,
+            "last_updates": {"sales": "2026-07-05 10:30:00"},
+        },
     )
-    monkeypatch.setattr(legacy_bot, "_advisor_v2_text", telegram_bot._advisor_v2_text)
-
-
-def test_rc2_unified_business_views_runtime(monkeypatch):
-    _patch_rc2_sources(monkeypatch)
     handlers = telegram_bot._command_handlers()
     outputs: dict[str, str] = {}
 
-    commands = ("business", "finance", "pnl", "report", "dashboard", "ceo", "advisor", "system", "products")
-    for command in commands:
+    for command in ("home", "business", "finance", "pnl", "report", "dashboard", "ceo", "advisor", "system", "products"):
         update = _Update(f"/{command}")
         _run(handlers[command](update, _Context()))
         outputs[command] = update.message.replies[-1]
-        _assert_customer_safe(outputs[command])
 
-    period_outputs = {name: _period_line(outputs[name]) for name in ("business", "finance", "pnl", "report", "dashboard", "ceo", "advisor")}
-    unique_periods = {value for value in period_outputs.values() if value}
-    assert len(unique_periods) == 1, period_outputs
+    for text in outputs.values():
+        for token in FORBIDDEN_VARIANTS:
+            assert token not in text, token
 
-    for command in ("business", "finance", "pnl", "report", "dashboard", "ceo"):
-        assert "29 900.63" in outputs[command], command
+    for command in ("home", "finance", "report", "dashboard", "ceo", "advisor", "system"):
+        assert FINANCE_PARTIAL in outputs[command], command
 
-    assert "120 000.00" in outputs["pnl"]
-    assert "120 000.00" in outputs["report"]
-    assert "120 000.00" in outputs["dashboard"]
-    assert "120 000.00" in outputs["ceo"]
+    for command in ("home", "business", "system"):
+        assert SALES_OK in outputs[command], command
 
-    assert "Финансовые данные WB" in outputs["finance"]
-    assert "Финансовые данные WB" in outputs["advisor"]
-    assert "ожидают подтверждения" in outputs["system"] or "ещё не подтверждены" in outputs["advisor"]
+    for command in ("business", "advisor", "report", "dashboard", "system"):
+        assert ADS_PARTIAL in outputs[command], command
 
-    assert "Себестоимость: заполнена, ждёт расчёта по продажам" in outputs["finance"]
-    assert "Себестоимость: заполнена, ждёт расчёта по продажам" in outputs["pnl"]
-    assert "Себестоимость: заполнена, ждёт расчёта по продажам" in outputs["report"]
-    assert "Себестоимость: заполнена, ждёт расчёта по продажам" in outputs["dashboard"]
-    assert "Себестоимость: заполнена, ждёт расчёта по продажам" in outputs["ceo"]
-    assert "Себестоимость заполнена, расчёт по продажам ожидает обновления" in outputs["products"]
+    for command in ("home", "business", "finance", "pnl", "report", "dashboard", "ceo", "advisor", "products"):
+        assert COST_READY_PENDING_CALC in outputs[command], command

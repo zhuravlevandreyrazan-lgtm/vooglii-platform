@@ -230,7 +230,7 @@ def test_pnl_buy_ceo_stocks_and_admin_are_customer_safe(monkeypatch):
     pnl_text = pnl_update.message.replies[-1]
     _assert_clean(pnl_text)
     assert "P&L" in pnl_text
-    assert "операционная оценка" in pnl_text
+    assert "финансовых данных WB" in pnl_text
 
     buy_update = _Update("/buy")
     _run(handlers["buy"](buy_update, _Context()))

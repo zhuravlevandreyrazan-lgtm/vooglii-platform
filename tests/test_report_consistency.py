@@ -245,7 +245,7 @@ def test_unified_snapshot_keeps_customer_financial_screens_consistent(monkeypatc
     assert "Чистая прибыль: 24 336.10" in outputs["report"]
     assert "Чистая прибыль: 24 336.10" in outputs["dashboard"]
     assert "Чистая прибыль: 24 336.10" in outputs["ceo"]
-    assert "Финансовые данные WB: доступны" in outputs["system"]
+    assert "Финансовые данные WB подтверждены" in outputs["system"]
 
     audit = build_consistency_audit(100, ("2026-07-01", "2026-07-31"), bot=telegram_bot)
     assert not audit["mismatches"]

@@ -114,5 +114,5 @@ def test_business_finance_system_show_customer_advertising_status(monkeypatch):
     system = _Update("/system")
     _run(telegram_bot.system_command(system, _Context()))
     system_text = system.message.replies[-1]
-    assert "Реклама: частично обновлена" in system_text
+    assert "Рекламные данные обновлены частично" in system_text
     assert "10 кампаний" in system_text
