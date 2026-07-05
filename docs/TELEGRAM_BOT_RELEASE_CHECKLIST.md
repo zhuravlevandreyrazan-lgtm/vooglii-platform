@@ -69,3 +69,11 @@
 - `python -m pytest`
 - `python scripts/release_check.py`
 - `python -m py_compile telegram_bot.py vooglii_telegram/**/*.py vooglii_finance/**/*.py`
+
+## RC2 Unified Business Views
+
+- `tests/test_rc2_unified_business_views.py` passes
+- `/report`, `/dashboard`, `/ceo`, `/advisor`, `/business`, `/finance`, `/pnl` open the same default customer period
+- customer `/advisor` does not expose technical engine names
+- customer `/ceo` does not show raw open-error text
+- customer financial screens do not show false `Себестоимость: 0.00 ₽` when period cost is still waiting

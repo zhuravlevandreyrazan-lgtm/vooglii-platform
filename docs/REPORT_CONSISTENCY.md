@@ -48,3 +48,26 @@ It checks that:
 - P&L and report screens use the same expense/profit logic
 - customer screens do not fall back to false `0 ₽`
 - consistency audit reports no mismatches
+
+## RC2 Unified Business Views
+
+`tests/test_rc2_unified_business_views.py` verifies real registered customer handlers share one runtime snapshot.
+
+Covered handlers:
+
+- `/business`
+- `/finance`
+- `/pnl`
+- `/report`
+- `/dashboard`
+- `/ceo`
+- `/advisor`
+- `/system`
+- `/products`
+
+The RC2 audit checks:
+
+- one default customer period across the main business screens
+- no technical advisor vocabulary in customer output
+- no raw CEO open error text in customer output
+- no false `Себестоимость: 0.00 ₽` when period cost is not ready yet

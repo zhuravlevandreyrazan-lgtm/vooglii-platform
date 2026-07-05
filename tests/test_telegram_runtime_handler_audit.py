@@ -31,6 +31,13 @@ FORBIDDEN_CUSTOMER_TOKENS = [
     "Performance",
     "/control center",
     "/rc status",
+    "Finance API",
+    "KPI Engine",
+    "CFO Insights",
+    "Decision Engine",
+    "UDL",
+    "last_30_days",
+    "current_month",
 ]
 
 

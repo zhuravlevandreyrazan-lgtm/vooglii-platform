@@ -133,22 +133,23 @@ def test_advisor_default_and_button_open_customer_advisor(monkeypatch):
     monkeypatch.setattr(legacy_bot, "access", _access)
     monkeypatch.setattr(telegram_bot, "send_long", _send_long)
     monkeypatch.setattr(legacy_bot, "send_long", _send_long)
-    monkeypatch.setattr(telegram_bot, "_snapshot_context", lambda context=None: {})
+    monkeypatch.setattr(telegram_bot, "get_user_role", lambda _user_id: "owner")
     monkeypatch.setattr(
         telegram_bot,
-        "_advisor_v2_text",
-        lambda _user_id, days, context=None: f"VOOGLII ADVISOR\nПериод: {days[0]} - {days[1]}",
+        "_advisor_customer_text",
+        lambda _user_id, days: f"🤖 AI-советы\nПериод: {days[0]} - {days[1]}",
     )
+    monkeypatch.setattr(legacy_bot, "_advisor_customer_text", telegram_bot._advisor_customer_text)
 
     handlers = telegram_bot._command_handlers()
     advisor_update = _Update("/advisor")
     _run(handlers["advisor"](advisor_update, _Context()))
-    assert advisor_update.message.replies[-1].startswith("VOOGLII ADVISOR")
+    assert advisor_update.message.replies[-1].startswith("🤖 AI-советы")
     _assert_clean(advisor_update.message.replies[-1])
 
     button_update = _Update("🤖 AI-советы")
     _run(telegram_bot.buttons(button_update, _Context()))
-    assert button_update.message.replies[-1].startswith("VOOGLII ADVISOR")
+    assert button_update.message.replies[-1].startswith("🤖 AI-советы")
     _assert_clean(button_update.message.replies[-1])
 
 

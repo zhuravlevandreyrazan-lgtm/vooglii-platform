@@ -65,3 +65,19 @@ Use business-safe states instead:
 - `ожидает данные WB`
 - `не рассчитано`
 - `нет данных`
+
+## RC2 Unified Business Views
+
+Additional RC2 rules:
+
+- customer default period for `/report`, `/dashboard`, `/ceo`, `/advisor`, `/business`, `/finance`, `/pnl` is `current_month`
+- if cost dictionary is filled but period cost is not calculated yet, customer text should say that cost is filled and waiting for period calculation
+- customer-facing texts should use `финансовые данные WB` instead of technical finance-engine naming
+
+If a value is not confirmed, customer screens should not invent `0 ₽`.
+
+Use business-safe states instead:
+
+- `ожидает данные WB`
+- `не рассчитано`
+- `нет данных`

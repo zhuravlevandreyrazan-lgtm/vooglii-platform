@@ -195,9 +195,12 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     wb_payout = _round_money(report_mgmt.get("payout"))
     wb_payments_received = _round_money(payment_snapshot.get("weekly_payout_total_all"))
 
+    sales_count = int(period_stats[0] or 0)
+    cost_coverage_percent = float(products_snapshot.get("cost_coverage_percent") or 0)
     cost_price = _round_money(report_mgmt.get("cost_price"))
-    if cost_price in (0.0, None) and float(products_snapshot.get("cost_coverage_percent") or 0) < 95:
-        cost_price = None
+    if cost_price in (0.0, None):
+        if cost_coverage_percent < 95 or sales_revenue not in (None, 0) or sales_count > 0:
+            cost_price = None
 
     advertising_spend = _round_money(advertising_snapshot.get("total_spend"))
     logistics = _round_money(report_mgmt.get("logistics"))
@@ -290,7 +293,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         period_end=period_end,
         orders_count=int(orders_stats[0] or 0),
         orders_amount=orders_amount,
-        sales_count=int(period_stats[0] or 0),
+        sales_count=sales_count,
         sales_revenue=sales_revenue,
         returns_count=int(profit_stats[12] or 0) if len(profit_stats) > 12 else 0,
         cancellations_count=int(orders_stats[2] or 0) if len(orders_stats) > 2 else 0,
