@@ -17734,8 +17734,11 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         money_lines.append("- Часть расходов уже учтена в других категориях.")
     if all(snapshot.get(key) is None for key in ('logistics_total', 'storage_total', 'other_expenses_total', 'unknown_wb_expenses_total')):
         money_lines.append("- Остальные расходы: ожидают подтверждения" if not official_available else "- Остальные расходы: подтверждены в расчёте")
+    profit_display_mode = str(unified_snapshot.get('profit_display_mode') or 'HIDDEN').upper()
     important_note = (
-        "WB ещё не предоставил официальные финансовые данные. Текущие расходы и прибыль показаны как операционная оценка, а удержания WB ещё ждут подтверждения."
+        "Текущие расходы показаны предварительно. Прибыль будет рассчитана после подтверждения финансов WB."
+        if not official_available and profit_display_mode == 'HIDDEN'
+        else "WB ещё не предоставил официальные финансовые данные. Текущие расходы и прибыль показаны как операционная оценка, а удержания WB ещё ждут подтверждения."
         if not official_available
         else "Финансовые данные подтверждены и готовы для контроля."
     )
@@ -19558,6 +19561,19 @@ def _unified_report_text(user, days):
     official_available = str(snapshot.get("finance_status") or "") == "FINANCE_OK"
     finance_confidence = str(snapshot.get("finance_confidence") or "UNKNOWN")
     expenses_label = 'Расходы всего' if official_available else 'Расходы всего (частично)'
+    summary_lines = (
+        [
+            f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}',
+            f'Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%' if snapshot.get('margin_percent') is not None else 'Маржа: не рассчитана',
+            f'ROI: {float(snapshot.get("roi_percent") or 0):.1f}%' if snapshot.get('roi_percent') is not None else 'ROI: не рассчитан',
+        ]
+        if finance_confidence == 'HIGH' and official_available
+        else [
+            'Чистая прибыль: будет рассчитана после подтверждения финансов WB',
+            'Маржа: не рассчитана',
+            'ROI: не рассчитан',
+        ]
+    )
     lines = [
         '📊 Отчёт',
         '',
@@ -19579,13 +19595,7 @@ def _unified_report_text(user, days):
         f'Прочие расходы: {_money_or_state(snapshot.get("other_expenses"), "данные обновляются")}' + (" (ожидают подтверждения)" if not official_available and snapshot.get("other_expenses") is not None else ""),
         f'{expenses_label}: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
         f'Налог: {_money_or_state(snapshot.get("tax_amount"), "не рассчитано")}',
-        (
-            f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}'
-            if finance_confidence == 'HIGH' and official_available
-            else 'Чистая прибыль: будет рассчитана после подтверждения финансов WB'
-        ),
-        f'Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%' if finance_confidence == 'HIGH' and snapshot.get('margin_percent') is not None else 'Маржа: не рассчитана',
-        f'ROI: {float(snapshot.get("roi_percent") or 0):.1f}%' if finance_confidence == 'HIGH' and snapshot.get('roi_percent') is not None else 'ROI: не рассчитан',
+        *summary_lines,
         f'ДРР: {float(snapshot.get("drr_percent") or 0):.1f}%' if snapshot.get('drr_percent') is not None else 'ДРР: нет данных',
         f'ROAS: {float(snapshot.get("roas") or 0):.2f}' if snapshot.get('roas') is not None else 'ROAS: нет данных',
         '',
@@ -19603,8 +19613,6 @@ def _unified_report_text(user, days):
     else:
         lines.insert(21, 'Финансовый итог:')
         lines.insert(22, 'Прибыль будет рассчитана после подтверждения финансов WB.')
-        lines.insert(23, 'Маржа: не рассчитана')
-        lines.insert(24, 'ROI: не рассчитан')
     if snapshot.get("unknown_wb_expenses") is not None and float(snapshot.get("unknown_wb_expenses") or 0) > 0:
         insert_at = 15
         lines.insert(insert_at, f'Нераспознанные расходы WB: {_money_or_state(snapshot.get("unknown_wb_expenses"), "нет")}')
