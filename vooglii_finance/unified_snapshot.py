@@ -48,12 +48,15 @@ FINANCE_STATUS_TEXT = {
 class UnifiedFinancialSnapshot:
     period_start: str | None
     period_end: str | None
+    period_label: str | None
     orders_count: int
     orders_amount: float | None
     sales_count: int
     sales_revenue: float | None
     returns_count: int
     cancellations_count: int
+    buyouts_count: int
+    buyout_percent: float | None
     wb_payout: float | None
     wb_payments_received: float | None
     cost_price: float | None
@@ -69,6 +72,8 @@ class UnifiedFinancialSnapshot:
     confirmed_expenses_total: float | None
     pending_expenses_total: float | None
     expenses_total: float | None
+    gross_profit: float | None
+    operating_profit: float | None
     profit_before_tax: float | None
     tax_amount: float | None
     net_profit: float | None
@@ -78,13 +83,17 @@ class UnifiedFinancialSnapshot:
     roas: float | None
     data_quality_status: str
     finance_status: str
+    sales_status: str
     advertising_status: str
+    ads_status: str
     cost_status: str
     expenses_status: str
     finance_confidence: str
     finance_confidence_score: int
     finance_confidence_reason: str
     profit_display_mode: str
+    source_map: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
     debug_sources: dict[str, Any] = field(default_factory=dict)
     source_notes: list[str] = field(default_factory=list)
 
@@ -267,6 +276,15 @@ def _source_entry(selected: Any, candidates: list[tuple[str, Any]]) -> dict[str,
     }
 
 
+def _period_label(bot, period_start: str | None, period_end: str | None) -> str | None:
+    if period_start and period_end:
+        label = _safe_get(lambda: bot.humanize_period_range(period_start, period_end))
+        if label:
+            return str(label)
+        return f"{period_start}..{period_end}"
+    return None
+
+
 def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=None) -> UnifiedFinancialSnapshot:
     bot = bot or _get_bot()
     normalized_days = bot._center_days(days)
@@ -283,6 +301,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     period_stats = _safe_get(lambda: bot.get_period_stats(normalized_days, user_id), (0, 0.0)) or (0, 0.0)
     profit_stats = _safe_get(lambda: bot.get_profit_stats(normalized_days, user_id), ()) or ()
     after_tax = _safe_get(lambda: bot.get_profit_stats_after_tax(normalized_days, user_id), {}) or {}
+    period_label = _period_label(bot, period_start, period_end)
 
     sales_revenue_candidates = [
         ("report_mgmt.revenue", report_mgmt.get("revenue")),
@@ -301,6 +320,8 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     wb_payments_received = _round_money(payment_snapshot.get("weekly_payout_total_all"))
 
     sales_count = int(period_stats[0] or 0)
+    buyouts_count = sales_count
+    buyout_percent = round((buyouts_count / float(orders_stats[0])) * 100, 1) if float(orders_stats[0] or 0) > 0 else None
     cost_coverage_percent = float(products_snapshot.get("cost_coverage_percent") or 0)
     profit_cost_price = _round_money(profit_stats[3] if len(profit_stats) > 3 else None)
     cost_price_candidates = [
@@ -404,10 +425,14 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         penalties,
         other_expenses,
     ])
+    gross_profit = None
+    if sales_revenue is not None and cost_price is not None:
+        gross_profit = round(sales_revenue - cost_price, 2)
 
     profit_before_tax = None
     if sales_revenue is not None and expenses_total is not None:
         profit_before_tax = round(sales_revenue - expenses_total, 2)
+    operating_profit = profit_before_tax
 
     tax_amount = _prefer_positive_money(
         after_tax.get("tax"),
@@ -457,7 +482,9 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         roas = round(float(sales_revenue) / float(advertising_spend), 2)
 
     data_quality_status = str(quality_snapshot.get("overall_status") or "UNKNOWN")
+    sales_status = str(((quality_snapshot.get("sales") or {}).get("status")) or ("OK" if sales_revenue not in (None, 0) else "UNKNOWN"))
     advertising_status = _advertising_status(advertising_snapshot)
+    ads_status = advertising_status
     cost_status = _cost_status(products_snapshot, cost_price)
     expenses_status = _expenses_status(finance_status, wb_deductions, acquiring, other_expenses)
     finance_confidence, finance_confidence_score, finance_confidence_reason = _finance_confidence(
@@ -580,16 +607,29 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         "other_expenses/unknown_wb_expenses -> report_mgmt_snapshot -> finance_difference_snapshot",
         "tax_amount -> profit_stats_after_tax",
     ]
+    warnings: list[str] = []
+    if reconciliation_delta not in (None, 0.0):
+        warnings.append("Есть расхождение классификации расходов WB.")
+    if finance_status != FINANCE_OK:
+        warnings.append("Финансовые данные WB ещё не подтверждены полностью.")
+    if cost_price in (None, 0.0):
+        warnings.append("Себестоимость за период не рассчитана.")
+    if finance_confidence_reason:
+        warnings.append(finance_confidence_reason)
+    warnings = list(dict.fromkeys([str(item).strip() for item in warnings if str(item).strip()]))
 
     return UnifiedFinancialSnapshot(
         period_start=period_start,
         period_end=period_end,
+        period_label=period_label,
         orders_count=int(orders_stats[0] or 0),
         orders_amount=orders_amount,
         sales_count=sales_count,
         sales_revenue=sales_revenue,
         returns_count=int(profit_stats[12] or 0) if len(profit_stats) > 12 else 0,
         cancellations_count=int(orders_stats[2] or 0) if len(orders_stats) > 2 else 0,
+        buyouts_count=buyouts_count,
+        buyout_percent=buyout_percent,
         wb_payout=wb_payout,
         wb_payments_received=wb_payments_received,
         cost_price=cost_price,
@@ -605,6 +645,8 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         confirmed_expenses_total=confirmed_expenses_total,
         pending_expenses_total=pending_expenses_total,
         expenses_total=expenses_total,
+        gross_profit=gross_profit,
+        operating_profit=operating_profit,
         profit_before_tax=profit_before_tax,
         tax_amount=tax_amount,
         net_profit=net_profit,
@@ -614,13 +656,17 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         roas=roas,
         data_quality_status=data_quality_status,
         finance_status=finance_status,
+        sales_status=sales_status,
         advertising_status=advertising_status,
+        ads_status=ads_status,
         cost_status=cost_status,
         expenses_status=expenses_status,
         finance_confidence=finance_confidence,
         finance_confidence_score=finance_confidence_score,
         finance_confidence_reason=finance_confidence_reason,
         profit_display_mode=profit_display_mode,
+        source_map=sources,
+        warnings=warnings,
         debug_sources=sources,
         source_notes=source_notes,
     )
@@ -629,13 +675,23 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
 def build_unified_financial_snapshot_dict(user_id: int, days, *, context=None, bot=None) -> dict[str, Any]:
     snapshot = build_unified_financial_snapshot(user_id, days, context=context, bot=bot)
     payload = asdict(snapshot)
+    payload["source_map"] = payload.get("source_map") or payload.get("debug_sources") or {}
+    payload["warnings"] = list(payload.get("warnings") or [])
     payload["revenue"] = payload.get("sales_revenue")
+    payload["period"] = payload.get("period_label")
     payload["payments_received"] = payload.get("wb_payments_received")
     payload["advertising"] = payload.get("advertising_spend")
+    payload["unknown_expenses"] = payload.get("unknown_wb_expenses")
     payload["unclassified_expenses"] = payload.get("unknown_wb_expenses")
     payload["profit"] = payload.get("net_profit")
     payload["margin"] = payload.get("margin_percent")
     payload["roi"] = payload.get("roi_percent")
+    payload["gross_profit"] = payload.get("gross_profit")
+    payload["operating_profit"] = payload.get("operating_profit")
+    payload["buyouts"] = payload.get("buyouts_count")
+    payload["buyout_percent"] = payload.get("buyout_percent")
+    payload["sales_status"] = payload.get("sales_status")
+    payload["ads_status"] = payload.get("advertising_status")
     payload["finance_status_texts"] = _finance_status_texts(snapshot.finance_status)
     products_snapshot = dict(_safe_get(lambda: (bot or _get_bot())._products_center_snapshot(user=user_id, days=days), {}) or {})
     payload["cost_coverage_percent"] = float(products_snapshot.get("cost_coverage_percent") or 0)

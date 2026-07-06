@@ -2,72 +2,67 @@
 
 ## Goal
 
-All customer-facing Telegram screens should show the same financial numbers for the same period.
+For the same period, all customer-facing financial screens must display the same financial core values.
 
 Covered screens:
 
-- `/business`
+- `/report`
 - `/finance`
 - `/pnl`
-- `/report`
 - `/dashboard`
 - `/ceo`
+- `/business`
+- `/advisor`
 - `/system`
-- `/advert`
-- `/adsaudit`
-- `/products`
 
-## Source of Truth
+## Source Of Truth
 
-Use `vooglii_finance.unified_snapshot.build_unified_financial_snapshot(...)`.
+Use only `build_unified_financial_snapshot(...)` from `vooglii_finance/unified_snapshot.py`.
+
+Renderers may format values, but they may not calculate:
+
+- `profit = revenue - expenses`
+- `expenses_total = ...`
+- `margin = ...`
+- `roi = ...`
+- `drr = ...`
 
 ## What Must Match
 
-For the same period, the following values must be consistent:
+For the same period, the following must be consistent across screens:
 
-- advertising spend
 - revenue
 - payout
+- payments received
+- advertising spend
 - cost price
+- logistics
+- storage
+- acquiring
+- WB deductions
+- other expenses
 - total expenses
 - profit before tax
 - net profit
-- margin
-- ROI
 - finance status
-- advertising status
+- confidence status
 - cost status
 
-## Automated Audit
+## Runtime Equality Audit
 
-The repo contains `tests/test_report_consistency.py`.
+Existing runtime suites verify that real registered handlers still route through the same financial core.
 
-It checks that:
+Important checks:
 
-- finance screens use the same advertising number
-- P&L and report screens use the same expense/profit logic
-- customer screens do not fall back to false `0 ₽`
-- consistency audit reports no mismatches
+- `tests/test_report_consistency.py`
+- `tests/test_rc2_unified_business_views.py`
+- `tests/test_june_2026_financial_consistency.py`
+- `tests/test_financial_core_integrity.py`
+- `tests/test_financial_core_periods.py`
 
-## RC2 Unified Business Views
+## Safety Rules
 
-`tests/test_rc2_unified_business_views.py` verifies real registered customer handlers share one runtime snapshot.
-
-Covered handlers:
-
-- `/business`
-- `/finance`
-- `/pnl`
-- `/report`
-- `/dashboard`
-- `/ceo`
-- `/advisor`
-- `/system`
-- `/products`
-
-The RC2 audit checks:
-
-- one default customer period across the main business screens
-- no technical advisor vocabulary in customer output
-- no raw CEO open error text in customer output
-- no false `Себестоимость: 0.00 ₽` when period cost is not ready yet
+- negative unknown WB residual must not be shown as a customer expense
+- `reconciliation_delta` must not be added into `expenses_total`
+- `LOW` or `UNKNOWN` confidence must not show final profit, margin, or ROI
+- false `0.00 ₽` values must not be invented for unavailable finance fields

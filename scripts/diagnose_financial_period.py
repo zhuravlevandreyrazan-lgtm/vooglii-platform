@@ -406,6 +406,7 @@ def _print_runtime_snapshots(user_id: int) -> None:
     for key in (
         "sales_revenue",
         "wb_payout",
+        "period_label",
         "cost_price",
         "advertising_spend",
         "logistics",
@@ -426,6 +427,14 @@ def _print_runtime_snapshots(user_id: int) -> None:
         "confirmed_expenses_total",
         "pending_expenses_total",
         "profit_display_mode",
+        "buyouts_count",
+        "buyout_percent",
+        "gross_profit",
+        "operating_profit",
+        "sales_status",
+        "ads_status",
+        "data_quality_status",
+        "warnings",
         "advertising_status",
         "cost_status",
     ):
@@ -484,7 +493,7 @@ def _print_runtime_snapshots(user_id: int) -> None:
     print(f"ads health total: {_money((telegram_bot._advertising_customer_snapshot(user_id, days) or {}).get('total_spend'))}")
     print(f"selected source: {((sources.get('advertising_spend') or {}).get('selected_source'))}")
 
-    if ARGS.explain_expenses:
+    if ARGS.explain or ARGS.explain_expenses:
         conn = sqlite3.connect(DB_NAME)
         try:
             _print_expense_classification_audit(conn.cursor(), user_id, unified, mgmt, finance)
@@ -575,6 +584,7 @@ if __name__ == "__main__":
     parser.add_argument("--user-id", required=True, type=int)
     parser.add_argument("--from", dest="date_from", required=True)
     parser.add_argument("--to", dest="date_to", required=True)
+    parser.add_argument("--explain", action="store_true")
     parser.add_argument("--explain-expenses", action="store_true")
     ARGS = parser.parse_args()
     main()

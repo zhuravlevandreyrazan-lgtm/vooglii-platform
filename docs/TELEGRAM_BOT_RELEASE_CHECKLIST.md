@@ -1,79 +1,44 @@
-# TELEGRAM BOT RELEASE CHECKLIST
+# Telegram Bot Release Checklist
 
-## Before Release
+## Core Checks
 
-- Verify `BOT_TOKEN`.
-- Verify `VOOGLII_TOKEN_ENCRYPTION_KEY`.
-- Verify `APP_ENV`.
-- Verify `DB_DIR`.
-- Verify customer help/menu do not expose developer or admin commands.
-- Verify customer-facing texts do not contain `Wildberries Agent`, `UNKNOWN`, `NOT_ACTIVE`, `current_month`, `last_7_days`, `last_30_days`.
+- verify `BOT_TOKEN`
+- verify `VOOGLII_TOKEN_ENCRYPTION_KEY`
+- verify `APP_ENV`
+- verify `DB_DIR`
+- verify customer-facing texts do not expose developer-only vocabulary
 
-## Verification Commands
+## Financial Core 2.0 Gate
+
+Before release, all of the following must pass:
 
 - `python -m pytest`
 - `python scripts/release_check.py`
-- `python scripts/check_telegram_bot_health.py`
-- `python -m py_compile telegram_bot.py vooglii_telegram/ux/*.py`
-- `docker compose config`
-- `docker compose build`
-- `docker compose up -d`
-- `docker compose logs telegram-bot`
+- `python scripts/diagnose_financial_period.py --user-id 658486226 --from 2026-05-01 --to 2026-05-31 --explain`
+- `python scripts/diagnose_financial_period.py --user-id 658486226 --from 2026-06-01 --to 2026-06-30 --explain`
+- `python scripts/diagnose_financial_period.py --user-id 658486226 --from 2026-07-01 --to 2026-07-31 --explain`
 
-## Production Readiness
+## Required Financial Tests
 
-- `/start` begins with `🏢 VOOGLII Terminal`.
-- `/menu`, `/home`, `/business`, `/finance`, `/products`, `/advisor`, `/profile`, `/system` use customer UX.
-- Customer `/system` does not show engineering diagnostics.
-- Developer `/system audit` remains available only for developer/admin roles.
-- `/advisor` opens the V2 advisor flow by default.
+- `tests/test_report_consistency.py`
+- `tests/test_finance_confidence_layer.py`
+- `tests/test_june_2026_financial_consistency.py`
+- `tests/test_unified_snapshot_may_restored_values.py`
+- `tests/test_financial_core_integrity.py`
+- `tests/test_financial_core_periods.py`
 
-## Runtime Audit
+## Release Must Fail If
 
-- Run `tests/test_telegram_start_runtime_smoke.py`.
-- Run `tests/test_telegram_runtime_handler_audit.py`.
-- Release check must fail if a real registered `CommandHandler` returns legacy UX.
-
-## VOOGLII Terminal v1.0 RC
-
-- Runtime audit verifies real registered handlers, not only helper renderers.
-- Customer `/system` is dynamic and role-aware.
-- Customer `/home` actions are generated from current business state.
-- Customer `/finance` explains why profit may still be unavailable.
-- Customer `/products` shows concrete SKU risk summaries.
-
-## Telegram Bot Safe Decomposition v1
-
-- Verify `vooglii_telegram/app.py` and `vooglii_telegram/registry.py` compile successfully.
-- Verify `vooglii_telegram/handlers/*.py` compile successfully.
-- Verify runtime audits still pass after bootstrap extraction.
-- Verify Docker startup stays on `python -u telegram_bot.py`.
-# Telegram Bot Release Checklist
-
-## Financial Consistency
-
-- `tests/test_report_consistency.py` passes
-- `/business` and `/finance` show the same finance status for the same period
-- `/finance` and `/pnl` show the same ad spend / cost price / profit model
-- `/advert` and `/finance` show the same advertising spend
-- customer screens do not show false `0 ₽` for unavailable financial fields
+- a renderer recalculates profit or expenses independently
+- `/report`, `/finance`, and `/pnl` diverge for the same period
+- finance status differs between customer screens
+- negative unknown expenses are shown as customer-facing expenses
+- `LOW` confidence still shows final profit, margin, or ROI
+- key `source_map` entries are empty
 
 ## Customer UX Guardrails
 
-- `/admin` is blocked for non-admin / non-developer users
-- `/stocks` hides technical status for customer roles
-- `/system` shows customer-safe financial status text
-
-## Release Commands
-
-- `python -m pytest`
-- `python scripts/release_check.py`
-- `python -m py_compile telegram_bot.py vooglii_telegram/**/*.py vooglii_finance/**/*.py`
-
-## RC2 Unified Business Views
-
-- `tests/test_rc2_unified_business_views.py` passes
-- `/report`, `/dashboard`, `/ceo`, `/advisor`, `/business`, `/finance`, `/pnl` open the same default customer period
-- customer `/advisor` does not expose technical engine names
-- customer `/ceo` does not show raw open-error text
-- customer financial screens do not show false `Себестоимость: 0.00 ₽` when period cost is still waiting
+- `/finance` explains when data is preliminary
+- `/report` does not duplicate financial summary lines
+- `/pnl` does not show final profit while confidence is low
+- `/system` remains customer-safe for non-developer roles
