@@ -66,6 +66,8 @@ class UnifiedFinancialSnapshot:
     other_expenses: float | None
     unknown_wb_expenses: float | None
     reconciliation_delta: float | None
+    confirmed_expenses_total: float | None
+    pending_expenses_total: float | None
     expenses_total: float | None
     profit_before_tax: float | None
     tax_amount: float | None
@@ -79,6 +81,10 @@ class UnifiedFinancialSnapshot:
     advertising_status: str
     cost_status: str
     expenses_status: str
+    finance_confidence: str
+    finance_confidence_score: int
+    finance_confidence_reason: str
+    profit_display_mode: str
     debug_sources: dict[str, Any] = field(default_factory=dict)
     source_notes: list[str] = field(default_factory=list)
 
@@ -203,6 +209,46 @@ def _expenses_status(finance_status: str, wb_deductions: float | None, acquiring
     if any(value not in (None, 0.0) for value in (wb_deductions, acquiring, other_expenses)):
         return "EXPENSES_PARTIAL"
     return "EXPENSES_ESTIMATED"
+
+
+def _finance_confidence(
+    finance_status: str,
+    sales_revenue: float | None,
+    official_net_profit: float | None,
+    reconciliation_delta: float | None,
+    cost_price: float | None,
+    expenses_status: str,
+) -> tuple[str, int, str]:
+    if sales_revenue in (None, 0):
+        return "UNKNOWN", 0, "Нет выручки или ключевых исходных данных."
+    issues: list[str] = []
+    if finance_status == FINANCE_WAITING_WB:
+        issues.append("Финансовые данные WB ещё не подтверждены.")
+    if reconciliation_delta not in (None, 0.0):
+        issues.append("Есть расхождение классификации расходов.")
+    if cost_price in (None, 0.0):
+        issues.append("Себестоимость за период не рассчитана.")
+    if official_net_profit is None and finance_status != FINANCE_OK:
+        issues.append("Нет подтверждённой official net profit.")
+    if finance_status == FINANCE_OK and official_net_profit is not None and not issues:
+        return "HIGH", 95, "Финансовые данные WB подтверждены, есть official net profit."
+    if finance_status == FINANCE_PARTIAL and expenses_status in {"EXPENSES_PARTIAL", "EXPENSES_CONFIRMED"}:
+        if not issues:
+            issues.append("Часть финансовых расходов подтверждена частично.")
+        return "MEDIUM", 65, " ".join(issues)
+    if finance_status == FINANCE_WAITING_WB or issues:
+        return "LOW", 30, " ".join(issues)
+    return "UNKNOWN", 10, "Недостаточно данных для оценки достоверности."
+
+
+def _profit_display_mode(finance_confidence: str, finance_status: str) -> str:
+    if finance_confidence == "HIGH" and finance_status == FINANCE_OK:
+        return "FINAL"
+    if finance_confidence == "MEDIUM":
+        return "PRELIMINARY"
+    if finance_confidence == "LOW":
+        return "HIDDEN"
+    return "HIDDEN"
 
 
 def _source_entry(selected: Any, candidates: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -345,6 +391,19 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         other_expenses,
         unknown_wb_expenses,
     ])
+    confirmed_expenses_total = _sum_known([
+        cost_price,
+        advertising_spend,
+        logistics,
+        storage,
+        unknown_wb_expenses,
+    ])
+    pending_expenses_total = _sum_known([
+        acquiring,
+        wb_deductions,
+        penalties,
+        other_expenses,
+    ])
 
     profit_before_tax = None
     if sales_revenue is not None and expenses_total is not None:
@@ -401,6 +460,15 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     advertising_status = _advertising_status(advertising_snapshot)
     cost_status = _cost_status(products_snapshot, cost_price)
     expenses_status = _expenses_status(finance_status, wb_deductions, acquiring, other_expenses)
+    finance_confidence, finance_confidence_score, finance_confidence_reason = _finance_confidence(
+        finance_status,
+        sales_revenue,
+        official_net_profit,
+        reconciliation_delta,
+        cost_price,
+        expenses_status,
+    )
+    profit_display_mode = _profit_display_mode(finance_confidence, finance_status)
 
     sources = {
         "sales_revenue": _source_entry(sales_revenue, sales_revenue_candidates),
@@ -442,6 +510,14 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
                 "positive_unknown_wb_expenses": unknown_wb_expenses,
             },
         },
+        "confirmed_expenses_total": {
+            "selected_source": "derived_confirmed_expenses_sum",
+            "selected_value": _round_money(confirmed_expenses_total),
+        },
+        "pending_expenses_total": {
+            "selected_source": "derived_pending_expenses_sum",
+            "selected_value": _round_money(pending_expenses_total),
+        },
         "profit_before_tax": {
             "selected_source": "derived_sales_revenue_minus_expenses_total" if profit_before_tax is not None else None,
             "selected_value": _round_money(profit_before_tax),
@@ -480,6 +556,16 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
             "selected_source": "_expenses_status(finance_status, wb_deductions, acquiring, other_expenses)",
             "selected_value": expenses_status,
         },
+        "finance_confidence": {
+            "selected_source": "_finance_confidence(...)",
+            "selected_value": finance_confidence,
+            "score": finance_confidence_score,
+            "reason": finance_confidence_reason,
+        },
+        "profit_display_mode": {
+            "selected_source": "_profit_display_mode(finance_confidence, finance_status)",
+            "selected_value": profit_display_mode,
+        },
     }
 
     source_notes = [
@@ -516,6 +602,8 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         other_expenses=other_expenses,
         unknown_wb_expenses=unknown_wb_expenses,
         reconciliation_delta=reconciliation_delta,
+        confirmed_expenses_total=confirmed_expenses_total,
+        pending_expenses_total=pending_expenses_total,
         expenses_total=expenses_total,
         profit_before_tax=profit_before_tax,
         tax_amount=tax_amount,
@@ -529,6 +617,10 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         advertising_status=advertising_status,
         cost_status=cost_status,
         expenses_status=expenses_status,
+        finance_confidence=finance_confidence,
+        finance_confidence_score=finance_confidence_score,
+        finance_confidence_reason=finance_confidence_reason,
+        profit_display_mode=profit_display_mode,
         debug_sources=sources,
         source_notes=source_notes,
     )
@@ -550,6 +642,7 @@ def build_unified_financial_snapshot_dict(user_id: int, days, *, context=None, b
     payload["positive_unknown_wb_expenses"] = payload.get("unknown_wb_expenses")
     payload["customer_unknown_wb_expenses"] = payload.get("unknown_wb_expenses")
     payload["overclassified_expenses"] = payload.get("reconciliation_delta")
+    payload["confidence"] = payload.get("finance_confidence")
     return payload
 
 

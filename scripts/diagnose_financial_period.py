@@ -256,6 +256,7 @@ def _customer_renderer_fields(unified: dict[str, object]) -> dict[str, dict[str,
         "profit_before_tax": unified.get("profit_before_tax"),
         "net_profit": unified.get("net_profit"),
         "finance_status": unified.get("finance_status"),
+        "finance_confidence": unified.get("finance_confidence"),
         "ads_status": unified.get("advertising_status"),
         "cost_status": unified.get("cost_status"),
     }
@@ -274,6 +275,7 @@ def _customer_renderer_fields(unified: dict[str, object]) -> dict[str, dict[str,
         "expenses_total": unified.get("expenses_total"),
         "profit": unified.get("net_profit"),
         "finance_status": unified.get("finance_status"),
+        "finance_confidence": unified.get("finance_confidence"),
         "cost_status": unified.get("cost_status"),
     }
     pnl_fields = {
@@ -286,6 +288,7 @@ def _customer_renderer_fields(unified: dict[str, object]) -> dict[str, dict[str,
         "profit_before_tax": unified.get("profit_before_tax"),
         "margin_percent": unified.get("margin_percent"),
         "finance_status": unified.get("finance_status"),
+        "finance_confidence": unified.get("finance_confidence"),
         "cost_status": unified.get("cost_status"),
     }
     return {"report": report_fields, "finance": finance_fields, "pnl": pnl_fields}
@@ -311,9 +314,15 @@ def _print_expense_classification_audit(cur: sqlite3.Cursor, user_id: int, unifi
     debug_sources = dict(unified.get("debug_sources") or {})
     _print_section("Expense Classification Audit")
     print(f"finance_status: {unified.get('finance_status')}")
+    print(f"finance_confidence: {unified.get('finance_confidence')}")
+    print(f"finance_confidence_score: {unified.get('finance_confidence_score')}")
+    print(f"finance_confidence_reason: {unified.get('finance_confidence_reason')}")
     print(f"expenses_status: {unified.get('expenses_status')}")
+    print(f"confirmed_expenses_total: {unified.get('confirmed_expenses_total')}")
+    print(f"pending_expenses_total: {unified.get('pending_expenses_total')}")
     print(f"expenses_total: {unified.get('expenses_total')}")
     print(f"profit_before_tax: {unified.get('profit_before_tax')}")
+    print(f"profit_display_mode: {unified.get('profit_display_mode')}")
     print()
     for component in components:
         source_payload = dict(debug_sources.get(component) or {})
@@ -411,6 +420,12 @@ def _print_runtime_snapshots(user_id: int) -> None:
         "tax_amount",
         "net_profit",
         "finance_status",
+        "finance_confidence",
+        "finance_confidence_score",
+        "finance_confidence_reason",
+        "confirmed_expenses_total",
+        "pending_expenses_total",
+        "profit_display_mode",
         "advertising_status",
         "cost_status",
     ):

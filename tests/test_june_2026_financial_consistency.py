@@ -16,7 +16,7 @@ TEST_USER_ID = 658486226
 TEST_DAYS = ("2026-06-01", "2026-06-30")
 
 
-def test_june_2026_report_finance_pnl_use_same_unified_snapshot(monkeypatch):
+def test_june_2026_customer_outputs_use_low_confidence_guardrails(monkeypatch):
     monkeypatch.setattr(
         telegram_bot,
         "_report_mgmt_snapshot",
@@ -89,6 +89,21 @@ def test_june_2026_report_finance_pnl_use_same_unified_snapshot(monkeypatch):
             "critical_stock_count": 0,
         },
     )
+    monkeypatch.setattr(
+        telegram_bot,
+        "_business_center_snapshot",
+        lambda user=None, days=None, **kwargs: {
+            "business_health": "WARNING",
+            "business_state": {"sales": "UNKNOWN", "finance": "BLOCKED", "ads": "GOOD"},
+            "main_recommendation": "Не принимать решения по прибыли, пока достоверность финансового отчёта низкая.",
+            "main_recommendation_action": "Открыть /finance.",
+            "risks": ["Финансовые данные WB ещё не подтверждены"],
+            "today_actions": ["Открыть /advisor"],
+            "advertising": telegram_bot._advertising_customer_snapshot(user, days),
+            "products": telegram_bot._products_center_snapshot(user, days),
+            "unified_finance": build_unified_financial_snapshot_dict(user, days, bot=telegram_bot),
+        },
+    )
     monkeypatch.setattr(telegram_bot, "_finance_api_status_snapshot", lambda _user: {"status": "WAITING"})
     monkeypatch.setattr(telegram_bot, "_data_quality_snapshot", lambda _user, _days, context=None: {"overall_status": "HIGH"})
     monkeypatch.setattr(telegram_bot, "get_orders_stats", lambda _days, _user: (0, 0.0, 0, 0.0))
@@ -124,50 +139,41 @@ def test_june_2026_report_finance_pnl_use_same_unified_snapshot(monkeypatch):
     )
 
     snapshot = build_unified_financial_snapshot_dict(TEST_USER_ID, TEST_DAYS, bot=telegram_bot)
-    report_text = telegram_bot._unified_report_text(TEST_USER_ID, TEST_DAYS)
-    finance_text = telegram_bot._finance_center_text(TEST_USER_ID, TEST_DAYS)
-    pnl_text = telegram_bot._pnl_customer_text(TEST_USER_ID, TEST_DAYS)
+    outputs = {
+        "report": telegram_bot._unified_report_text(TEST_USER_ID, TEST_DAYS),
+        "finance": telegram_bot._finance_center_text(TEST_USER_ID, TEST_DAYS),
+        "pnl": telegram_bot._pnl_customer_text(TEST_USER_ID, TEST_DAYS),
+        "business": telegram_bot._business_center_text(TEST_USER_ID, TEST_DAYS),
+        "dashboard": telegram_bot._unified_dashboard_text(TEST_USER_ID, TEST_DAYS),
+        "ceo": telegram_bot._unified_ceo_text(TEST_USER_ID, TEST_DAYS),
+        "advisor": telegram_bot._advisor_customer_text(TEST_USER_ID, TEST_DAYS),
+    }
 
-    assert snapshot["sales_revenue"] == 22351.98
-    assert snapshot["advertising_spend"] == 29893.34
-    assert snapshot["logistics"] == 3463.65
-    assert snapshot["storage"] == 449.57
-    assert snapshot["acquiring"] == 6848.00
-    assert snapshot["wb_deductions"] == 37484.00
-    assert snapshot["other_expenses"] == 2687.14
-    assert snapshot["unknown_wb_expenses"] == 0.0
-    assert snapshot["customer_unknown_wb_expenses"] == 0.0
-    assert snapshot["reconciliation_delta"] == -41654.86
-    assert snapshot["expenses_total"] == 80825.70
-    assert snapshot["profit_before_tax"] == -58473.72
-    assert snapshot["net_profit"] is None
     assert snapshot["finance_status"] == "FINANCE_WAITING_WB"
-    assert snapshot["cost_status"] == "COST_WAITING"
-    assert snapshot["expenses_status"] == "EXPENSES_PARTIAL"
+    assert snapshot["finance_confidence"] == "LOW"
+    assert snapshot["finance_confidence_score"] == 30
+    assert snapshot["profit_display_mode"] == "HIDDEN"
+    assert snapshot["expenses_total"] == 80825.70
+    assert snapshot["confirmed_expenses_total"] == 33806.56
+    assert snapshot["pending_expenses_total"] == 47019.14
+    assert snapshot["reconciliation_delta"] == -41654.86
 
-    for text in (report_text, finance_text, pnl_text):
-        assert "29 893.34" in text
-        assert "3 463.65" in text
-        assert "-41 654.86" not in text
-        assert "Нераспознанные расходы WB: -" not in text
-        assert "unknown_wb_expenses: -" not in text
+    assert "будет рассчитана после подтверждения финансов WB" in outputs["report"]
+    assert "Достоверность отчёта: низкая" in outputs["report"]
+    assert "Чистая прибыль: -" not in outputs["report"]
+    assert "Маржа: -" not in outputs["report"]
+    assert "Операционная оценка до налога" not in outputs["report"]
+    assert "ROI: не рассчитан" in outputs["report"]
 
-    for text in (report_text, finance_text):
-        assert "449.57" in text
-        assert "6 848.00" in text
-        assert "37 484.00" in text
-        assert "41 654.86" in text
-        assert "Нераспознанные расходы WB: 0.00" not in text
-        assert "Нераспознанные расходы WB: нет" not in text
-        assert "Расхождение классификации расходов WB: 41 654.86" in text
-        assert "Часть расходов уже учтена в других категориях." in text
-        assert "ожидают подтверждения" in text
+    assert "Прибыль: будет рассчитана после подтверждения финансов WB" in outputs["finance"]
+    assert "Предварительная операционная оценка" not in outputs["finance"]
+    assert "Ожидают подтверждения WB:" in outputs["finance"]
+    assert "Достоверность отчёта: низкая" in outputs["finance"]
 
-    assert "Операционная оценка до налога: -58 473.72" in report_text
-    assert "Прибыль до налога: -58 473.72" not in report_text
-    assert "Расходы всего (частично): 80 825.70" in report_text
-    assert "Чистая прибыль: не подтверждена" in report_text
-    assert "- Операционная оценка: -58 473.72" in finance_text
-    assert "- Расходы всего (частично): 80 825.70" in finance_text
-    assert "- Расходы (частично): 80 825.70" in pnl_text
-    assert "- Операционная оценка: -58 473.72" in pnl_text
+    assert "P&L пока предварительный." in outputs["pnl"]
+    assert "Прибыль, маржа и ROI будут рассчитаны после подтверждения финансов WB." in outputs["pnl"]
+
+    assert "низкая" in outputs["business"].lower()
+    assert "низкая" in outputs["dashboard"].lower()
+    assert "отложить" in outputs["ceo"].lower() or "не подтвержд" in outputs["ceo"].lower()
+    assert "не принимать решения по прибыли" in outputs["advisor"].lower()

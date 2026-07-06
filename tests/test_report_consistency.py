@@ -263,6 +263,7 @@ def test_unified_snapshot_avoids_false_zero_when_finance_is_waiting(monkeypatch)
     assert "Эквайринг WB: 0.00 ₽" not in finance_text
     assert "Прибыль: 0.00 ₽" not in pnl_text
     assert "ожидают подтверждения" in finance_text
-    assert "Операционная оценка" in pnl_text
-    assert "Операционная оценка" in report_text
+    assert "Прибыль будет рассчитана после подтверждения финансов WB." in pnl_text
+    assert "P&L пока предварительный." in pnl_text
+    assert "Чистая прибыль: будет рассчитана после подтверждения финансов WB" in report_text
     assert "Расходы всего (частично)" in report_text

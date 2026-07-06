@@ -82,6 +82,7 @@ COMMANDS = [
     [sys.executable, "tests/test_advertising_business_finance_integration.py"],
     [sys.executable, "tests/test_adsaudit_customer_vs_debug.py"],
     [sys.executable, "tests/test_report_consistency.py"],
+    [sys.executable, "tests/test_finance_confidence_layer.py"],
     [sys.executable, "tests/test_june_2026_financial_consistency.py"],
     [sys.executable, "tests/test_rc2_unified_business_views.py"],
     [sys.executable, "tests/test_callback_routing_rc3.py"],
