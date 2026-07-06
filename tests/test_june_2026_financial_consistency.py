@@ -143,6 +143,7 @@ def test_june_2026_report_finance_pnl_use_same_unified_snapshot(monkeypatch):
     assert snapshot["net_profit"] is None
     assert snapshot["finance_status"] == "FINANCE_WAITING_WB"
     assert snapshot["cost_status"] == "COST_WAITING"
+    assert snapshot["expenses_status"] == "EXPENSES_PARTIAL"
 
     for text in (report_text, finance_text, pnl_text):
         assert "29 893.34" in text
@@ -160,3 +161,13 @@ def test_june_2026_report_finance_pnl_use_same_unified_snapshot(monkeypatch):
         assert "Нераспознанные расходы WB: нет" not in text
         assert "Расхождение классификации расходов WB: 41 654.86" in text
         assert "Часть расходов уже учтена в других категориях." in text
+        assert "ожидают подтверждения" in text
+
+    assert "Операционная оценка до налога: -58 473.72" in report_text
+    assert "Прибыль до налога: -58 473.72" not in report_text
+    assert "Расходы всего (частично): 80 825.70" in report_text
+    assert "Чистая прибыль: не подтверждена" in report_text
+    assert "- Операционная оценка: -58 473.72" in finance_text
+    assert "- Расходы всего (частично): 80 825.70" in finance_text
+    assert "- Расходы (частично): 80 825.70" in pnl_text
+    assert "- Операционная оценка: -58 473.72" in pnl_text

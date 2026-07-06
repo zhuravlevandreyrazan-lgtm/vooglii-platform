@@ -17607,8 +17607,16 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     money_lines = [
         f"- К выплате: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
         f"- Получено выплат: {_money_or_state(snapshot.get('payment_received_total'), 'нет данных')}",
-        f"- Прибыль: {_money_or_state(snapshot.get('profit_total'), 'пока не рассчитана')}" if snapshot.get('profit_total') is not None else "- Прибыль: пока не рассчитана",
     ]
+    if official_available:
+        money_lines.append(f"- Прибыль: {_money_or_state(snapshot.get('profit_total'), 'пока не рассчитана')}" if snapshot.get('profit_total') is not None else "- Прибыль: пока не рассчитана")
+    else:
+        operational_estimate = unified_snapshot.get('profit_before_tax')
+        money_lines.append(
+            f"- Операционная оценка: {_money_or_state(operational_estimate, 'пока не рассчитана')}"
+            if operational_estimate is not None
+            else "- Операционная оценка: пока не рассчитана"
+        )
     if snapshot.get('advertising_total') is not None:
         money_lines.insert(2, f"- Реклама WB: {_money_or_state(snapshot.get('advertising_total'))}")
     money_lines.append(
@@ -17621,11 +17629,17 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     if snapshot.get('storage_total') is not None:
         money_lines.append(f"- Хранение WB: {_money_or_state(snapshot.get('storage_total'))}")
     if snapshot.get('deductions_total') is not None:
-        money_lines.append(f"- Удержания WB: {_money_or_state(snapshot.get('deductions_total'))}")
+        suffix = " (ожидают подтверждения)" if not official_available else ""
+        money_lines.append(f"- Удержания WB: {_money_or_state(snapshot.get('deductions_total'))}{suffix}")
     if snapshot.get('acquiring_total') is not None:
-        money_lines.append(f"- Эквайринг WB: {_money_or_state(snapshot.get('acquiring_total'))}")
+        suffix = " (ожидают подтверждения)" if not official_available else ""
+        money_lines.append(f"- Эквайринг WB: {_money_or_state(snapshot.get('acquiring_total'))}{suffix}")
     if snapshot.get('other_expenses_total') is not None:
-        money_lines.append(f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses_total'))}")
+        suffix = " (ожидают подтверждения)" if not official_available else ""
+        money_lines.append(f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses_total'))}{suffix}")
+    if snapshot.get('expenses_total') is not None:
+        total_label = "- Расходы всего:" if official_available else "- Расходы всего (частично):"
+        money_lines.append(f"{total_label} {_money_or_state(snapshot.get('expenses_total'), 'не рассчитано')}")
     if snapshot.get('unknown_wb_expenses_total') is not None and float(snapshot.get('unknown_wb_expenses_total') or 0) > 0:
         money_lines.append(f"- Нераспознанные расходы WB: {_money_or_state(snapshot.get('unknown_wb_expenses_total'))}")
     if unified_snapshot.get('reconciliation_delta') is not None and float(unified_snapshot.get('reconciliation_delta') or 0) < 0:
@@ -17634,7 +17648,7 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     if all(snapshot.get(key) is None for key in ('logistics_total', 'storage_total', 'other_expenses_total', 'unknown_wb_expenses_total')):
         money_lines.append("- Остальные расходы: ожидают подтверждения" if not official_available else "- Остальные расходы: подтверждены в расчёте")
     important_note = (
-        "WB ещё не предоставил официальные финансовые данные. Как только они появятся, VOOGLII автоматически пересчитает прибыль."
+        "WB ещё не предоставил официальные финансовые данные. Текущие расходы и прибыль показаны как операционная оценка, а удержания WB ещё ждут подтверждения."
         if not official_available
         else "Финансовые данные подтверждены и готовы для контроля."
     )
@@ -17657,6 +17671,8 @@ def _pnl_customer_text(user, days):
     expense_total = snapshot.get('expenses_total')
     margin_value = float(snapshot.get('margin_percent') or 0)
     cost_label = _customer_cost_status_label(snapshot.get('cost_status'), cost_value=snapshot.get('cost_price'))
+    expense_label = '- Расходы:' if official_available else '- Расходы (частично):'
+    profit_label = '- Прибыль:' if official_available else '- Операционная оценка:'
     lines = [
         '💰 P&L',
         '',
@@ -17664,11 +17680,15 @@ def _pnl_customer_text(user, days):
         '',
         'Главное:',
         f'- Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
-        f'- Расходы: {_money_or_state(expense_total, "не рассчитано")}',
+        f'{expense_label} {_money_or_state(expense_total, "не рассчитано")}',
         f'- Реклама: {_money_or_state(snapshot.get("advertising_spend"), "данные обновляются")}',
         f'- Логистика: {_money_or_state(snapshot.get("logistics"), "данные обновляются")}',
         f'- Себестоимость: {_customer_cost_value_text(snapshot)}',
-        f'- Прибыль: {_money_or_state(profit_value, "пока не рассчитана")}' if profit_value is not None else '- Прибыль: пока не рассчитана',
+        (
+            f'{profit_label} {_money_or_state(profit_value if official_available else snapshot.get("profit_before_tax"), "пока не рассчитана")}'
+            if (profit_value is not None or snapshot.get("profit_before_tax") is not None)
+            else f'{profit_label} пока не рассчитана'
+        ),
         f'- Маржа: {margin_value:.1f}%',
         '',
         'Статус:',
@@ -19440,6 +19460,8 @@ def _unified_report_text(user, days):
     from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
     snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    official_available = str(snapshot.get("finance_status") or "") == "FINANCE_OK"
+    expenses_label = 'Расходы всего' if official_available else 'Расходы всего (частично)'
     lines = [
         '📊 Отчёт',
         '',
@@ -19457,10 +19479,9 @@ def _unified_report_text(user, days):
         f'Логистика: {_money_or_state(snapshot.get("logistics"), "данные обновляются")}',
         f'Хранение: {_money_or_state(snapshot.get("storage"), "данные обновляются")}',
         f'Эквайринг: {_money_or_state(snapshot.get("acquiring"), "данные обновляются")}',
-        f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}',
-        f'Прочие расходы: {_money_or_state(snapshot.get("other_expenses"), "данные обновляются")}',
-        f'Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
-        f'Прибыль до налога: {_money_or_state(snapshot.get("profit_before_tax"), "не рассчитано")}',
+        f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}' + (" (ожидают подтверждения)" if not official_available and snapshot.get("wb_deductions") is not None else ""),
+        f'Прочие расходы: {_money_or_state(snapshot.get("other_expenses"), "данные обновляются")}' + (" (ожидают подтверждения)" if not official_available and snapshot.get("other_expenses") is not None else ""),
+        f'{expenses_label}: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
         f'Налог: {_money_or_state(snapshot.get("tax_amount"), "не рассчитано")}',
         f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}',
         f'Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%',
@@ -19474,6 +19495,14 @@ def _unified_report_text(user, days):
         '',
         f'Что важно: {_customer_finance_waiting_note(snapshot)}',
     ]
+    profit_value = snapshot.get("profit_before_tax")
+    if official_available:
+        lines.insert(21, f'Прибыль до налога: {_money_or_state(profit_value, "не рассчитано")}')
+    else:
+        lines.insert(21, f'Операционная оценка до налога: {_money_or_state(profit_value, "пока не рассчитана")}')
+        if snapshot.get("net_profit") is None:
+            lines[22] = 'Налог: не рассчитано'
+            lines[23] = 'Чистая прибыль: не подтверждена'
     if snapshot.get("unknown_wb_expenses") is not None and float(snapshot.get("unknown_wb_expenses") or 0) > 0:
         insert_at = 15
         lines.insert(insert_at, f'Нераспознанные расходы WB: {_money_or_state(snapshot.get("unknown_wb_expenses"), "нет")}')

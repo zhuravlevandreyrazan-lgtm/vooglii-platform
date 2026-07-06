@@ -254,6 +254,7 @@ def test_unified_snapshot_keeps_customer_financial_screens_consistent(monkeypatc
 def test_unified_snapshot_avoids_false_zero_when_finance_is_waiting(monkeypatch):
     _patch_unified_sources(monkeypatch, finance_ready=False)
 
+    report_text = telegram_bot._unified_report_text(100, ("2026-07-01", "2026-07-31"))
     finance_text = telegram_bot._finance_center_text(100, ("2026-07-01", "2026-07-31"))
     pnl_text = telegram_bot._pnl_customer_text(100, ("2026-07-01", "2026-07-31"))
 
@@ -262,4 +263,6 @@ def test_unified_snapshot_avoids_false_zero_when_finance_is_waiting(monkeypatch)
     assert "Эквайринг WB: 0.00 ₽" not in finance_text
     assert "Прибыль: 0.00 ₽" not in pnl_text
     assert "ожидают подтверждения" in finance_text
-    assert "пока не рассчитана" in pnl_text
+    assert "Операционная оценка" in pnl_text
+    assert "Операционная оценка" in report_text
+    assert "Расходы всего (частично)" in report_text

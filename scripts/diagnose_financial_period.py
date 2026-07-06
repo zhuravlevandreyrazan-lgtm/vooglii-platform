@@ -297,6 +297,91 @@ def _print_mapping(title: str, payload: dict[str, object]) -> None:
         print(f"{key}: {value}")
 
 
+def _print_expense_classification_audit(cur: sqlite3.Cursor, user_id: int, unified: dict[str, object], mgmt: dict[str, object], finance: dict[str, object]) -> None:
+    components = (
+        "advertising_spend",
+        "logistics",
+        "storage",
+        "acquiring",
+        "wb_deductions",
+        "other_expenses",
+        "unknown_wb_expenses",
+        "reconciliation_delta",
+    )
+    debug_sources = dict(unified.get("debug_sources") or {})
+    _print_section("Expense Classification Audit")
+    print(f"finance_status: {unified.get('finance_status')}")
+    print(f"expenses_status: {unified.get('expenses_status')}")
+    print(f"expenses_total: {unified.get('expenses_total')}")
+    print(f"profit_before_tax: {unified.get('profit_before_tax')}")
+    print()
+    for component in components:
+        source_payload = dict(debug_sources.get(component) or {})
+        print(f"{component}:")
+        print(f"  unified value: {unified.get(component)}")
+        print(f"  selected source: {source_payload.get('selected_source')}")
+        candidates = list(source_payload.get("candidates") or [])
+        if candidates:
+            for candidate in candidates:
+                print(f"  candidate {candidate.get('source')}: {candidate.get('value')}")
+        else:
+            print("  candidate sources: none")
+
+    _print_section("Expenses Table By Category")
+    rows = _fetchall(
+        cur,
+        """
+        SELECT lower(COALESCE(expense_type,'')) AS expense_type, COUNT(*), COALESCE(SUM(amount),0), MIN(substr(expense_date,1,10)), MAX(substr(expense_date,1,10)), GROUP_CONCAT(DISTINCT COALESCE(source,'-'))
+        FROM expenses
+        WHERE telegram_id=? AND substr(expense_date,1,10) BETWEEN ? AND ?
+        GROUP BY lower(COALESCE(expense_type,''))
+        ORDER BY SUM(amount) DESC, expense_type ASC
+        """,
+        (user_id, ARGS.date_from, ARGS.date_to),
+    )
+    if rows:
+        for expense_type, row_count, total_amount, min_date, max_date, sources in rows:
+            print(f"{expense_type or '[empty]'}: rows {row_count} | amount {_money(total_amount)} | dates {min_date or '-'}..{max_date or '-'} | sources {sources or '-'}")
+    else:
+        print("no expense rows")
+
+    _print_section("Finance Raw Audit By Category")
+    finance_row = _fetchone(
+        cur,
+        """
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(ABS(COALESCE(acquiring_fee,0))),0),
+            COALESCE(SUM(ABS(COALESCE(deduction,0))),0),
+            COALESCE(SUM(ABS(COALESCE(penalty,0))),0),
+            COALESCE(SUM(ABS(COALESCE(acceptance,0))),0),
+            COALESCE(SUM(ABS(COALESCE(acceptance_fee,0))),0),
+            COALESCE(SUM(ABS(COALESCE(additional_payment,0))),0),
+            MIN(substr(report_date,1,10)),
+            MAX(substr(report_date,1,10))
+        FROM finance_raw_audit
+        WHERE telegram_id=? AND substr(report_date,1,10) BETWEEN ? AND ?
+        """,
+        (user_id, ARGS.date_from, ARGS.date_to),
+    )
+    print(f"rows: {int((finance_row or [0])[0] or 0)}")
+    print(f"acquiring_fee total: {_money((finance_row or [0] * 9)[1] or 0)}")
+    print(f"deduction total: {_money((finance_row or [0] * 9)[2] or 0)}")
+    print(f"penalty total: {_money((finance_row or [0] * 9)[3] or 0)}")
+    print(f"acceptance total: {_money((finance_row or [0] * 9)[4] or 0)}")
+    print(f"acceptance_fee total: {_money((finance_row or [0] * 9)[5] or 0)}")
+    print(f"additional_payment total: {_money((finance_row or [0] * 9)[6] or 0)}")
+    print(f"report_date range: {(finance_row or [None] * 9)[7] or '-'}..{(finance_row or [None] * 9)[8] or '-'}")
+
+    _print_section("Deductions Audit")
+    print(f"report_mgmt.deductions: {mgmt.get('deductions')}")
+    print(f"finance_difference.deductions: {finance.get('deductions')}")
+    print(f"unified wb_deductions: {unified.get('wb_deductions')}")
+    print("deductions inside payout bridge: likely yes if sales_for_pay_total is already net of WB deductions; verify against payment reconciliation and finance difference before treating as confirmed expense")
+    if str(unified.get("finance_status") or "") != "FINANCE_OK":
+        print("customer rule: wb_deductions should be treated as awaiting confirmation, and profit must be shown as operational estimate only")
+
+
 def _print_runtime_snapshots(user_id: int) -> None:
     days = (ARGS.date_from, ARGS.date_to)
     request_context = telegram_bot._snapshot_context()
@@ -384,6 +469,13 @@ def _print_runtime_snapshots(user_id: int) -> None:
     print(f"ads health total: {_money((telegram_bot._advertising_customer_snapshot(user_id, days) or {}).get('total_spend'))}")
     print(f"selected source: {((sources.get('advertising_spend') or {}).get('selected_source'))}")
 
+    if ARGS.explain_expenses:
+        conn = sqlite3.connect(DB_NAME)
+        try:
+            _print_expense_classification_audit(conn.cursor(), user_id, unified, mgmt, finance)
+        finally:
+            conn.close()
+
     _print_section("Customer Outputs")
     print("/report")
     print(telegram_bot._unified_report_text(user_id, days))
@@ -468,5 +560,6 @@ if __name__ == "__main__":
     parser.add_argument("--user-id", required=True, type=int)
     parser.add_argument("--from", dest="date_from", required=True)
     parser.add_argument("--to", dest="date_to", required=True)
+    parser.add_argument("--explain-expenses", action="store_true")
     ARGS = parser.parse_args()
     main()

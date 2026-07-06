@@ -78,6 +78,7 @@ class UnifiedFinancialSnapshot:
     finance_status: str
     advertising_status: str
     cost_status: str
+    expenses_status: str
     debug_sources: dict[str, Any] = field(default_factory=dict)
     source_notes: list[str] = field(default_factory=list)
 
@@ -194,6 +195,14 @@ def _finance_status(financial_engine_snapshot: dict[str, Any], finance_api_snaps
 
 def _finance_status_texts(finance_status: str) -> dict[str, str]:
     return dict(FINANCE_STATUS_TEXT.get(finance_status) or FINANCE_STATUS_TEXT[FINANCE_WAITING_WB])
+
+
+def _expenses_status(finance_status: str, wb_deductions: float | None, acquiring: float | None, other_expenses: float | None) -> str:
+    if finance_status == FINANCE_OK:
+        return "EXPENSES_CONFIRMED"
+    if any(value not in (None, 0.0) for value in (wb_deductions, acquiring, other_expenses)):
+        return "EXPENSES_PARTIAL"
+    return "EXPENSES_ESTIMATED"
 
 
 def _source_entry(selected: Any, candidates: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -391,6 +400,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     data_quality_status = str(quality_snapshot.get("overall_status") or "UNKNOWN")
     advertising_status = _advertising_status(advertising_snapshot)
     cost_status = _cost_status(products_snapshot, cost_price)
+    expenses_status = _expenses_status(finance_status, wb_deductions, acquiring, other_expenses)
 
     sources = {
         "sales_revenue": _source_entry(sales_revenue, sales_revenue_candidates),
@@ -466,6 +476,10 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
             "cost_coverage_percent": cost_coverage_percent,
             "cost_price": cost_price,
         },
+        "expenses_status": {
+            "selected_source": "_expenses_status(finance_status, wb_deductions, acquiring, other_expenses)",
+            "selected_value": expenses_status,
+        },
     }
 
     source_notes = [
@@ -514,6 +528,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         finance_status=finance_status,
         advertising_status=advertising_status,
         cost_status=cost_status,
+        expenses_status=expenses_status,
         debug_sources=sources,
         source_notes=source_notes,
     )
