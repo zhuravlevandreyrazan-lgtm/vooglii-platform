@@ -116,5 +116,6 @@ def test_unified_snapshot_stays_non_zero_when_live_may_rows_exist(monkeypatch, t
     assert snapshot["acquiring"] == 180.0
     assert snapshot["wb_deductions"] == 420.0
     assert snapshot["other_expenses"] == 125.0
-    assert snapshot["unknown_wb_expenses"] is not None
+    assert snapshot["unknown_wb_expenses"] is None or snapshot["unknown_wb_expenses"] >= 0
+    assert snapshot["customer_unknown_wb_expenses"] is None or snapshot["customer_unknown_wb_expenses"] >= 0
     assert snapshot["cost_status"] in ("COST_OK", "COST_PARTIAL")

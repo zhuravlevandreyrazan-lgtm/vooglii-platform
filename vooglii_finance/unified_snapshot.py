@@ -65,6 +65,7 @@ class UnifiedFinancialSnapshot:
     penalties: float | None
     other_expenses: float | None
     unknown_wb_expenses: float | None
+    reconciliation_delta: float | None
     expenses_total: float | None
     profit_before_tax: float | None
     tax_amount: float | None
@@ -77,6 +78,7 @@ class UnifiedFinancialSnapshot:
     finance_status: str
     advertising_status: str
     cost_status: str
+    debug_sources: dict[str, Any] = field(default_factory=dict)
     source_notes: list[str] = field(default_factory=list)
 
 
@@ -133,6 +135,14 @@ def _sum_known(values: list[float | None]) -> float | None:
     return round(sum(known), 2)
 
 
+def _pick_first_money(*values: Any) -> float | None:
+    for value in values:
+        rounded = _round_money(value)
+        if rounded is not None:
+            return rounded
+    return None
+
+
 def _prefer_positive_money(*values: Any) -> float | None:
     fallback_zero: float | None = None
     for value in values:
@@ -186,6 +196,22 @@ def _finance_status_texts(finance_status: str) -> dict[str, str]:
     return dict(FINANCE_STATUS_TEXT.get(finance_status) or FINANCE_STATUS_TEXT[FINANCE_WAITING_WB])
 
 
+def _source_entry(selected: Any, candidates: list[tuple[str, Any]]) -> dict[str, Any]:
+    selected_money = _round_money(selected)
+    normalized_candidates = []
+    selected_source = None
+    for source_name, value in candidates:
+        rounded = _round_money(value)
+        normalized_candidates.append({"source": source_name, "value": rounded})
+        if selected_source is None and rounded == selected_money and rounded is not None:
+            selected_source = source_name
+    return {
+        "selected_source": selected_source or "unresolved",
+        "selected_value": selected_money,
+        "candidates": normalized_candidates,
+    }
+
+
 def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=None) -> UnifiedFinancialSnapshot:
     bot = bot or _get_bot()
     normalized_days = bot._center_days(days)
@@ -203,71 +229,86 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     profit_stats = _safe_get(lambda: bot.get_profit_stats(normalized_days, user_id), ()) or ()
     after_tax = _safe_get(lambda: bot.get_profit_stats_after_tax(normalized_days, user_id), {}) or {}
 
-    sales_revenue = _prefer_positive_money(
-        report_mgmt.get("revenue"),
-        profit_stats[0] if len(profit_stats) > 0 else None,
-        payment_snapshot.get("sales_revenue_total"),
-    )
+    sales_revenue_candidates = [
+        ("report_mgmt.revenue", report_mgmt.get("revenue")),
+        ("get_profit_stats.revenue", profit_stats[0] if len(profit_stats) > 0 else None),
+        ("payment_reconciliation.sales_revenue_total", payment_snapshot.get("sales_revenue_total")),
+    ]
+    sales_revenue = _prefer_positive_money(*(value for _, value in sales_revenue_candidates))
     orders_amount = _round_money(orders_stats[1] if len(orders_stats) > 1 else None)
-    wb_payout = _prefer_positive_money(
-        report_mgmt.get("payout"),
-        profit_stats[2] if len(profit_stats) > 2 else None,
-        payment_snapshot.get("sales_for_pay_total"),
-        payment_snapshot.get("weekly_payout_total_all"),
-    )
+    wb_payout_candidates = [
+        ("report_mgmt.payout", report_mgmt.get("payout")),
+        ("get_profit_stats.wb_payout", profit_stats[2] if len(profit_stats) > 2 else None),
+        ("payment_reconciliation.sales_for_pay_total", payment_snapshot.get("sales_for_pay_total")),
+        ("payment_reconciliation.weekly_payout_total_all", payment_snapshot.get("weekly_payout_total_all")),
+    ]
+    wb_payout = _prefer_positive_money(*(value for _, value in wb_payout_candidates))
     wb_payments_received = _round_money(payment_snapshot.get("weekly_payout_total_all"))
 
     sales_count = int(period_stats[0] or 0)
     cost_coverage_percent = float(products_snapshot.get("cost_coverage_percent") or 0)
     profit_cost_price = _round_money(profit_stats[3] if len(profit_stats) > 3 else None)
-    cost_price = _prefer_positive_money(
-        report_mgmt.get("cost_price"),
-        profit_cost_price,
-        financial_engine_snapshot.get("cost_total"),
-    )
+    cost_price_candidates = [
+        ("report_mgmt.cost_price", report_mgmt.get("cost_price")),
+        ("get_profit_stats.cost_price", profit_cost_price),
+        ("financial_engine.cost_total", financial_engine_snapshot.get("cost_total")),
+    ]
+    cost_price = _prefer_positive_money(*(value for _, value in cost_price_candidates))
     if cost_price in (0.0, None):
         if cost_coverage_percent < 95 or sales_revenue not in (None, 0) or sales_count > 0:
             cost_price = None
 
-    advertising_spend = _prefer_positive_money(
-        advertising_snapshot.get("total_spend"),
-        report_mgmt.get("advertising"),
-        profit_stats[5] if len(profit_stats) > 5 else None,
-    )
-    logistics = _prefer_positive_money(
-        report_mgmt.get("logistics"),
-        profit_stats[4] if len(profit_stats) > 4 else None,
-        financial_engine_snapshot.get("logistics_total"),
-        finance_health.get("logistics"),
-    )
-    storage = _prefer_positive_money(
-        report_mgmt.get("storage"),
-        profit_stats[6] if len(profit_stats) > 6 else None,
-        financial_engine_snapshot.get("storage_total"),
-        finance_health.get("storage"),
-    )
-    acquiring = _prefer_positive_money(
-        report_mgmt.get("acquiring"),
-        financial_engine_snapshot.get("payment_services_commission_total"),
-        financial_engine_snapshot.get("acquiring_total"),
-        finance_health.get("acquiring"),
-    )
-    wb_deductions = _prefer_positive_money(
-        report_mgmt.get("deductions"),
-        financial_engine_snapshot.get("deductions_total"),
-        finance_health.get("deductions"),
-    )
+    advertising_spend_candidates = [
+        ("advertising_customer.total_spend", advertising_snapshot.get("total_spend")),
+        ("report_mgmt.advertising", report_mgmt.get("advertising")),
+        ("get_profit_stats.advertising", profit_stats[5] if len(profit_stats) > 5 else None),
+    ]
+    advertising_spend = _prefer_positive_money(*(value for _, value in advertising_spend_candidates))
+    logistics_candidates = [
+        ("report_mgmt.logistics", report_mgmt.get("logistics")),
+        ("get_profit_stats.logistics", profit_stats[4] if len(profit_stats) > 4 else None),
+        ("financial_engine.logistics_total", financial_engine_snapshot.get("logistics_total")),
+        ("finance_difference.logistics", finance_health.get("logistics")),
+    ]
+    logistics = _prefer_positive_money(*(value for _, value in logistics_candidates))
+    storage_candidates = [
+        ("report_mgmt.storage", report_mgmt.get("storage")),
+        ("get_profit_stats.storage", profit_stats[6] if len(profit_stats) > 6 else None),
+        ("financial_engine.storage_total", financial_engine_snapshot.get("storage_total")),
+        ("finance_difference.storage", finance_health.get("storage")),
+    ]
+    storage = _prefer_positive_money(*(value for _, value in storage_candidates))
+    acquiring_candidates = [
+        ("report_mgmt.acquiring", report_mgmt.get("acquiring")),
+        ("financial_engine.payment_services_commission_total", financial_engine_snapshot.get("payment_services_commission_total")),
+        ("financial_engine.acquiring_total", financial_engine_snapshot.get("acquiring_total")),
+        ("finance_difference.acquiring", finance_health.get("acquiring")),
+    ]
+    acquiring = _prefer_positive_money(*(value for _, value in acquiring_candidates))
+    wb_deductions_candidates = [
+        ("report_mgmt.deductions", report_mgmt.get("deductions")),
+        ("financial_engine.deductions_total", financial_engine_snapshot.get("deductions_total")),
+        ("finance_difference.deductions", finance_health.get("deductions")),
+    ]
+    wb_deductions = _prefer_positive_money(*(value for _, value in wb_deductions_candidates))
     penalties = None
-    other_expenses = _prefer_positive_money(
-        report_mgmt.get("other"),
-        finance_health.get("explicit_other_deductions"),
-        finance_health.get("other_deductions"),
-    )
-    unknown_wb_expenses = _prefer_positive_money(
-        report_mgmt.get("unexplained"),
-        finance_health.get("residual_other_deductions"),
-        finance_health.get("unexplained_total"),
-    )
+    other_expenses_candidates = [
+        ("report_mgmt.other", report_mgmt.get("other")),
+        ("finance_difference.explicit_other_deductions", finance_health.get("explicit_other_deductions")),
+        ("finance_difference.other_deductions", finance_health.get("other_deductions")),
+    ]
+    other_expenses = _prefer_positive_money(*(value for _, value in other_expenses_candidates))
+    unknown_candidates = [
+        ("report_mgmt.unexplained", report_mgmt.get("unexplained")),
+        ("finance_difference.residual_other_deductions", finance_health.get("residual_other_deductions")),
+        ("finance_difference.unexplained_total", finance_health.get("unexplained_total")),
+    ]
+    raw_unknown_wb_expenses = _pick_first_money(*(value for _, value in unknown_candidates))
+    unknown_wb_expenses = None
+    reconciliation_delta = None
+    if raw_unknown_wb_expenses is not None:
+        unknown_wb_expenses = round(max(float(raw_unknown_wb_expenses), 0.0), 2)
+        reconciliation_delta = round(float(raw_unknown_wb_expenses), 2) if float(raw_unknown_wb_expenses) < 0 else 0.0
 
     finance_status = _finance_status(financial_engine_snapshot, finance_api_snapshot, finance_health)
     if finance_status != FINANCE_OK:
@@ -281,8 +322,8 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
             wb_deductions = None
         if other_expenses == 0.0:
             other_expenses = None
-        if unknown_wb_expenses == 0.0:
-            unknown_wb_expenses = None
+        if reconciliation_delta == 0.0:
+            reconciliation_delta = None
 
     expenses_total = _sum_known([
         cost_price,
@@ -351,6 +392,82 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     advertising_status = _advertising_status(advertising_snapshot)
     cost_status = _cost_status(products_snapshot, cost_price)
 
+    sources = {
+        "sales_revenue": _source_entry(sales_revenue, sales_revenue_candidates),
+        "wb_payout": _source_entry(wb_payout, wb_payout_candidates),
+        "wb_payments_received": _source_entry(wb_payments_received, [("payment_reconciliation.weekly_payout_total_all", payment_snapshot.get("weekly_payout_total_all"))]),
+        "cost_price": _source_entry(cost_price, cost_price_candidates),
+        "advertising_spend": _source_entry(advertising_spend, advertising_spend_candidates),
+        "logistics": _source_entry(logistics, logistics_candidates),
+        "storage": _source_entry(storage, storage_candidates),
+        "acquiring": _source_entry(acquiring, acquiring_candidates),
+        "wb_deductions": _source_entry(wb_deductions, wb_deductions_candidates),
+        "other_expenses": _source_entry(other_expenses, other_expenses_candidates),
+        "unknown_wb_expenses": _source_entry(raw_unknown_wb_expenses, unknown_candidates),
+        "reconciliation_delta": {
+            "selected_source": "derived_from_negative_unknown_wb_expenses" if reconciliation_delta not in (None, 0.0) else None,
+            "selected_value": _round_money(reconciliation_delta),
+            "candidates": [],
+        },
+        "tax_amount": _source_entry(
+            tax_amount,
+            [
+                ("profit_stats_after_tax.tax", after_tax.get("tax")),
+                ("financial_engine.tax_amount", financial_engine_snapshot.get("tax_amount")),
+            ],
+        ),
+        "expenses_total": {
+            "selected_source": "derived_sum",
+            "selected_value": _round_money(expenses_total),
+            "formula": "cost_price + advertising_spend + logistics + storage + acquiring + wb_deductions + penalties + other_expenses + positive_unknown_wb_expenses",
+            "components": {
+                "cost_price": cost_price,
+                "advertising_spend": advertising_spend,
+                "logistics": logistics,
+                "storage": storage,
+                "acquiring": acquiring,
+                "wb_deductions": wb_deductions,
+                "penalties": penalties,
+                "other_expenses": other_expenses,
+                "positive_unknown_wb_expenses": unknown_wb_expenses,
+            },
+        },
+        "profit_before_tax": {
+            "selected_source": "derived_sales_revenue_minus_expenses_total" if profit_before_tax is not None else None,
+            "selected_value": _round_money(profit_before_tax),
+        },
+        "net_profit": {
+            "selected_source": (
+                "financial_engine.official_net_profit"
+                if finance_status == FINANCE_OK and official_net_profit is not None
+                else "operational_profit_minus_tax_or_profit_before_tax"
+                if net_profit is not None
+                else None
+            ),
+            "selected_value": _round_money(net_profit),
+        },
+        "finance_status": {
+            "selected_source": "_finance_status(financial_engine_snapshot, finance_api_snapshot, finance_health)",
+            "selected_value": finance_status,
+            "official_new_finance_available": bool(financial_engine_snapshot.get("official_new_finance_available")),
+            "finance_api_status": finance_api_snapshot.get("status"),
+            "coverage_percent": float(finance_health.get("coverage_percent") or 0),
+        },
+        "advertising_status": {
+            "selected_source": "_advertising_status(advertising_snapshot)",
+            "selected_value": advertising_status,
+            "normalized_status": advertising_snapshot.get("normalized_status"),
+            "status_kind": advertising_snapshot.get("status_kind"),
+            "total_spend": _round_money(advertising_snapshot.get("total_spend")),
+        },
+        "cost_status": {
+            "selected_source": "_cost_status(products_snapshot, cost_price)",
+            "selected_value": cost_status,
+            "cost_coverage_percent": cost_coverage_percent,
+            "cost_price": cost_price,
+        },
+    }
+
     source_notes = [
         "sales_revenue -> report_mgmt_snapshot -> get_profit_stats -> payment_reconciliation_snapshot",
         "orders_amount -> orders snapshot",
@@ -384,6 +501,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         penalties=penalties,
         other_expenses=other_expenses,
         unknown_wb_expenses=unknown_wb_expenses,
+        reconciliation_delta=reconciliation_delta,
         expenses_total=expenses_total,
         profit_before_tax=profit_before_tax,
         tax_amount=tax_amount,
@@ -396,6 +514,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         finance_status=finance_status,
         advertising_status=advertising_status,
         cost_status=cost_status,
+        debug_sources=sources,
         source_notes=source_notes,
     )
 
@@ -411,6 +530,11 @@ def build_unified_financial_snapshot_dict(user_id: int, days, *, context=None, b
     payload["margin"] = payload.get("margin_percent")
     payload["roi"] = payload.get("roi_percent")
     payload["finance_status_texts"] = _finance_status_texts(snapshot.finance_status)
+    products_snapshot = dict(_safe_get(lambda: (bot or _get_bot())._products_center_snapshot(user=user_id, days=days), {}) or {})
+    payload["cost_coverage_percent"] = float(products_snapshot.get("cost_coverage_percent") or 0)
+    payload["positive_unknown_wb_expenses"] = payload.get("unknown_wb_expenses")
+    payload["customer_unknown_wb_expenses"] = payload.get("unknown_wb_expenses")
+    payload["overclassified_expenses"] = payload.get("reconciliation_delta")
     return payload
 
 

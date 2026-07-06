@@ -17550,7 +17550,8 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     finance_health = get_finance_difference_snapshot(user, days[0], days[1])
     advertising_snapshot = _advertising_customer_snapshot(user, days)
     management_snapshot = _report_mgmt_snapshot(user, days)
-    finance_status = get_finance_status(user, days, financial_engine_snapshot=financial_engine_snapshot)
+    unified_finance_status = str(unified_snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
+    finance_status_text = _customer_finance_status_label(unified_finance_status)
     period_label = f"{days[0]}..{days[1]}"
     engine_status = str(financial_engine_snapshot.get('status') or 'UNKNOWN')
     return {
@@ -17574,8 +17575,9 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'other_expenses_total': unified_snapshot.get('other_expenses'),
         'unknown_wb_expenses_total': unified_snapshot.get('unknown_wb_expenses'),
         'expenses_total': unified_snapshot.get('expenses_total'),
-        'finance_status_text': finance_status.get('finance_text'),
-        'finance_status': unified_snapshot.get('finance_status'),
+        'finance_status_text': finance_status_text,
+        'finance_status': unified_finance_status,
+        'finance_status_source': ((unified_snapshot.get('debug_sources') or {}).get('finance_status') or {}).get('selected_source'),
         'profit_audit_safety_status': 'OFFICIAL_READY' if bool(financial_engine_snapshot.get('official_new_finance_available')) else ('LEGACY_FALLBACK' if engine_status == 'LEGACY_FALLBACK' else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE'),
         'coverage_percent': float(finance_health.get('coverage_percent') or 0),
         'risks': list(financial_engine_snapshot.get('warnings') or [])[:3],
@@ -17593,8 +17595,9 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
     snapshot = _finance_center_snapshot(user=user, days=days)
-    official_available = bool(snapshot.get('official_new_finance_available'))
-    status_text = str(snapshot.get('finance_status_text') or _customer_finance_status_label('FINANCE_OK' if official_available else 'FINANCE_WAITING_WB'))
+    finance_status = str(snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
+    official_available = finance_status == 'FINANCE_OK'
+    status_text = str(snapshot.get('finance_status_text') or _customer_finance_status_label(finance_status))
     unified_snapshot = dict(snapshot.get('unified_snapshot') or {})
     cost_label = _customer_cost_status_label(
         unified_snapshot.get('cost_status'),
@@ -17623,8 +17626,11 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         money_lines.append(f"- Эквайринг WB: {_money_or_state(snapshot.get('acquiring_total'))}")
     if snapshot.get('other_expenses_total') is not None:
         money_lines.append(f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses_total'))}")
-    if snapshot.get('unknown_wb_expenses_total') is not None:
+    if snapshot.get('unknown_wb_expenses_total') is not None and float(snapshot.get('unknown_wb_expenses_total') or 0) > 0:
         money_lines.append(f"- Нераспознанные расходы WB: {_money_or_state(snapshot.get('unknown_wb_expenses_total'))}")
+    if unified_snapshot.get('reconciliation_delta') is not None and float(unified_snapshot.get('reconciliation_delta') or 0) < 0:
+        money_lines.append(f"- Расхождение классификации расходов WB: {_money_or_state(abs(float(unified_snapshot.get('reconciliation_delta') or 0)))}")
+        money_lines.append("- Часть расходов уже учтена в других категориях.")
     if all(snapshot.get(key) is None for key in ('logistics_total', 'storage_total', 'other_expenses_total', 'unknown_wb_expenses_total')):
         money_lines.append("- Остальные расходы: ожидают подтверждения" if not official_available else "- Остальные расходы: подтверждены в расчёте")
     important_note = (
@@ -19453,7 +19459,6 @@ def _unified_report_text(user, days):
         f'Эквайринг: {_money_or_state(snapshot.get("acquiring"), "данные обновляются")}',
         f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}',
         f'Прочие расходы: {_money_or_state(snapshot.get("other_expenses"), "данные обновляются")}',
-        f'Нераспознанные расходы WB: {_money_or_state(snapshot.get("unknown_wb_expenses"), "нет данных")}',
         f'Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
         f'Прибыль до налога: {_money_or_state(snapshot.get("profit_before_tax"), "не рассчитано")}',
         f'Налог: {_money_or_state(snapshot.get("tax_amount"), "не рассчитано")}',
@@ -19469,6 +19474,12 @@ def _unified_report_text(user, days):
         '',
         f'Что важно: {_customer_finance_waiting_note(snapshot)}',
     ]
+    if snapshot.get("unknown_wb_expenses") is not None and float(snapshot.get("unknown_wb_expenses") or 0) > 0:
+        insert_at = 15
+        lines.insert(insert_at, f'Нераспознанные расходы WB: {_money_or_state(snapshot.get("unknown_wb_expenses"), "нет")}')
+    if snapshot.get("reconciliation_delta") is not None and float(snapshot.get("reconciliation_delta") or 0) < 0:
+        lines.insert(-5, f'Расхождение классификации расходов WB: {_money_or_state(abs(float(snapshot.get("reconciliation_delta") or 0)), "нет данных")}.')
+        lines.insert(-5, 'Часть расходов уже учтена в других категориях.')
     return '\n'.join(lines)
 
 

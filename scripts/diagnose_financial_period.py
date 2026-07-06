@@ -144,6 +144,76 @@ def _print_products_summary(cur: sqlite3.Cursor, user_id: int) -> None:
         print(f"{telegram_id}{marker} | rows {total_rows} | with cost {rows_with_cost}")
 
 
+def _print_cost_matching_diagnostics(cur: sqlite3.Cursor, user_id: int) -> None:
+    sales_row = _fetchone(
+        cur,
+        """
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(CASE WHEN nm_id IS NOT NULL AND TRIM(CAST(nm_id AS TEXT))!='' AND TRIM(CAST(nm_id AS TEXT))!='0' THEN 1 ELSE 0 END),0),
+            COALESCE(SUM(CASE WHEN TRIM(COALESCE(supplier_article,''))!='' THEN 1 ELSE 0 END),0),
+            COUNT(DISTINCT CASE WHEN nm_id IS NOT NULL AND TRIM(CAST(nm_id AS TEXT))!='' AND TRIM(CAST(nm_id AS TEXT))!='0' THEN CAST(nm_id AS TEXT) END),
+            COUNT(DISTINCT CASE WHEN TRIM(COALESCE(supplier_article,''))!='' THEN TRIM(supplier_article) END)
+        FROM sales
+        WHERE telegram_id=? AND substr(sale_date,1,10) BETWEEN ? AND ?
+        """,
+        (user_id, ARGS.date_from, ARGS.date_to),
+    )
+    print(f"sales rows: {int((sales_row or [0])[0] or 0)}")
+    print(f"sales rows with nm_id: {int((sales_row or [0] * 5)[1] or 0)}")
+    print(f"sales rows with supplier_article: {int((sales_row or [0] * 5)[2] or 0)}")
+    print(f"distinct nm_id in sales: {int((sales_row or [0] * 5)[3] or 0)}")
+    print(f"distinct supplier_article in sales: {int((sales_row or [0] * 5)[4] or 0)}")
+
+    product_row = _fetchone(
+        cur,
+        """
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(CASE WHEN COALESCE(cost_price,0)>0 THEN 1 ELSE 0 END),0),
+            COUNT(DISTINCT CASE WHEN TRIM(COALESCE(supplier_article,''))!='' THEN TRIM(supplier_article) END)
+        FROM products
+        WHERE telegram_id IN (?, 0)
+        """,
+        (user_id,),
+    )
+    print(f"products rows user+global: {int((product_row or [0])[0] or 0)}")
+    print(f"products rows with cost user+global: {int((product_row or [0] * 3)[1] or 0)}")
+    print(f"distinct supplier_article in products user+global: {int((product_row or [0] * 3)[2] or 0)}")
+
+    unmatched_rows = _fetchall(
+        cur,
+        """
+        SELECT
+            COALESCE(NULLIF(TRIM(s.supplier_article), ''), '[no article]') AS article_key,
+            COALESCE(NULLIF(TRIM(CAST(s.nm_id AS TEXT)), ''), '[no nm_id]') AS nm_key,
+            COUNT(*) AS rows_count,
+            COALESCE(SUM(s.for_pay),0) AS payout_total
+        FROM sales s
+        WHERE s.telegram_id=?
+          AND substr(s.sale_date,1,10) BETWEEN ? AND ?
+          AND COALESCE((
+                SELECT p2.cost_price
+                FROM products p2
+                WHERE p2.supplier_article=s.supplier_article
+                  AND p2.telegram_id IN (s.telegram_id, 0)
+                ORDER BY p2.telegram_id DESC
+                LIMIT 1
+          ), 0) <= 0
+        GROUP BY article_key, nm_key
+        ORDER BY payout_total DESC, rows_count DESC, article_key ASC
+        LIMIT 10
+        """,
+        (user_id, ARGS.date_from, ARGS.date_to),
+    )
+    if unmatched_rows:
+        print("top unmatched SKU:")
+        for article_key, nm_key, rows_count, payout_total in unmatched_rows:
+            print(f"  article={article_key} | nm_id={nm_key} | rows={rows_count} | payout={_money(payout_total)}")
+    else:
+        print("top unmatched SKU: none")
+
+
 def _print_finance_breakdown(cur: sqlite3.Cursor, user_id: int) -> None:
     row = _fetchone(
         cur,
@@ -171,6 +241,62 @@ def _print_finance_breakdown(cur: sqlite3.Cursor, user_id: int) -> None:
     print(f"additional_payment: {_money((row or [0] * 7)[6] or 0)}")
 
 
+def _customer_renderer_fields(unified: dict[str, object]) -> dict[str, dict[str, object]]:
+    report_fields = {
+        "revenue": unified.get("sales_revenue"),
+        "advertising": unified.get("advertising_spend"),
+        "logistics": unified.get("logistics"),
+        "storage": unified.get("storage"),
+        "acquiring": unified.get("acquiring"),
+        "wb_deductions": unified.get("wb_deductions"),
+        "other_expenses": unified.get("other_expenses"),
+        "unknown_wb_expenses": unified.get("customer_unknown_wb_expenses"),
+        "reconciliation_delta": unified.get("reconciliation_delta"),
+        "expenses_total": unified.get("expenses_total"),
+        "profit_before_tax": unified.get("profit_before_tax"),
+        "net_profit": unified.get("net_profit"),
+        "finance_status": unified.get("finance_status"),
+        "ads_status": unified.get("advertising_status"),
+        "cost_status": unified.get("cost_status"),
+    }
+    finance_fields = {
+        "wb_payout": unified.get("wb_payout"),
+        "payments_received": unified.get("wb_payments_received"),
+        "advertising": unified.get("advertising_spend"),
+        "cost_price": unified.get("cost_price"),
+        "logistics": unified.get("logistics"),
+        "storage": unified.get("storage"),
+        "acquiring": unified.get("acquiring"),
+        "wb_deductions": unified.get("wb_deductions"),
+        "other_expenses": unified.get("other_expenses"),
+        "unknown_wb_expenses": unified.get("customer_unknown_wb_expenses"),
+        "reconciliation_delta": unified.get("reconciliation_delta"),
+        "expenses_total": unified.get("expenses_total"),
+        "profit": unified.get("net_profit"),
+        "finance_status": unified.get("finance_status"),
+        "cost_status": unified.get("cost_status"),
+    }
+    pnl_fields = {
+        "revenue": unified.get("sales_revenue"),
+        "advertising": unified.get("advertising_spend"),
+        "logistics": unified.get("logistics"),
+        "cost_price": unified.get("cost_price"),
+        "expenses_total": unified.get("expenses_total"),
+        "profit": unified.get("net_profit"),
+        "profit_before_tax": unified.get("profit_before_tax"),
+        "margin_percent": unified.get("margin_percent"),
+        "finance_status": unified.get("finance_status"),
+        "cost_status": unified.get("cost_status"),
+    }
+    return {"report": report_fields, "finance": finance_fields, "pnl": pnl_fields}
+
+
+def _print_mapping(title: str, payload: dict[str, object]) -> None:
+    _print_section(title)
+    for key, value in payload.items():
+        print(f"{key}: {value}")
+
+
 def _print_runtime_snapshots(user_id: int) -> None:
     days = (ARGS.date_from, ARGS.date_to)
     request_context = telegram_bot._snapshot_context()
@@ -179,6 +305,8 @@ def _print_runtime_snapshots(user_id: int) -> None:
     finance = telegram_bot.get_finance_difference_snapshot(user_id, ARGS.date_from, ARGS.date_to)
     payment = telegram_bot._payment_reconciliation_snapshot(user_id, ARGS.date_from, ARGS.date_to)
     profit_audit = telegram_bot._profit_audit_snapshot(user_id, days)
+    renderer_fields = _customer_renderer_fields(unified)
+    sources = dict(unified.get("debug_sources") or {})
 
     _print_section("Unified Snapshot")
     for key in (
@@ -192,12 +320,18 @@ def _print_runtime_snapshots(user_id: int) -> None:
         "wb_deductions",
         "other_expenses",
         "unknown_wb_expenses",
+        "reconciliation_delta",
+        "expenses_total",
+        "profit_before_tax",
         "tax_amount",
         "net_profit",
         "finance_status",
+        "advertising_status",
         "cost_status",
     ):
         print(f"{key}: {unified.get(key)}")
+
+    _print_mapping("Unified Snapshot Sources", sources)
 
     _print_section("Report Mgmt Snapshot")
     for key in ("revenue", "payout", "cost_price", "advertising", "logistics", "storage", "acquiring", "deductions", "other", "unexplained"):
@@ -215,6 +349,40 @@ def _print_runtime_snapshots(user_id: int) -> None:
     components = (profit_audit.get("profit_reconciliation_debug") or {}).get("components") or {}
     for key, value in components.items():
         print(f"{key}: {value}")
+
+    _print_mapping("Report Renderer Fields", renderer_fields["report"])
+    _print_mapping("Finance Renderer Fields", renderer_fields["finance"])
+    _print_mapping("P&L Renderer Fields", renderer_fields["pnl"])
+
+    _print_section("Status Sources")
+    print(f"finance_status source: {((sources.get('finance_status') or {}).get('selected_source'))}")
+    print(f"ads_status source: {((sources.get('advertising_status') or {}).get('selected_source'))}")
+    print(f"cost_status source: {((sources.get('cost_status') or {}).get('selected_source'))}")
+
+    _print_section("Advertising Source Selection")
+    advertising_table_total = _money((telegram_bot._advertising_customer_snapshot(user_id, days) or {}).get("total_spend"))
+    expenses_rows = []
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        expenses_rows = _fetchone(
+            cur,
+            """
+            SELECT COALESCE(SUM(amount),0)
+            FROM expenses
+            WHERE telegram_id=?
+              AND substr(expense_date,1,10) BETWEEN ? AND ?
+              AND lower(COALESCE(expense_type,''))='advertising'
+            """,
+            (user_id, ARGS.date_from, ARGS.date_to),
+        )
+        conn.close()
+    except Exception:
+        expenses_rows = (0.0,)
+    print(f"advertising table total: {advertising_table_total}")
+    print(f"expenses advertising total: {_money((expenses_rows or [0])[0] or 0)}")
+    print(f"ads health total: {_money((telegram_bot._advertising_customer_snapshot(user_id, days) or {}).get('total_spend'))}")
+    print(f"selected source: {((sources.get('advertising_spend') or {}).get('selected_source'))}")
 
     _print_section("Customer Outputs")
     print("/report")
@@ -263,6 +431,9 @@ def main() -> None:
 
         _print_section("Top Unmatched Cost SKU")
         _print_unmatched_costs(cur, user_id)
+
+        _print_section("Cost Matching Diagnostics")
+        _print_cost_matching_diagnostics(cur, user_id)
 
         _print_section("Expense Type Breakdown")
         rows = _fetchall(
