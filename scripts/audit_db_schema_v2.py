@@ -21,6 +21,7 @@ REQUIRED_TABLES = {
     "expenses": {"user_columns": ("telegram_id", "user_id"), "date_columns": ("expense_date",), "unique_columns": ("unique_key",)},
     "finance_raw_audit": {"user_columns": ("telegram_id", "user_id"), "date_columns": ("report_date",), "unique_columns": ("id", "rrd_id")},
     "stocks": {"user_columns": ("telegram_id", "user_id"), "date_columns": ("stock_date",), "unique_columns": ("unique_key",)},
+    "product_catalog": {"user_columns": ("user_id",), "date_columns": ("updated_at", "created_at"), "unique_columns": ("nm_id",)},
     "sync_state": {"user_columns": ("telegram_id", "user_id"), "date_columns": ("updated_at",), "unique_columns": ("sync_block",)},
     "finance_expense_events": {"user_columns": ("user_id",), "date_columns": ("event_date",), "unique_columns": ("source_event_id",)},
     "stock_snapshots": {"user_columns": ("user_id",), "date_columns": ("snapshot_date",), "unique_columns": ("source_snapshot_id",)},

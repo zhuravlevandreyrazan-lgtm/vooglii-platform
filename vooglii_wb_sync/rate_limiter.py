@@ -25,6 +25,8 @@ def parse_status_kind(status: str | None) -> str:
         return SYNC_UNAVAILABLE
     if "PARTIAL" in value:
         return SYNC_PARTIAL
+    if value == "MISSING_COST_VALUES":
+        return SYNC_PARTIAL
     if value.startswith("EMPTY"):
         return SYNC_PARTIAL
     return SYNC_ERROR

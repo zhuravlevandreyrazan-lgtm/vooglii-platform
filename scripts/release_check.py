@@ -2,134 +2,95 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-COMMANDS = [
-    [
-        sys.executable,
-        "-m",
+PY_COMPILE_FILES = [
+    "config.py",
+    "db_manager.py",
+    "user_manager.py",
+    "background_jobs.py",
+    "telegram_bot.py",
+    "product_catalog.py",
+    "product_manager.py",
+    "report.py",
+    "vooglii_telegram/legacy_bot.py",
+    "vooglii_telegram/registry.py",
+    "vooglii_telegram/commands/registry.py",
+    "vooglii_telegram/services/sync_service.py",
+    "vooglii_wb_sync/products_loader.py",
+    "vooglii_wb_sync/rate_limiter.py",
+    "vooglii_wb_sync/sync_orchestrator.py",
+    "vooglii_finance/unified_snapshot.py",
+    "scripts/audit_db_schema_v2.py",
+    "scripts/audit_finance_sources.py",
+    "scripts/audit_product_catalog.py",
+    "scripts/check_wb_token_scopes.py",
+    "scripts/audit_wb_data_loading.py",
+    "scripts/diagnose_financial_period.py",
+    "scripts/backfill_financial_period.py",
+]
+
+REQUIRED_PYTEST_TESTS = [
+    "tests/test_product_catalog_v2.py",
+    "tests/test_cost_matching_v2.py",
+    "tests/test_product_catalog_migration.py",
+    "tests/test_product_catalog_integration.py",
+    "tests/test_cost_commands.py",
+    "tests/test_wb_data_loading_audit.py",
+    "tests/test_financial_core_integrity.py",
+    "tests/test_financial_core_periods.py",
+]
+
+COMMANDS: list[tuple[str, list[str]]] = [
+    (
         "py_compile",
-        "config.py",
-        "db_manager.py",
-        "user_manager.py",
-        "background_jobs.py",
-        "telegram_bot.py",
-        "vooglii_telegram/legacy_bot.py",
-        "vooglii_telegram/app.py",
-        "vooglii_telegram/registry.py",
-        "vooglii_telegram/runtime/__init__.py",
-        "vooglii_telegram/runtime/error_handler.py",
-        "vooglii_telegram/runtime/heartbeat.py",
-        "vooglii_telegram/runtime/jobs.py",
-        "vooglii_telegram/runtime/permissions.py",
-        "vooglii_telegram/runtime/logging.py",
-        "vooglii_telegram/handlers/__init__.py",
-        "vooglii_telegram/handlers/_bot.py",
-        "vooglii_telegram/handlers/start.py",
-        "vooglii_telegram/handlers/navigation.py",
-        "vooglii_telegram/handlers/profile.py",
-        "vooglii_telegram/handlers/business.py",
-        "vooglii_telegram/handlers/finance.py",
-        "vooglii_telegram/handlers/products.py",
-        "vooglii_telegram/handlers/admin.py",
-        "vooglii_telegram/handlers/developer.py",
-        "vooglii_telegram/handlers/legacy.py",
-        "vooglii_telegram/handlers/system.py",
-        "vooglii_telegram/handlers/advisor.py",
-        "vooglii_telegram/handlers/analytics.py",
-        "vooglii_telegram/handlers/advertising.py",
-        "vooglii_telegram/handlers/reports.py",
-        "vooglii_telegram/handlers/sales.py",
-        "vooglii_telegram/handlers/profit.py",
-        "vooglii_telegram/handlers/stocks.py",
-        "vooglii_telegram/handlers/connect.py",
-        "vooglii_telegram/handlers/update.py",
-        "vooglii_telegram/services/__init__.py",
-        "vooglii_telegram/services/account_service.py",
-        "vooglii_telegram/services/sync_service.py",
-        "vooglii_wb_sync/__init__.py",
-        "vooglii_wb_sync/token_provider.py",
-        "vooglii_wb_sync/rate_limiter.py",
-        "vooglii_wb_sync/sync_state.py",
-        "vooglii_wb_sync/sales_loader.py",
-        "vooglii_wb_sync/orders_loader.py",
-        "vooglii_wb_sync/advertising_loader.py",
-        "vooglii_wb_sync/finance_loader.py",
-        "vooglii_wb_sync/stocks_loader.py",
-        "vooglii_wb_sync/products_loader.py",
-        "vooglii_wb_sync/sync_orchestrator.py",
-        "scripts/audit_db_schema_v2.py",
-        "scripts/audit_finance_sources.py",
-        "vooglii_telegram/ux/__init__.py",
-        "vooglii_telegram/ux/design.py",
-        "vooglii_telegram/ux/navigation.py",
-        "vooglii_telegram/ux/screens.py",
-        "vooglii_telegram/ux/empty_states.py",
-        "vooglii_telegram/ux/paywall.py",
-        "vooglii_telegram/ux/periods.py",
-        "vooglii_finance/__init__.py",
-        "vooglii_finance/bridges.py",
-        "vooglii_finance/unified_snapshot.py",
-    ],
-    [sys.executable, "tests/test_token_crypto.py"],
-    [sys.executable, "tests/test_wb_token_storage.py"],
-    [sys.executable, "tests/test_secure_logging.py"],
-    [sys.executable, "tests/test_permissions.py"],
-    [sys.executable, "tests/test_command_registry.py"],
-    [sys.executable, "tests/test_connect_flow.py"],
-    [sys.executable, "tests/test_disconnect_flow.py"],
-    [sys.executable, "tests/test_sqlite_settings.py"],
-    [sys.executable, "tests/test_telegram_healthcheck.py"],
-    [sys.executable, "tests/test_update_sync_service.py"],
-    [sys.executable, "tests/test_telegram_customer_ux_v2.py"],
-    [sys.executable, "tests/test_telegram_rc_final_polish.py"],
-    [sys.executable, "tests/test_telegram_start_runtime_smoke.py"],
-    [sys.executable, "tests/test_telegram_runtime_handler_audit.py"],
-    [sys.executable, "tests/test_advertising_loader.py"],
-    [sys.executable, "tests/test_ads_health.py"],
-    [sys.executable, "tests/test_ads_sku_linking.py"],
-    [sys.executable, "tests/test_advertising_customer_text.py"],
-    [sys.executable, "tests/test_advertising_customer_ux_v2.py"],
-    [sys.executable, "tests/test_advertising_business_finance_integration.py"],
-    [sys.executable, "tests/test_adsaudit_customer_vs_debug.py"],
-    [sys.executable, "tests/test_wb_sync_rate_limiter.py"],
-    [sys.executable, "tests/test_wb_sync_token_provider.py"],
-    [sys.executable, "tests/test_wb_sync_orchestrator.py"],
-    [sys.executable, "tests/test_wb_sync_backfill_partial.py"],
-    [sys.executable, "tests/test_wb_sync_source_map.py"],
-    [sys.executable, "tests/test_db_schema_v2.py"],
-    [sys.executable, "tests/test_financial_snapshot_audit.py"],
-    [sys.executable, "tests/test_finance_expense_events.py"],
-    [sys.executable, "tests/test_stock_snapshots_bridge.py"],
-    [sys.executable, "tests/test_finance_explain.py"],
-    [sys.executable, "tests/test_finance_source_integrity.py"],
-    [sys.executable, "tests/test_finance_period_filter.py"],
-    [sys.executable, "tests/test_finance_no_duplicates.py"],
-    [sys.executable, "tests/test_finance_source_chain.py"],
-    [sys.executable, "tests/test_finance_other_source_traceability.py"],
-    [sys.executable, "scripts/audit_db_schema_v2.py"],
-    [sys.executable, "tests/test_report_consistency.py"],
-    [sys.executable, "-m", "pytest", "tests/test_financial_core_integrity.py", "-q"],
-    [sys.executable, "-m", "pytest", "tests/test_financial_core_periods.py", "-q"],
-    [sys.executable, "tests/test_finance_confidence_layer.py"],
-    [sys.executable, "tests/test_june_2026_financial_consistency.py"],
-    [sys.executable, "tests/test_rc2_unified_business_views.py"],
-    [sys.executable, "tests/test_callback_routing_rc3.py"],
-    [sys.executable, "tests/test_rc3_status_consistency.py"],
-    [sys.executable, "tests/test_error_handler.py"],
+        [sys.executable, "-m", "py_compile", *PY_COMPILE_FILES],
+    ),
+    (
+        "command_registry",
+        [sys.executable, "tests/test_command_registry.py"],
+    ),
+    (
+        "update_sync_service",
+        [sys.executable, "tests/test_update_sync_service.py"],
+    ),
+    (
+        "db_schema_v2",
+        [sys.executable, "scripts/audit_db_schema_v2.py"],
+    ),
+    (
+        "required_pytest_suite",
+        [sys.executable, "-m", "pytest", "-q", *REQUIRED_PYTEST_TESTS],
+    ),
 ]
 
 
+def _format_seconds(value: float) -> str:
+    return f"{value:.2f}s"
+
+
 def main() -> int:
-    for command in COMMANDS:
-        print(f"RUN {' '.join(command)}", flush=True)
+    phase_durations: list[tuple[str, float]] = []
+    total_start = time.perf_counter()
+    for label, command in COMMANDS:
+        print(f"RUN[{label}] {' '.join(command)}", flush=True)
+        started = time.perf_counter()
         completed = subprocess.run(command, cwd=PROJECT_ROOT)
+        elapsed = time.perf_counter() - started
+        phase_durations.append((label, elapsed))
+        print(f"DONE[{label}] {_format_seconds(elapsed)}", flush=True)
         if completed.returncode != 0:
-            print(f"FAILED {' '.join(command)}", flush=True)
+            print(f"FAILED[{label}] {' '.join(command)}", flush=True)
             return completed.returncode
+    total_elapsed = time.perf_counter() - total_start
+    print("RELEASE CHECK SUMMARY", flush=True)
+    for label, elapsed in phase_durations:
+        print(f"- {label}: {_format_seconds(elapsed)}", flush=True)
+    print(f"TOTAL {_format_seconds(total_elapsed)}", flush=True)
     print("RELEASE CHECK OK", flush=True)
     return 0
 

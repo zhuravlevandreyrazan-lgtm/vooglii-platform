@@ -41,6 +41,7 @@ COMMAND_SPECS = [
     _spec("finance", "Финансы", "Прибыль, выплаты и деньги", "customer", menu=True, help_item=True),
     _spec("advert", "Реклама", "Аналитика рекламы Wildberries", "customer", menu=True, help_item=True),
     _spec("products", "Товары", "SKU, ассортимент и прибыльность", "customer", menu=True, help_item=True),
+    _spec("cost", "Себестоимость", "Диагностика и заполнение себестоимости SKU", "customer", help_item=True),
     _spec("stocks", "Остатки", "Остатки и риски out-of-stock", "customer", menu=True, help_item=True),
     _spec("forecast", "Прогноз", "План пополнения и будущие риски", "customer", menu=True, help_item=True),
     _spec("advisor", "Советник", "AI-рекомендации по бизнесу", "customer", menu=True, help_item=True),

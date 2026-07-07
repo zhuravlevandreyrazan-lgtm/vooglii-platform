@@ -6,6 +6,7 @@ from pathlib import Path
 
 import config
 import db_manager
+import product_catalog
 
 
 def _load_module(module_name: str, relative_path: str):
@@ -21,6 +22,7 @@ def _prepare_db(tmp_path: Path) -> str:
     db_path = str(tmp_path / "audit.sqlite")
     config.DB_NAME = db_path
     db_manager.DB_NAME = db_path
+    product_catalog.DB_NAME = db_path
     db_manager.init_db()
     return db_path
 
@@ -80,7 +82,7 @@ def test_data_loading_audit_detects_finance_wider_than_sales_and_period_window_m
             "INSERT INTO finance_expense_events(user_id, event_date, period_key, source_event_id, source_table, source_type, expense_category, amount, created_at, updated_at) VALUES(658486226, '2026-05-13', '2026-05-01..2026-05-31', 'finance_raw:1:acquiring', 'finance_raw_audit', 'wb_finance', 'acquiring', 7, '2026-07-07 12:00:00', '2026-07-07 12:00:00')"
         )
         conn.execute(
-            "INSERT INTO products(telegram_id, supplier_article, cost_price, last_price) VALUES(658486226, 'SKU-1', 250, 1000)"
+            "INSERT INTO product_catalog(user_id, nm_id, supplier_article, barcode, cost_price, last_price, source, created_at, updated_at) VALUES(658486226, 101, 'SKU-1', 'BC-1', 250, 1000, 'test', '2026-07-07 12:00:00', '2026-07-07 12:00:00')"
         )
         conn.commit()
     finally:

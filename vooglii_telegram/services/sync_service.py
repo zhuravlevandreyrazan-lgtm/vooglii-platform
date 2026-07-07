@@ -74,7 +74,7 @@ def format_sync_result(result):
 
     if isinstance(blocks, dict) and any(isinstance(item, dict) and "raw_status" in item for item in blocks.values()):
         lines = []
-        for name in ["sales", "orders", "finance", "advertising", "stocks"]:
+        for name in ["sales", "orders", "finance", "advertising", "stocks", "products", "cost"]:
             block = blocks.get(name) or {}
             if not block:
                 continue
@@ -100,7 +100,7 @@ def format_sync_result(result):
     all_limited = True
     any_success = False
     lines = []
-    for name in ["sales", "orders", "stocks", "finance", "advertising"]:
+    for name in ["sales", "orders", "stocks", "finance", "advertising", "products", "cost"]:
         block = blocks.get(name) or {}
         block_status = str(block.get("status") or "PENDING")
         kind = bot._status_kind(block_status)

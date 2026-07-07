@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import DB_NAME
+from product_catalog import build_product_catalog_audit
 
 
 BLOCKS = ("sales", "orders", "advertising", "finance", "stocks", "products", "cost")
@@ -150,65 +151,21 @@ def _sync_state_snapshot(conn: sqlite3.Connection, user_id: int) -> dict[str, di
 
 
 def _cost_audit(conn: sqlite3.Connection, user_id: int, date_from: str, date_to: str) -> dict[str, Any]:
-    coverage = conn.execute(
-        """
-        SELECT
-            COUNT(*) AS total_rows,
-            SUM(
-                CASE
-                    WHEN COALESCE(
-                        (
-                            SELECT p2.cost_price
-                            FROM products p2
-                            WHERE p2.supplier_article=s.supplier_article
-                              AND p2.telegram_id IN (s.telegram_id, 0)
-                            ORDER BY p2.telegram_id DESC
-                            LIMIT 1
-                        ),
-                        0
-                    ) > 0 THEN 1 ELSE 0 END
-            ) AS rows_with_cost
-        FROM sales s
-        WHERE s.telegram_id=?
-          AND substr(s.sale_date,1,10) BETWEEN ? AND ?
-        """,
-        (int(user_id), str(date_from), str(date_to)),
-    ).fetchone()
-    unmatched_rows = conn.execute(
-        """
-        SELECT
-            COALESCE(CAST(s.nm_id AS TEXT),'') AS nm_id,
-            COALESCE(s.supplier_article,'') AS supplierArticle,
-            COALESCE(s.barcode,'') AS barcode,
-            COUNT(*) AS quantity,
-            ROUND(COALESCE(SUM(s.price_with_disc),0),2) AS revenue,
-            CASE
-                WHEN COALESCE(s.supplier_article,'')='' THEN 'supplier_article empty'
-                WHEN p_user.supplier_article IS NULL AND p_zero.supplier_article IS NULL THEN 'no product row'
-                WHEN COALESCE(COALESCE(p_user.cost_price,p_zero.cost_price),0)<=0 THEN 'cost_price <= 0'
-                ELSE 'matched'
-            END AS reason
-        FROM sales s
-        LEFT JOIN products p_user
-          ON p_user.telegram_id=s.telegram_id AND p_user.supplier_article=s.supplier_article
-        LEFT JOIN products p_zero
-          ON p_zero.telegram_id=0 AND p_zero.supplier_article=s.supplier_article
-        WHERE s.telegram_id=?
-          AND substr(s.sale_date,1,10) BETWEEN ? AND ?
-        GROUP BY COALESCE(CAST(s.nm_id AS TEXT),''), COALESCE(s.supplier_article,''), COALESCE(s.barcode,''), reason
-        HAVING reason!='matched'
-        ORDER BY revenue DESC, quantity DESC, supplierArticle
-        LIMIT 20
-        """,
-        (int(user_id), str(date_from), str(date_to)),
-    ).fetchall()
-    total_rows = int((coverage["total_rows"] or 0) if coverage else 0)
-    rows_with_cost = int((coverage["rows_with_cost"] or 0) if coverage else 0)
+    audit = build_product_catalog_audit(int(user_id), period=(str(date_from), str(date_to)))
     return {
-        "total_sales_rows": total_rows,
-        "rows_with_cost": rows_with_cost,
-        "coverage_percent": round((rows_with_cost / total_rows) * 100, 1) if total_rows else 0.0,
-        "top_unmatched_sku": [dict(row) for row in unmatched_rows],
+        "catalog_rows": int(audit.get("catalog_rows") or 0),
+        "catalog_rows_with_cost": int(audit.get("rows_with_cost") or 0),
+        "catalog_rows_without_cost": int(audit.get("rows_without_cost") or 0),
+        "total_sales_rows": int(audit.get("sales_rows") or 0),
+        "rows_with_cost": int(audit.get("matched_sales_rows") or 0),
+        "coverage_percent": float(audit.get("coverage_percent") or 0),
+        "matched_by_nm_id": int(audit.get("matched_by_nm_id") or 0),
+        "matched_by_supplier_article": int(audit.get("matched_by_supplier_article") or 0),
+        "matched_by_barcode": int(audit.get("matched_by_barcode") or 0),
+        "matched_by_legacy_fallback": int(audit.get("matched_by_legacy_fallback") or 0),
+        "legacy_products_rows": int(audit.get("legacy_products_rows") or 0),
+        "legacy_products_rows_with_cost": int(audit.get("legacy_products_rows_with_cost") or 0),
+        "top_unmatched_sku": [dict(row) for row in list(audit.get("top_missing_cost") or [])],
     }
 
 
@@ -302,32 +259,26 @@ def build_wb_data_loading_audit(user_id: int, date_from: str, date_to: str, db_p
             "finance_expense_events": _table_stats(conn, "finance_expense_events", "user_id", "event_date", "amount", user_id, date_from, date_to),
             "stocks": _table_stats(conn, "stocks", "telegram_id", "stock_date", "quantity", user_id, date_from, date_to),
         }
-        audit["products"] = dict(
-            conn.execute(
-                """
-                SELECT
-                    COUNT(*) AS rows_count,
-                    SUM(CASE WHEN COALESCE(cost_price,0)>0 THEN 1 ELSE 0 END) AS rows_with_cost,
-                    ROUND(COALESCE(SUM(COALESCE(cost_price,0)),0),2) AS total_cost_dictionary
-                FROM products
-                WHERE telegram_id IN (?,0)
-                """,
-                (int(user_id),),
-            ).fetchone()
-            or {}
-        )
+        audit["cost_audit"] = _cost_audit(conn, user_id, date_from, date_to)
+        audit["products"] = {
+            "rows_count": int(audit["cost_audit"].get("catalog_rows") or 0),
+            "rows_with_cost": int(audit["cost_audit"].get("catalog_rows_with_cost") or 0),
+            "rows_without_cost": int(audit["cost_audit"].get("catalog_rows_without_cost") or 0),
+            "legacy_rows_count": int(audit["cost_audit"].get("legacy_products_rows") or 0),
+            "legacy_rows_with_cost": int(audit["cost_audit"].get("legacy_products_rows_with_cost") or 0),
+        }
         audit["user_distribution"] = {
             "sales": _all_user_distribution(conn, "sales", "telegram_id", "sale_date", "price_with_disc", date_from, date_to),
             "orders": _all_user_distribution(conn, "orders", "telegram_id", "order_date", "price_with_disc", date_from, date_to),
             "advertising": _all_user_distribution(conn, "advertising", "telegram_id", "advert_date", "spend", date_from, date_to),
             "expenses": _all_user_distribution(conn, "expenses", "telegram_id", "expense_date", "amount", date_from, date_to),
             "finance_raw_audit": _all_user_distribution(conn, "finance_raw_audit", "telegram_id", "report_date", "deduction", date_from, date_to),
-            "products": _all_user_distribution(conn, "products", "telegram_id", None, "cost_price", date_from, date_to),
+            "product_catalog": _all_user_distribution(conn, "product_catalog", "user_id", None, "cost_price", date_from, date_to),
+            "legacy_products": _all_user_distribution(conn, "products", "telegram_id", None, "cost_price", date_from, date_to),
             "stocks": _all_user_distribution(conn, "stocks", "telegram_id", "stock_date", "quantity", date_from, date_to),
             "finance_expense_events": _all_user_distribution(conn, "finance_expense_events", "user_id", "event_date", "amount", date_from, date_to),
         }
         audit["finance_categories"] = _finance_categories(conn, user_id, date_from, date_to)
-        audit["cost_audit"] = _cost_audit(conn, user_id, date_from, date_to)
         audit["period_window_check"] = _period_window_mismatch(conn, user_id, date_from, date_to)
 
         conclusions: list[str] = []
@@ -347,9 +298,9 @@ def build_wb_data_loading_audit(user_id: int, date_from: str, date_to: str, db_p
         elif int(advertising_category.get("rows_count") or 0) == 0:
             conclusions.append("advertising table has rows, but finance_expense_events has no advertising rows, so the normalized layer is incomplete")
         if int(audit["cost_audit"].get("rows_with_cost") or 0) == 0 and sales_rows > 0:
-            conclusions.append("sales rows exist but none of them map to a positive cost_price in products")
+            conclusions.append("sales rows exist but none of them map to a positive cost_price in product_catalog")
         elif sales_rows > 0 and int(audit["cost_audit"].get("rows_with_cost") or 0) == sales_rows:
-            conclusions.append("all sales rows in the requested period map to products with positive cost_price")
+            conclusions.append("all sales rows in the requested period map to product_catalog rows with positive cost_price")
         raw_min_date = audit["tables"]["finance_raw_audit"].get("min_date")
         if raw_min_date and str(raw_min_date) > str(date_from):
             conclusions.append("finance_raw_audit starts later than the requested period start, so WB finance coverage is partial even inside May")
@@ -404,9 +355,15 @@ def _print_report(audit: dict[str, Any]) -> None:
     _print_api_block("advertising", audit["sync_state"]["advertising"], audit["tables"]["advertising"], audit["date_from"], audit["date_to"])
     _print_api_block("finance", audit["sync_state"]["finance"], audit["tables"]["finance_raw_audit"], audit["date_from"], audit["date_to"])
     print("products/cost:")
-    print(f"- products rows: {int(audit['products'].get('rows_count') or 0)}")
-    print(f"- products rows_with_cost: {int(audit['products'].get('rows_with_cost') or 0)}")
+    print(f"- product_catalog rows: {int(audit['products'].get('rows_count') or 0)}")
+    print(f"- product_catalog rows_with_cost: {int(audit['products'].get('rows_with_cost') or 0)}")
+    print(f"- product_catalog rows_without_cost: {int(audit['products'].get('rows_without_cost') or 0)}")
     print(f"- cost coverage in sales: {audit['cost_audit'].get('coverage_percent')}%")
+    print(f"- matched by nm_id: {int(audit['cost_audit'].get('matched_by_nm_id') or 0)}")
+    print(f"- matched by supplier_article: {int(audit['cost_audit'].get('matched_by_supplier_article') or 0)}")
+    print(f"- matched by barcode: {int(audit['cost_audit'].get('matched_by_barcode') or 0)}")
+    print(f"- legacy fallback matches: {int(audit['cost_audit'].get('matched_by_legacy_fallback') or 0)}")
+    print(f"- legacy products fallback rows: {int(audit['products'].get('legacy_rows_count') or 0)}")
     print(f"- top unmatched sku count: {len(audit['cost_audit'].get('top_unmatched_sku') or [])}")
 
     _print_section("User ID Distribution")

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from math import ceil
 from config import DB_NAME, FREE_HISTORY_DAYS
 from db_manager import init_db
+from product_catalog import get_cost_map as get_product_catalog_cost_map, get_cost_price as get_catalog_cost_price
 from user_manager import is_pro
 
 PERIODS={'today':1,'week':7,'month':30,'all':None}
@@ -59,6 +60,28 @@ def _where(alias, telegram_id=None, days=None, date_col='sale_date'):
         elif days==1: parts.append(f"substr({alias}.{date_col},1,10)=date('now')")
         else: parts.append(f"substr({alias}.{date_col},1,10)>=?"); params.append(_from(days))
     return ('WHERE '+' AND '.join(parts) if parts else ''), params
+
+
+def _catalog_cost_lookup_sql(alias='s'):
+    return (
+        "COALESCE(("
+        "SELECT pc.cost_price FROM product_catalog pc "
+        f"WHERE pc.user_id={alias}.telegram_id AND {alias}.nm_id IS NOT NULL AND pc.nm_id={alias}.nm_id "
+        "ORDER BY pc.updated_at DESC LIMIT 1"
+        "),("
+        "SELECT pc.cost_price FROM product_catalog pc "
+        f"WHERE pc.user_id={alias}.telegram_id AND TRIM(COALESCE({alias}.supplier_article,''))!='' AND pc.supplier_article={alias}.supplier_article "
+        "ORDER BY pc.updated_at DESC LIMIT 1"
+        "),("
+        "SELECT pc.cost_price FROM product_catalog pc "
+        f"WHERE pc.user_id={alias}.telegram_id AND TRIM(COALESCE({alias}.barcode,''))!='' AND pc.barcode={alias}.barcode "
+        "ORDER BY pc.updated_at DESC LIMIT 1"
+        "),("
+        "SELECT p2.cost_price FROM products p2 "
+        f"WHERE p2.supplier_article={alias}.supplier_article AND p2.telegram_id IN ({alias}.telegram_id,0) "
+        "ORDER BY p2.telegram_id DESC LIMIT 1"
+        "),0)"
+    )
 
 def add_expense(telegram_id, expense_type, amount, expense_date=None, supplier_article=None, comment=None, source='manual'):
     et={'логистика':'logistics','реклама':'advertising','хранение':'storage','прочее':'other','ads':'advertising','ad':'advertising'}.get(str(expense_type).lower(), str(expense_type).lower())
@@ -141,8 +164,8 @@ def get_products_count_period(days=None, telegram_id=None):
     days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cur.execute(f'SELECT COUNT(DISTINCT supplier_article) FROM sales s {where}',params); row=cur.fetchone()[0]; conn.close(); return row
 
 def get_profit_stats(days=None, telegram_id=None):
-    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days)
-    cur.execute(f'''SELECT COALESCE(SUM(s.price_with_disc),0),COALESCE(SUM(s.for_pay),0),COALESCE(SUM(COALESCE((SELECT p2.cost_price FROM products p2 WHERE p2.supplier_article=s.supplier_article AND p2.telegram_id IN (s.telegram_id,0) ORDER BY p2.telegram_id DESC LIMIT 1),0)),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0) FROM sales s {where}''',params)
+    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cost_sql=_catalog_cost_lookup_sql('s')
+    cur.execute(f'''SELECT COALESCE(SUM(s.price_with_disc),0),COALESCE(SUM(s.for_pay),0),COALESCE(SUM({cost_sql}),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0) FROM sales s {where}''',params)
     sales_sum,payout,cost,returns=cur.fetchone(); conn.close(); logi,adv,stor,other,exp=get_expenses_total(telegram_id,days); comm=sales_sum-payout; gross=payout-cost; net=gross-exp; margin=net/payout*100 if payout else 0
     return tuple([round(x,2) if isinstance(x,float) else x for x in (sales_sum,comm,payout,cost,logi,adv,stor,other,exp,gross,net,round(margin,1),int(returns or 0))])
 
@@ -164,12 +187,12 @@ def get_expense_reconciliation(days=None, telegram_id=None, other_visible_expens
     }
 
 def get_cost_fill_stats(days=None, telegram_id=None):
-    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days)
+    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cost_sql=_catalog_cost_lookup_sql('s')
     cur.execute(f'''
     SELECT
       COUNT(*),
-      COALESCE(SUM(CASE WHEN COALESCE((SELECT p2.cost_price FROM products p2 WHERE p2.supplier_article=s.supplier_article AND p2.telegram_id IN (s.telegram_id,0) ORDER BY p2.telegram_id DESC LIMIT 1),0)>0 THEN 1 ELSE 0 END),0),
-      COUNT(DISTINCT CASE WHEN COALESCE((SELECT p2.cost_price FROM products p2 WHERE p2.supplier_article=s.supplier_article AND p2.telegram_id IN (s.telegram_id,0) ORDER BY p2.telegram_id DESC LIMIT 1),0)<=0 THEN s.supplier_article END)
+      COALESCE(SUM(CASE WHEN {cost_sql}>0 THEN 1 ELSE 0 END),0),
+      COUNT(DISTINCT CASE WHEN {cost_sql}<=0 THEN COALESCE(NULLIF(s.supplier_article,''), CAST(s.nm_id AS TEXT), COALESCE(s.barcode,'')) END)
     FROM sales s {where}
     ''',params)
     total_rows,rows_with_cost,missing_articles=cur.fetchone(); conn.close()
@@ -388,13 +411,13 @@ def get_revenue_forecast(telegram_id=None):
     rows=get_daily_sales(telegram_id,30); return round(sum(r[1] for r in rows)/len(rows)*30,2) if rows else 0
 
 def _profit_rows(days=None, telegram_id=None, limit=10, order='DESC', order_by='net_profit'):
-    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cur.execute(f'''SELECT s.supplier_article,COALESCE(SUM(s.for_pay),0),COALESCE(SUM(COALESCE((SELECT p2.cost_price FROM products p2 WHERE p2.supplier_article=s.supplier_article AND p2.telegram_id IN (s.telegram_id,0) ORDER BY p2.telegram_id DESC LIMIT 1),0)),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0) FROM sales s {where} GROUP BY s.supplier_article HAVING SUM(s.for_pay)>0''',params); base=cur.fetchall(); conn.close(); res=[]
+    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cost_sql=_catalog_cost_lookup_sql('s'); cur.execute(f'''SELECT s.supplier_article,COALESCE(SUM(s.for_pay),0),COALESCE(SUM({cost_sql}),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0) FROM sales s {where} GROUP BY s.supplier_article HAVING SUM(s.for_pay)>0''',params); base=cur.fetchall(); conn.close(); res=[]
     for a,payout,cost,ret in base:
         logi,adv,stor,other,exp=get_expenses_total(telegram_id,days,a); gross=payout-cost; net=gross-exp; margin=net/payout*100 if payout else 0; res.append((a,round(payout,2),round(cost,2),round(gross,2),logi,adv,stor,other,exp,round(net,2),round(margin,1),int(ret or 0)))
     idx={'revenue':1,'margin':10,'net_profit':9}.get(order_by,9); res.sort(key=lambda r:r[idx], reverse=(order.upper()=='DESC')); return res[:limit]
 def get_top_profit_skus(telegram_id, days, limit=10, order='DESC'):
-    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days)
-    cur.execute(f'''SELECT COALESCE(s.supplier_article,'-'),COALESCE(SUM(s.price_with_disc),0),COALESCE(SUM(s.for_pay),0),COALESCE(SUM(COALESCE((SELECT p2.cost_price FROM products p2 WHERE p2.supplier_article=s.supplier_article AND p2.telegram_id IN (s.telegram_id,0) ORDER BY p2.telegram_id DESC LIMIT 1),0)),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN COALESCE(s.is_return,0)=0 THEN 1 ELSE 0 END),0) FROM sales s {where} GROUP BY COALESCE(s.supplier_article,'-') HAVING COALESCE(SUM(s.price_with_disc),0)<>0 OR COALESCE(SUM(s.for_pay),0)<>0''',params); base=cur.fetchall(); conn.close(); rows=[]
+    days=allowed_days(telegram_id, days) if telegram_id else days; conn=_conn(); cur=conn.cursor(); where,params=_where('s',telegram_id,days); cost_sql=_catalog_cost_lookup_sql('s')
+    cur.execute(f'''SELECT COALESCE(s.supplier_article,'-'),COALESCE(SUM(s.price_with_disc),0),COALESCE(SUM(s.for_pay),0),COALESCE(SUM({cost_sql}),0),COALESCE(SUM(CASE WHEN s.is_return=1 THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN COALESCE(s.is_return,0)=0 THEN 1 ELSE 0 END),0) FROM sales s {where} GROUP BY COALESCE(s.supplier_article,'-') HAVING COALESCE(SUM(s.price_with_disc),0)<>0 OR COALESCE(SUM(s.for_pay),0)<>0''',params); base=cur.fetchall(); conn.close(); rows=[]
     total_logi,total_adv,total_stor,total_other,_=get_expenses_total(telegram_id,days)
     total_revenue=sum(float(row[1] or 0) for row in base)
     total_payout=sum(float(row[2] or 0) for row in base)
@@ -465,7 +488,7 @@ def get_cash_gap(telegram_id, days=14, sales_window=30):
         if avg<=0: continue
         left=(qty or 0)/avg; 
         if left<=days:
-            conn=_conn(); cur=conn.cursor(); cur.execute('SELECT cost_price FROM products WHERE telegram_id IN (?,0) AND supplier_article=? ORDER BY telegram_id DESC LIMIT 1',(telegram_id,a)); row=cur.fetchone(); conn.close(); cost=(row[0] if row else 0) or 0; need=max(0,int(avg*days-(qty or 0))); out.append((a,qty or 0,round(left,1),need,round(need*cost,2)))
+            cost=(get_catalog_cost_price(telegram_id, supplier_article=a) or 0); need=max(0,int(avg*days-(qty or 0))); out.append((a,qty or 0,round(left,1),need,round(need*cost,2)))
     return out, round(sum(x[4] for x in out),2)
 
 def get_sku_sales_velocity(telegram_id, days=30):
@@ -526,17 +549,7 @@ def get_stock_forecast(telegram_id, days=14, sales_window=30):
     ORDER BY supplier_article
     ''',(telegram_id,snapshot_date))
     stock_rows=cur.fetchall()
-    cur.execute('''
-    SELECT supplier_article, COALESCE(cost_price,0), telegram_id
-    FROM products
-    WHERE telegram_id IN (?,0)
-    ORDER BY telegram_id DESC
-    ''',(telegram_id,))
-    costs={}
-    for article,cost,_ in cur.fetchall():
-        article=str(article or '').strip()
-        if article and article not in costs:
-            costs[article]=float(cost or 0)
+    costs=get_product_catalog_cost_map(telegram_id)
     conn.close()
     rows=[]; today=datetime.now().date()
     demand_horizon=max(horizon, settings['target_stock_days'] + settings['lead_time_days'] + settings['safety_stock_days'])

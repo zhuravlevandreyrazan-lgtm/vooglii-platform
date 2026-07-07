@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import DB_NAME
+from product_catalog import build_product_catalog_audit
 from vooglii_finance.bridges import build_finance_source_integrity_report, get_finance_expense_event_trace
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
@@ -82,6 +83,7 @@ def main() -> int:
 
     integrity = build_finance_source_integrity_report(args.user_id, args.date_from, args.date_to, autoload=True)
     snapshot = build_unified_financial_snapshot_dict(args.user_id, (args.date_from, args.date_to))
+    catalog_audit = build_product_catalog_audit(args.user_id, period=(args.date_from, args.date_to))
 
     print(f"DB: {DB_NAME}")
     print(f"user_id: {args.user_id}")
@@ -109,6 +111,26 @@ def main() -> int:
     print(f"Expenses Total: {_money(snapshot.get('expenses_total'))}")
     print(f"Net Profit: {_money(snapshot.get('net_profit'))}")
     print(f"Finance Status: {snapshot.get('finance_status')}")
+
+    _print_section("Product Catalog")
+    print(f"Rows: {int(catalog_audit.get('catalog_rows') or 0)}")
+    print(f"Rows With Cost: {int(catalog_audit.get('rows_with_cost') or 0)}")
+    print(f"Rows Without Cost: {int(catalog_audit.get('rows_without_cost') or 0)}")
+    print(f"Cost Coverage %: {float(catalog_audit.get('coverage_percent') or 0):.1f}")
+    print(f"Matched By nm_id: {int(catalog_audit.get('matched_by_nm_id') or 0)}")
+    print(f"Matched By supplier_article: {int(catalog_audit.get('matched_by_supplier_article') or 0)}")
+    print(f"Matched By barcode: {int(catalog_audit.get('matched_by_barcode') or 0)}")
+    print(f"Legacy Products Fallback Matches: {int(catalog_audit.get('matched_by_legacy_fallback') or 0)}")
+    top_missing = list(catalog_audit.get("top_missing_cost") or [])
+    if top_missing:
+        print("Top Missing Cost SKU:")
+        for row in top_missing[:10]:
+            print(
+                f"{row.get('supplier_article') or '-'} | nm_id {row.get('nm_id') or '-'} | "
+                f"qty {int(row.get('quantity') or 0)} | revenue {_money(row.get('revenue'))}"
+            )
+    else:
+        print("Top Missing Cost SKU: none")
 
     _print_section("Finance Raw vs Expense Events")
     mismatches = list(integrity.get("mismatches") or [])

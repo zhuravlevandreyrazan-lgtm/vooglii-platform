@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from config import DB_NAME
 import telegram_bot
+from product_catalog import build_product_catalog_audit
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 from vooglii_finance.bridges import (
     get_finance_expense_event_duplicates,
@@ -100,55 +101,28 @@ def _print_table_summary(name: str, summary: dict[str, object]) -> None:
 
 
 def _print_unmatched_costs(cur: sqlite3.Cursor, user_id: int) -> None:
-    rows = _fetchall(
-        cur,
-        """
-        SELECT
-            TRIM(COALESCE(s.supplier_article, '')) AS supplier_article,
-            COUNT(*) AS rows_count,
-            COALESCE(SUM(s.price_with_disc),0) AS revenue_total,
-            COALESCE(SUM(s.for_pay),0) AS payout_total
-        FROM sales s
-        WHERE s.telegram_id=?
-          AND substr(s.sale_date,1,10) BETWEEN ? AND ?
-          AND TRIM(COALESCE(s.supplier_article, ''))!=''
-          AND COALESCE((
-                SELECT p2.cost_price
-                FROM products p2
-                WHERE p2.supplier_article=s.supplier_article
-                  AND p2.telegram_id IN (s.telegram_id, 0)
-                ORDER BY p2.telegram_id DESC
-                LIMIT 1
-          ), 0) <= 0
-        GROUP BY TRIM(COALESCE(s.supplier_article, ''))
-        ORDER BY payout_total DESC, rows_count DESC, supplier_article ASC
-        LIMIT 10
-        """,
-        (user_id, ARGS.date_from, ARGS.date_to),
-    )
+    audit = build_product_catalog_audit(user_id, period=(ARGS.date_from, ARGS.date_to), limit=10)
+    rows = list(audit.get("top_missing_cost") or [])
     if not rows:
         print("No unmatched sales SKU for cost mapping.")
         return
-    for article, rows_count, revenue_total, payout_total in rows:
-        print(f"{article or '-'} | rows {rows_count} | revenue {_money(revenue_total)} | payout {_money(payout_total)}")
+    for row in rows:
+        print(
+            f"{row.get('supplier_article') or '-'} | rows {int(row.get('quantity') or 0)} | "
+            f"revenue {_money(row.get('revenue'))} | reason себестоимость не заполнена"
+        )
 
 
 def _print_products_summary(cur: sqlite3.Cursor, user_id: int) -> None:
-    rows = _fetchall(
-        cur,
-        """
-        SELECT telegram_id, COUNT(*), COALESCE(SUM(CASE WHEN COALESCE(cost_price,0)>0 THEN 1 ELSE 0 END),0)
-        FROM products
-        GROUP BY telegram_id
-        ORDER BY COUNT(*) DESC, telegram_id ASC
-        """,
+    audit = build_product_catalog_audit(user_id, period=(ARGS.date_from, ARGS.date_to))
+    print(
+        f"product_catalog target | rows {int(audit.get('catalog_rows') or 0)} | "
+        f"with cost {int(audit.get('rows_with_cost') or 0)} | without cost {int(audit.get('rows_without_cost') or 0)}"
     )
-    if not rows:
-        print("products table is empty.")
-        return
-    for telegram_id, total_rows, rows_with_cost in rows:
-        marker = " <target>" if int(telegram_id or 0) == int(user_id) else ""
-        print(f"{telegram_id}{marker} | rows {total_rows} | with cost {rows_with_cost}")
+    print(
+        f"legacy products fallback | rows {int(audit.get('legacy_products_rows') or 0)} | "
+        f"with cost {int(audit.get('legacy_products_rows_with_cost') or 0)}"
+    )
 
 
 def _print_cost_matching_diagnostics(cur: sqlite3.Cursor, user_id: int) -> None:
@@ -172,51 +146,23 @@ def _print_cost_matching_diagnostics(cur: sqlite3.Cursor, user_id: int) -> None:
     print(f"distinct nm_id in sales: {int((sales_row or [0] * 5)[3] or 0)}")
     print(f"distinct supplier_article in sales: {int((sales_row or [0] * 5)[4] or 0)}")
 
-    product_row = _fetchone(
-        cur,
-        """
-        SELECT
-            COUNT(*),
-            COALESCE(SUM(CASE WHEN COALESCE(cost_price,0)>0 THEN 1 ELSE 0 END),0),
-            COUNT(DISTINCT CASE WHEN TRIM(COALESCE(supplier_article,''))!='' THEN TRIM(supplier_article) END)
-        FROM products
-        WHERE telegram_id IN (?, 0)
-        """,
-        (user_id,),
-    )
-    print(f"products rows user+global: {int((product_row or [0])[0] or 0)}")
-    print(f"products rows with cost user+global: {int((product_row or [0] * 3)[1] or 0)}")
-    print(f"distinct supplier_article in products user+global: {int((product_row or [0] * 3)[2] or 0)}")
+    audit = build_product_catalog_audit(user_id, period=(ARGS.date_from, ARGS.date_to), limit=10)
+    print(f"product_catalog rows: {int(audit.get('catalog_rows') or 0)}")
+    print(f"product_catalog rows with cost: {int(audit.get('rows_with_cost') or 0)}")
+    print(f"matched by nm_id: {int(audit.get('matched_by_nm_id') or 0)}")
+    print(f"matched by supplier_article: {int(audit.get('matched_by_supplier_article') or 0)}")
+    print(f"matched by barcode: {int(audit.get('matched_by_barcode') or 0)}")
+    print(f"legacy products fallback matches: {int(audit.get('matched_by_legacy_fallback') or 0)}")
 
-    unmatched_rows = _fetchall(
-        cur,
-        """
-        SELECT
-            COALESCE(NULLIF(TRIM(s.supplier_article), ''), '[no article]') AS article_key,
-            COALESCE(NULLIF(TRIM(CAST(s.nm_id AS TEXT)), ''), '[no nm_id]') AS nm_key,
-            COUNT(*) AS rows_count,
-            COALESCE(SUM(s.for_pay),0) AS payout_total
-        FROM sales s
-        WHERE s.telegram_id=?
-          AND substr(s.sale_date,1,10) BETWEEN ? AND ?
-          AND COALESCE((
-                SELECT p2.cost_price
-                FROM products p2
-                WHERE p2.supplier_article=s.supplier_article
-                  AND p2.telegram_id IN (s.telegram_id, 0)
-                ORDER BY p2.telegram_id DESC
-                LIMIT 1
-          ), 0) <= 0
-        GROUP BY article_key, nm_key
-        ORDER BY payout_total DESC, rows_count DESC, article_key ASC
-        LIMIT 10
-        """,
-        (user_id, ARGS.date_from, ARGS.date_to),
-    )
+    unmatched_rows = list(audit.get("top_missing_cost") or [])
     if unmatched_rows:
         print("top unmatched SKU:")
-        for article_key, nm_key, rows_count, payout_total in unmatched_rows:
-            print(f"  article={article_key} | nm_id={nm_key} | rows={rows_count} | payout={_money(payout_total)}")
+        for row in unmatched_rows:
+            print(
+                f"  article={row.get('supplier_article') or '[no article]'} | "
+                f"nm_id={row.get('nm_id') or '[no nm_id]'} | rows={int(row.get('quantity') or 0)} | "
+                f"revenue={_money(row.get('revenue'))}"
+            )
     else:
         print("top unmatched SKU: none")
 

@@ -16,6 +16,7 @@ from config import DB_NAME, WB_TOKEN
 import db_manager
 import load_sales
 import telegram_bot
+from product_catalog import sync_product_catalog
 from user_manager import get_user
 from vooglii_telegram.services.token_resolver import resolve_wb_token
 from vooglii_wb_sync.sync_orchestrator import run_backfill_sync
@@ -60,7 +61,7 @@ def _table_summary(conn: sqlite3.Connection, table: str, date_col: str | None, u
     elif table == "products":
         cur.execute(
             "SELECT COUNT(*), COALESCE(SUM(CASE WHEN COALESCE(cost_price,0)>0 THEN 1 ELSE 0 END),0) "
-            "FROM products WHERE telegram_id IN (?,0)",
+            "FROM product_catalog WHERE user_id=?",
             (user_id,),
         )
         row = cur.fetchone() or ()
@@ -636,15 +637,6 @@ def _run_backfill_from_db(user_id: int, start_date: str, end_date: str) -> dict[
                     "unique_key",
                     ["unique_key"],
                 ),
-                (
-                    "products",
-                    None,
-                    "SELECT telegram_id, supplier_article, cost_price, last_price FROM products WHERE telegram_id IN (?,0)",
-                    (user_id,),
-                    ["telegram_id", "supplier_article", "cost_price", "last_price"],
-                    "telegram_id, supplier_article",
-                    ["telegram_id", "supplier_article"],
-                ),
             ]
 
             for table, date_col, sql, params, columns, conflict_target, key_columns in plans:
@@ -685,6 +677,7 @@ def _run_backfill_from_db(user_id: int, start_date: str, end_date: str) -> dict[
 
     cache_fallbacks = _restore_from_caches(target_path, user_id, start_date, end_date)
     result["cache_fallbacks"] = cache_fallbacks
+    result["product_catalog_sync"] = sync_product_catalog(user_id, period=(start_date, end_date))
     if result["tables"].get("sales", {}).get("after", {}).get("rows", 0) <= 0 and str((cache_fallbacks.get("sales_cache") or {}).get("status") or "") not in {"SUCCESS", "GUARD_BLOCKED"}:
         if "sales" not in result["missing"]:
             result["missing"].append("sales")
@@ -746,6 +739,7 @@ def _run_backfill_from_wb_api(user_id: int, start_date: str, end_date: str) -> d
             "stocks": _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date),
         }
         sync_result = run_backfill_sync(user_id, start_date, end_date, token=token)
+        result["product_catalog_sync"] = sync_product_catalog(user_id, period=(start_date, end_date))
         block_map = sync_result.get("blocks") or {}
         after_map = {
             "sales": _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date),
@@ -820,6 +814,9 @@ def _print_summary(result: dict[str, Any]) -> None:
     if result.get("api_blocks"):
         print("API_BLOCKS")
         print(json.dumps(result["api_blocks"], ensure_ascii=False))
+    if result.get("product_catalog_sync"):
+        print("PRODUCT_CATALOG_SYNC")
+        print(json.dumps(result["product_catalog_sync"], ensure_ascii=False))
     if result.get("diagnose"):
         print("DIAGNOSE_STATUS", result["diagnose"].get("status"))
         stdout = str(result["diagnose"].get("stdout") or "").strip()

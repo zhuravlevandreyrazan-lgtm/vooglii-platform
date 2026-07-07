@@ -24,7 +24,7 @@ from .sync_state import list_sync_state, save_sync_state
 from .token_provider import resolve_sync_token
 
 
-BLOCK_ORDER = ("sales", "orders", "finance", "advertising", "stocks", "products")
+BLOCK_ORDER = ("sales", "orders", "finance", "advertising", "stocks", "products", "cost")
 
 
 def _period_label(period: int | tuple[str, str]) -> str:
@@ -109,10 +109,21 @@ def run_sync(user_id: int, token: str | None = None, days: int = 30) -> dict[str
     result["blocks"]["advertising"] = _run_block(user_id, "advertising", ads_payload.get("raw_status"), ads_payload)
     stocks_payload = sync_stocks(user_id, resolved.token, period)
     result["blocks"]["stocks"] = _run_block(user_id, "stocks", stocks_payload.get("raw_status"), stocks_payload)
-    products_payload = refresh_products_index(user_id)
-    products_payload["source_name"] = "local.sales_to_products"
-    products_payload["meta"] = {"preserve_cost_dictionary": True}
+    products_payload = refresh_products_index(user_id, period)
+    products_payload["source_name"] = "product_catalog_v2"
+    products_payload["meta"] = {**dict(products_payload.get("meta") or {}), "preserve_cost_dictionary": True}
     result["blocks"]["products"] = _run_block(user_id, "products", "SUCCESS", products_payload)
+    cost_status = str(products_payload.get("raw_status") or "SUCCESS")
+    cost_payload = {
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "invalid": int(products_payload.get("invalid") or 0),
+        "source_rows": int(products_payload.get("source_rows") or 0),
+        "source_name": "product_catalog_v2.cost_coverage",
+        "meta": dict(products_payload.get("meta") or {}),
+    }
+    result["blocks"]["cost"] = _run_block(user_id, "cost", cost_status, cost_payload)
     result["overall_status"] = _overall_status(result["blocks"])
     result["sync_state"] = list_sync_state(user_id)
     return result
@@ -143,10 +154,21 @@ def run_backfill_sync(user_id: int, date_from: str, date_to: str, token: str | N
     result["blocks"]["finance"] = _run_block(user_id, "finance", (payload := sync_finance(user_id, resolved.token, period)).get("raw_status"), payload)
     result["blocks"]["advertising"] = _run_block(user_id, "advertising", (payload := sync_advertising(user_id, resolved.token, period)).get("raw_status"), payload)
     result["blocks"]["stocks"] = _run_block(user_id, "stocks", (payload := sync_stocks(user_id, resolved.token, period)).get("raw_status"), payload)
-    products_payload = refresh_products_index(user_id)
-    products_payload["source_name"] = "local.sales_to_products"
-    products_payload["meta"] = {"preserve_cost_dictionary": True}
+    products_payload = refresh_products_index(user_id, period)
+    products_payload["source_name"] = "product_catalog_v2"
+    products_payload["meta"] = {**dict(products_payload.get("meta") or {}), "preserve_cost_dictionary": True}
     result["blocks"]["products"] = _run_block(user_id, "products", "SUCCESS", products_payload)
+    cost_status = str(products_payload.get("raw_status") or "SUCCESS")
+    cost_payload = {
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "invalid": int(products_payload.get("invalid") or 0),
+        "source_rows": int(products_payload.get("source_rows") or 0),
+        "source_name": "product_catalog_v2.cost_coverage",
+        "meta": dict(products_payload.get("meta") or {}),
+    }
+    result["blocks"]["cost"] = _run_block(user_id, "cost", cost_status, cost_payload)
     result["overall_status"] = _overall_status(result["blocks"])
     result["sync_state"] = list_sync_state(user_id)
     return result

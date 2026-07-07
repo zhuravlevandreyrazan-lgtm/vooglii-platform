@@ -55,8 +55,18 @@ def _normalize_sku_list(items):
     return result
 
 
-def build_sku_registry_snapshot(sales_skus=None, finance_skus=None):
+def build_sku_registry_snapshot(sales_skus=None, finance_skus=None, catalog_rows=None):
     reference = sku_cost_reference_data()
+    for item in list(catalog_rows or []):
+        article = str((item or {}).get("supplier_article") or "").strip()
+        if not article:
+            continue
+        unit_cost = (item or {}).get("cost_price")
+        if unit_cost not in (None, ""):
+            try:
+                reference[article] = round(float(unit_cost), 2)
+            except Exception:
+                pass
     reference_keys = list(reference.keys())
     requested_skus = _normalize_sku_list(list(sales_skus or []) + list(finance_skus or []))
 

@@ -146,7 +146,7 @@ from wb_agent.performance import (
     perf_timer,
     performance_text,
 )
-from product_manager import get_cost_price, get_products, set_cost_price, sync_products_from_sales
+from product_manager import get_cost_price, get_product_catalog_audit, get_products, set_cost_price, sync_products_from_sales
 from report import *
 from update_log import get_last_update
 from user_manager import clear_user_token, ensure_user, get_all_users, get_ref_stats, get_user, get_user_token, is_pro, extend_pro, save_user, set_role, set_user_access, user_has_access
@@ -4941,6 +4941,47 @@ async def _stock_command_entry(update, context):
     if act=='list': sync_products_from_sales(user); rows=get_products(user); await send_long(update,'📦 ТОВАРЫ\n\n'+'\n'.join(f'{a}: {money(c)}' for a,c in rows)); return
     if act=='cost' and len(context.args)>1: await update.message.reply_text(f'{context.args[1]}: {money(get_cost_price(context.args[1],user) or 0)}'); return
     if act=='setcost' and len(context.args)>2: set_cost_price(context.args[1],float(context.args[2].replace(',','.')),user); await update.message.reply_text('✅ Сохранено'); return
+async def cost_command(update, context):
+    if not await access(update,'product'): return
+    user=uid(update)
+    if not context.args:
+        await update.message.reply_text('/cost missing [period]\n/cost set <SKU|nm_id> <price>\n/cost list\n/cost <SKU|nm_id>')
+        return
+    act=str(context.args[0] or '').lower().strip()
+    if act=='missing':
+        period_name, days = period(context.args, 'month', 1)
+        audit = get_product_catalog_audit(user, period=days)
+        lines = [f'Товары без себестоимости ({period_name})', '']
+        rows = list(audit.get('top_missing_cost') or [])
+        if not rows:
+            lines.append('Все SKU в выбранном периоде покрыты себестоимостью.')
+        else:
+            for row in rows:
+                sku = row.get('supplier_article') or '-'
+                lines.extend([
+                    sku,
+                    f'nm_id: {row.get("nm_id") or "-"}',
+                    f'продано: {int(row.get("quantity") or 0)}',
+                    f'выручка: {money(row.get("revenue") or 0)}',
+                    'причина: себестоимость не заполнена',
+                    '',
+                ])
+        await send_long(update, '\n'.join(lines).strip())
+        return
+    if act=='list':
+        rows = get_products(user)
+        if not rows:
+            await update.message.reply_text('Себестоимость ещё не заполнена.')
+            return
+        await send_long(update, 'Себестоимость по каталогу\n\n' + '\n'.join(f'{article}: {money(cost)}' for article, cost in rows[:200]))
+        return
+    if act=='set' and len(context.args)>2:
+        price=float(context.args[2].replace(',','.'))
+        result=set_cost_price(context.args[1], price, user)
+        target = result.get('supplier_article') or result.get('nm_id') or context.args[1]
+        await update.message.reply_text(f'✅ Себестоимость сохранена\n{target}: {money(result.get("cost_price") or 0)}')
+        return
+    await update.message.reply_text(f'{context.args[0]}: {money(get_cost_price(context.args[0],user) or 0)}')
 async def expense_command(update, context):
     from vooglii_telegram.handlers.profit import expense_command as _impl
     return await _impl(update, context)
@@ -5120,6 +5161,8 @@ def block_label(name):
         'stocks': 'Остатки',
         'finance': 'Финансы',
         'advertising': 'Реклама',
+        'products': 'Каталог товаров',
+        'cost': 'Себестоимость',
     }.get(name, name)
 
 
@@ -5685,6 +5728,7 @@ def _sku_registry_snapshot(user, days=None, context=None):
         return cached
     sales_skus = []
     finance_skus = []
+    catalog_rows = []
     if days:
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
@@ -5703,12 +5747,25 @@ def _sku_registry_snapshot(user, days=None, context=None):
                 (user, str(start_date), str(end_date)),
             )
             finance_skus = [str(row[0]).strip() for row in cur.fetchall() if row and str(row[0] or '').strip()]
+            cur.execute(
+                """
+                SELECT supplier_article, cost_price
+                FROM product_catalog
+                WHERE user_id=? AND TRIM(COALESCE(supplier_article,''))!=''
+                """,
+                (user,),
+            )
+            catalog_rows = [
+                {"supplier_article": row[0], "cost_price": row[1]}
+                for row in cur.fetchall()
+            ]
         except Exception:
             sales_skus = sales_skus or []
             finance_skus = finance_skus or []
+            catalog_rows = catalog_rows or []
         finally:
             conn.close()
-    snapshot = build_sku_registry_snapshot(sales_skus=sales_skus, finance_skus=finance_skus)
+    snapshot = build_sku_registry_snapshot(sales_skus=sales_skus, finance_skus=finance_skus, catalog_rows=catalog_rows)
     if not sales_skus and not finance_skus:
         snapshot = dict(snapshot or {})
         snapshot['registry_status'] = 'NO_PERIOD_DATA'
@@ -17741,10 +17798,11 @@ def _pnl_customer_text(user, days):
 def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
     sku_registry_snapshot = _sku_registry_snapshot(user, days)
-    known_skus = len(list(sku_registry_snapshot.get('known_skus') or []))
-    missing_skus = len(list(sku_registry_snapshot.get('missing_skus') or []))
-    raw_coverage = float(sku_registry_snapshot.get('coverage_percent') or 0)
-    cost_coverage_percent = raw_coverage if (known_skus + missing_skus) > 0 else 0.0
+    catalog_audit = get_product_catalog_audit(user, period=days)
+    known_skus = int(catalog_audit.get('rows_with_cost') or 0)
+    missing_skus = int(catalog_audit.get('rows_without_cost') or 0)
+    raw_coverage = float(catalog_audit.get('coverage_percent') or 0)
+    cost_coverage_percent = raw_coverage if int(catalog_audit.get('sales_rows') or 0) > 0 else 0.0
     forecast_rows = get_stock_forecast(user, 7, 30)
     critical_rows = [row for row in forecast_rows if row.get('risk_level') in ('no_stock', 'critical', 'high')]
     top_risks = []
@@ -17762,9 +17820,11 @@ def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'status': 'OK',
         'period': f"{days[0]}..{days[1]}",
         'sku_registry_status': sku_registry_snapshot.get('registry_status') or 'UNKNOWN',
+        'catalog_total': int(catalog_audit.get('catalog_rows') or 0),
         'cost_coverage_percent': cost_coverage_percent,
         'known_skus': known_skus,
         'missing_skus': missing_skus,
+        'sales_missing_cost_skus': int(catalog_audit.get('missing_cost_skus') or 0),
         'critical_stock_count': len(critical_rows),
         'top_risks': top_risks,
         'stock_snapshot_date': _stock_snapshot_date(user) or '-',
@@ -17790,8 +17850,10 @@ def _products_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         coverage_percent=snapshot.get("cost_coverage_percent"),
     )
     sku_lines = [
+        f"- Всего товаров в каталоге: {int(snapshot.get('catalog_total') or 0)}",
         f"- С себестоимостью: {int(snapshot.get('known_skus') or 0)}",
         f"- Без себестоимости: {int(snapshot.get('missing_skus') or 0)}",
+        f"- SKU с продажами без себестоимости: {int(snapshot.get('sales_missing_cost_skus') or 0)}",
         f"- Критичные риски: {int(snapshot.get('critical_stock_count') or 0)} товар(а)",
     ]
     if str(unified_snapshot.get('cost_status') or '') == 'COST_OK' and unified_snapshot.get('cost_price') is None:

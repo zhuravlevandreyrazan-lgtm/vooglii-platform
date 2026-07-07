@@ -73,6 +73,22 @@ def init_db():
         for c,s in {'telegram_id':'INTEGER DEFAULT 0','last_price':'REAL DEFAULT 0'}.items():
             try: _add(cur,'products',c,s)
             except sqlite3.OperationalError: pass
+        cur.execute('''CREATE TABLE IF NOT EXISTS product_catalog(
+        user_id INTEGER NOT NULL,
+        nm_id INTEGER NOT NULL,
+        supplier_article TEXT,
+        barcode TEXT,
+        brand TEXT,
+        subject TEXT,
+        tech_size TEXT,
+        name TEXT,
+        cost_price REAL DEFAULT 0,
+        last_price REAL DEFAULT 0,
+        source TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        PRIMARY KEY(user_id, nm_id)
+        )''')
 
         cur.execute('''CREATE TABLE IF NOT EXISTS expenses(
         id INTEGER PRIMARY KEY AUTOINCREMENT, unique_key TEXT UNIQUE, telegram_id INTEGER NOT NULL,
@@ -438,6 +454,8 @@ def init_db():
         for name, table, cols in [('idx_sales_user_date','sales','telegram_id,sale_date'),('idx_orders_user_date','orders','telegram_id,order_date'),('idx_exp_user_date','expenses','telegram_id,expense_date'),('idx_ads_user_date','advertising','telegram_id,advert_date'),('idx_stocks_user','stocks','telegram_id,supplier_article'),('idx_finance_raw_user_rrd','finance_raw_audit','telegram_id,rrd_id'),('idx_finance_raw_user_date','finance_raw_audit','telegram_id,report_date')]:
             cur.execute(f'CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_state_user_block_updated ON sync_state (telegram_id, sync_block, updated_at)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_product_catalog_user_article ON product_catalog (user_id, supplier_article)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_product_catalog_user_barcode ON product_catalog (user_id, barcode)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_date ON finance_expense_events (user_id, event_date)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_period ON finance_expense_events (user_id, period_key)')
         cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_expense_events_source_id ON finance_expense_events (user_id, source_event_id) WHERE source_event_id IS NOT NULL')
