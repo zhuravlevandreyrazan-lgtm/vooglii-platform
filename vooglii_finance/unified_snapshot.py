@@ -541,6 +541,12 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
             "source_table": entry.get("source_table") or ("finance_expense_events" if not fallback else "legacy_fallback"),
             "source_min_date": entry.get("min_date"),
             "source_max_date": entry.get("max_date"),
+            "unique_documents": int(entry.get("unique_documents") or 0),
+            "unique_sources": int(entry.get("unique_sources") or 0),
+            "source_tables": list(entry.get("source_tables") or []),
+            "source_types": list(entry.get("source_types") or []),
+            "finance_statuses": list(entry.get("finance_statuses") or []),
+            "traceable": bool(entry.get("traceable")) if entry.get("traceable") is not None else False,
             "fallback": bool(fallback),
         }
 

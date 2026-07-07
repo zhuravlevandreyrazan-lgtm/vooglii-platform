@@ -6571,8 +6571,12 @@ async def finance_explain_command(update, context, period_name, days, user):
         ]
         if item.get("rows") is not None:
             lines.append(f"Строк: {int(item.get('rows') or 0)}")
+        if item.get("unique_documents") is not None:
+            lines.append(f"Документов: {int(item.get('unique_documents') or 0)}")
         if item.get("source_min_date") or item.get("source_max_date"):
             lines.append(f"Даты: {item.get('source_min_date') or '-'}..{item.get('source_max_date') or '-'}")
+        if item.get("unique_sources") is not None:
+            lines.append(f"Источников: {int(item.get('unique_sources') or 0)}")
         if item.get("fallback") is True:
             lines.append("Режим: legacy fallback")
         elif item.get("fallback") is False:

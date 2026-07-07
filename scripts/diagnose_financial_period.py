@@ -13,7 +13,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from config import DB_NAME
 import telegram_bot
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
-from vooglii_finance.bridges import get_latest_stock_snapshot_info, get_snapshot_audit_rows
+from vooglii_finance.bridges import (
+    get_finance_expense_event_duplicates,
+    get_finance_expense_event_out_of_period_rows,
+    get_latest_stock_snapshot_info,
+    get_snapshot_audit_rows,
+)
 from vooglii_telegram.services.token_resolver import resolve_wb_token
 from vooglii_wb_sync.sync_state import list_sync_state
 
@@ -533,7 +538,8 @@ def _print_runtime_snapshots(user_id: int) -> None:
         rows = _fetchall(
             cur,
             """
-            SELECT expense_category, COUNT(*), COALESCE(SUM(amount),0), MIN(event_date), MAX(event_date), GROUP_CONCAT(DISTINCT COALESCE(source_table,'-'))
+            SELECT expense_category, COUNT(*), COALESCE(SUM(amount),0), MIN(event_date), MAX(event_date),
+                   COUNT(DISTINCT source_event_id), GROUP_CONCAT(DISTINCT COALESCE(source_table,'-'))
             FROM finance_expense_events
             WHERE user_id=? AND substr(event_date,1,10) BETWEEN ? AND ?
             GROUP BY expense_category
@@ -542,12 +548,34 @@ def _print_runtime_snapshots(user_id: int) -> None:
             (user_id, ARGS.date_from, ARGS.date_to),
         )
         if rows:
-            for category, count_rows, total_amount, min_date, max_date, source_table in rows:
-                print(f"{category}: amount {_money(total_amount)} | rows {count_rows} | dates {min_date or '-'}..{max_date or '-'} | source {source_table or '-'}")
+            for category, count_rows, total_amount, min_date, max_date, unique_documents, source_table in rows:
+                print(f"{category}: amount {_money(total_amount)} | rows {count_rows} | docs {unique_documents} | dates {min_date or '-'}..{max_date or '-'} | source {source_table or '-'}")
         else:
             print("no normalized expense events")
     finally:
         conn.close()
+
+    _print_section("Expense Event Duplicates")
+    duplicates = get_finance_expense_event_duplicates(user_id, ARGS.date_from, ARGS.date_to)
+    if duplicates:
+        for item in duplicates[:20]:
+            print(
+                f"{item.get('expense_category')} | {item.get('source_event_id')} | {item.get('event_date')} | "
+                f"{_money(item.get('amount'))} | dup_rows {int(item.get('duplicate_rows') or 0)}"
+            )
+    else:
+        print("none")
+
+    _print_section("Out-of-period Expense Events")
+    out_of_period_rows = get_finance_expense_event_out_of_period_rows(user_id, ARGS.date_from, ARGS.date_to, limit=100)
+    if out_of_period_rows:
+        for item in out_of_period_rows:
+            print(
+                f"{item.get('expense_category')} | {item.get('source_event_id')} | "
+                f"event_date={item.get('event_date')} | period_key={item.get('period_key')} | amount={_money(item.get('amount'))}"
+            )
+    else:
+        print("none")
 
     _print_section("Stock Snapshots")
     latest_stock_snapshot = get_latest_stock_snapshot_info(user_id)
