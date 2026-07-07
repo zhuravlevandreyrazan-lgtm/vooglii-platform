@@ -207,6 +207,80 @@ def init_db():
         updated_at TEXT,
         PRIMARY KEY(telegram_id, sync_block)
         )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS sync_state(
+        telegram_id INTEGER NOT NULL,
+        sync_block TEXT NOT NULL,
+        status TEXT NOT NULL,
+        status_reason TEXT,
+        last_success_at TEXT,
+        next_allowed_at TEXT,
+        rows_inserted INTEGER DEFAULT 0,
+        rows_updated INTEGER DEFAULT 0,
+        rows_skipped INTEGER DEFAULT 0,
+        rows_invalid INTEGER DEFAULT 0,
+        source_rows INTEGER DEFAULT 0,
+        source_name TEXT,
+        updated_at TEXT NOT NULL,
+        meta_json TEXT,
+        PRIMARY KEY(telegram_id, sync_block)
+        )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS finance_expense_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_date TEXT NOT NULL,
+        period_key TEXT,
+        source_event_id TEXT,
+        source_table TEXT,
+        source_type TEXT,
+        expense_category TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'RUB',
+        nm_id TEXT,
+        supplier_article TEXT,
+        finance_status TEXT,
+        raw_payload_json TEXT,
+        created_at TEXT,
+        updated_at TEXT
+        )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS stock_snapshots(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        snapshot_date TEXT NOT NULL,
+        period_key TEXT,
+        source_snapshot_id TEXT,
+        source_type TEXT,
+        supplier_article TEXT,
+        nm_id TEXT,
+        barcode TEXT,
+        warehouse_name TEXT,
+        quantity INTEGER DEFAULT 0,
+        quantity_full INTEGER DEFAULT 0,
+        in_way_to_client INTEGER DEFAULT 0,
+        in_way_from_client INTEGER DEFAULT 0,
+        is_historical_available INTEGER DEFAULT 1,
+        raw_payload_json TEXT,
+        created_at TEXT,
+        updated_at TEXT
+        )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS financial_snapshot_audit(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        period_start TEXT NOT NULL,
+        period_end TEXT NOT NULL,
+        period_key TEXT,
+        snapshot_key TEXT,
+        finance_status TEXT,
+        finance_confidence TEXT,
+        profit_display_mode TEXT,
+        revenue REAL DEFAULT 0,
+        expenses_total REAL DEFAULT 0,
+        net_profit REAL DEFAULT 0,
+        source_map_json TEXT,
+        warnings_json TEXT,
+        snapshot_json TEXT,
+        created_at TEXT,
+        updated_at TEXT
+        )''')
         cur.execute('''CREATE TABLE IF NOT EXISTS sync_locks(
         telegram_id INTEGER NOT NULL,
         sync_block TEXT NOT NULL,
@@ -363,6 +437,16 @@ def init_db():
 
         for name, table, cols in [('idx_sales_user_date','sales','telegram_id,sale_date'),('idx_orders_user_date','orders','telegram_id,order_date'),('idx_exp_user_date','expenses','telegram_id,expense_date'),('idx_ads_user_date','advertising','telegram_id,advert_date'),('idx_stocks_user','stocks','telegram_id,supplier_article'),('idx_finance_raw_user_rrd','finance_raw_audit','telegram_id,rrd_id'),('idx_finance_raw_user_date','finance_raw_audit','telegram_id,report_date')]:
             cur.execute(f'CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_state_user_block_updated ON sync_state (telegram_id, sync_block, updated_at)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_date ON finance_expense_events (user_id, event_date)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_period ON finance_expense_events (user_id, period_key)')
+        cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_expense_events_source_id ON finance_expense_events (user_id, source_event_id) WHERE source_event_id IS NOT NULL')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_stock_snapshots_user_date ON stock_snapshots (user_id, snapshot_date)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_stock_snapshots_user_period ON stock_snapshots (user_id, period_key)')
+        cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_snapshots_source_id ON stock_snapshots (user_id, source_snapshot_id) WHERE source_snapshot_id IS NOT NULL')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period ON financial_snapshot_audit (user_id, period_start, period_end)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period_key ON financial_snapshot_audit (user_id, period_key)')
+        cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_snapshot_audit_snapshot_key ON financial_snapshot_audit (user_id, snapshot_key) WHERE snapshot_key IS NOT NULL')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_jobs_cabinet_started ON wb_sync_jobs (cabinet_id, started_at)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_schedules_cabinet_next_run ON wb_sync_schedules (cabinet_id, next_run_at)')
         cur.execute("INSERT OR IGNORE INTO organizations(id,name,plan,status,created_at,updated_at) VALUES('org_vooglii_main','VOOGLII Workspace','starter','active',datetime('now'),datetime('now'))")

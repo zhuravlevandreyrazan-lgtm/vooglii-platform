@@ -18,6 +18,7 @@ import load_sales
 import telegram_bot
 from user_manager import get_user
 from vooglii_telegram.services.token_resolver import resolve_wb_token
+from vooglii_wb_sync.sync_orchestrator import run_backfill_sync
 
 
 SOURCE_DB_CANDIDATES = [
@@ -735,106 +736,56 @@ def _run_backfill_from_wb_api(user_id: int, start_date: str, end_date: str) -> d
 
     target_conn = _connect(target_path)
     try:
-        before_sales = _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date)
-        before_orders = _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date)
-        before_products = _table_summary(target_conn, "products", None, user_id, start_date, end_date)
-        so_result = load_sales.backfill_sales_orders_range(user_id, token, start_date, end_date)
-        after_sales = _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date)
-        after_orders = _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date)
-        after_products = _table_summary(target_conn, "products", None, user_id, start_date, end_date)
-        result["api_blocks"]["sales"] = {
-            "status": so_result.get("sales_api", {}).get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
-            "rows_in_range": int(so_result.get("sales_api", {}).get("rows_in_range") or 0),
-            "received_rows": int(so_result.get("sales_api", {}).get("received_rows") or 0),
+        before_map = {
+            "sales": _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date),
+            "orders": _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date),
+            "products": _table_summary(target_conn, "products", None, user_id, start_date, end_date),
+            "advertising": _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date),
+            "expenses": _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date),
+            "finance_raw_audit": _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date),
+            "stocks": _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date),
         }
-        result["api_blocks"]["orders"] = {
-            "status": so_result.get("orders_api", {}).get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
-            "rows_in_range": int(so_result.get("orders_api", {}).get("rows_in_range") or 0),
-            "received_rows": int(so_result.get("orders_api", {}).get("received_rows") or 0),
+        sync_result = run_backfill_sync(user_id, start_date, end_date, token=token)
+        block_map = sync_result.get("blocks") or {}
+        after_map = {
+            "sales": _table_summary(target_conn, "sales", "sale_date", user_id, start_date, end_date),
+            "orders": _table_summary(target_conn, "orders", "order_date", user_id, start_date, end_date),
+            "products": _table_summary(target_conn, "products", None, user_id, start_date, end_date),
+            "advertising": _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date),
+            "expenses": _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date),
+            "finance_raw_audit": _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date),
+            "stocks": _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date),
         }
-        result["tables"]["sales"] = {"before": before_sales, "after": after_sales, **(so_result.get("sales_db") or {}), "source_rows": int(so_result.get("sales_api", {}).get("rows_in_range") or 0)}
-        result["tables"]["orders"] = {"before": before_orders, "after": after_orders, **(so_result.get("orders_db") or {}), "source_rows": int(so_result.get("orders_api", {}).get("rows_in_range") or 0)}
-        result["tables"]["products"] = {
-            "before": before_products,
-            "after": after_products,
-            "inserted": max(0, int((after_products.get("rows") or 0) - (before_products.get("rows") or 0))),
-            "updated": 0,
-            "skipped": 0,
-            "source_rows": int(so_result.get("sales_api", {}).get("rows_in_range") or 0),
+        table_block_map = {
+            "sales": "sales",
+            "orders": "orders",
+            "products": "products",
+            "advertising": "advertising",
+            "expenses": "finance",
+            "finance_raw_audit": "finance",
+            "stocks": "stocks",
         }
-
-        advertising_before = _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date)
-        ads_fetch = load_sales.historical_advertising_backfill(user_id, token, start_date, end_date)
-        result["api_blocks"]["advertising"] = {
-            "status": ads_fetch.get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
-            "campaigns_found": int((ads_fetch.get("summary") or {}).get("campaigns_found") or 0),
-            "rows_in_range": int((ads_fetch.get("summary") or {}).get("advertising_rows") or 0),
-        }
-        if ads_fetch.get("status") == "SUCCESS":
-            cur = target_conn.cursor()
-            ads_stats = load_sales._safe_upsert_historical_advertising_rows(cur, user_id, list(ads_fetch.get("rows") or []), start_date, end_date)
-            target_conn.commit()
-        else:
-            ads_stats = {"inserted": 0, "updated": 0, "skipped": 0, "invalid": 0, "errors": 0}
-            result["missing"].append("advertising")
-        advertising_after = _table_summary(target_conn, "advertising", "advert_date", user_id, start_date, end_date)
-        result["tables"]["advertising"] = {
-            "before": advertising_before,
-            "after": advertising_after,
-            **ads_stats,
-            "source_rows": int((ads_fetch.get("summary") or {}).get("advertising_rows") or 0),
-        }
-
-        finance_before = _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date)
-        expenses_before = _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date)
-        finance_fetch = _fetch_finance_api_range(user_id, token, start_date, end_date)
-        result["api_blocks"]["finance"] = {
-            "status": finance_fetch.get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
-            "pages_loaded": int(finance_fetch.get("pages_loaded") or 0),
-            "raw_rows": int(len(finance_fetch.get("raw_rows") or [])),
-            "expense_rows": int(len(finance_fetch.get("expense_rows") or [])),
-        }
-        if finance_fetch.get("status") == "SUCCESS":
-            expense_stats = _upsert_rows_from_payload(
-                target_conn,
-                "expenses",
-                list(finance_fetch.get("expense_rows") or []),
-                ["unique_key", "telegram_id", "expense_date", "expense_type", "amount", "supplier_article", "comment", "source", "created_at"],
-                ["unique_key"],
-            )
-            finance_stats = _upsert_finance_raw_rows(target_conn, list(finance_fetch.get("raw_rows") or []))
-            target_conn.commit()
-        else:
-            expense_stats = {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
-            finance_stats = {"source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0}
-            result["missing"].extend(["expenses", "finance_raw_audit"])
-        expenses_after = _table_summary(target_conn, "expenses", "expense_date", user_id, start_date, end_date)
-        finance_after = _table_summary(target_conn, "finance_raw_audit", "report_date", user_id, start_date, end_date)
-        result["tables"]["expenses"] = {"before": expenses_before, "after": expenses_after, **expense_stats}
-        result["tables"]["finance_raw_audit"] = {"before": finance_before, "after": finance_after, **finance_stats}
-
-        stocks_before = _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date)
-        today = str(load_sales._today())
-        if str(start_date) <= today <= str(end_date):
-            loaded, stocks_status = load_sales.load_stocks(user_id, token)
-            result["api_blocks"]["stocks"] = {
-                "status": stocks_status,
-                "rows_in_range": int(loaded or 0),
-                "note": "current_snapshot_only",
+        for table_name, block_name in table_block_map.items():
+            block = block_map.get(block_name) or {}
+            result["tables"][table_name] = {
+                "before": before_map[table_name],
+                "after": after_map[table_name],
+                "inserted": int(block.get("rows_inserted") or 0),
+                "updated": int(block.get("rows_updated") or 0),
+                "skipped": int(block.get("rows_skipped") or 0),
+                "source_rows": int(block.get("source_rows") or 0),
+                "status": block.get("raw_status") or block.get("status"),
             }
-        else:
-            stocks_status = "WB_API_UNAVAILABLE_FOR_PERIOD"
-            result["api_blocks"]["stocks"] = {"status": stocks_status, "rows_in_range": 0, "note": "stocks endpoint returns current snapshot only"}
-            result["missing"].append("stocks")
-        stocks_after = _table_summary(target_conn, "stocks", "stock_date", user_id, start_date, end_date)
-        result["tables"]["stocks"] = {
-            "before": stocks_before,
-            "after": stocks_after,
-            "inserted": max(0, int((stocks_after.get("rows") or 0) - (stocks_before.get("rows") or 0))),
-            "updated": 0,
-            "skipped": 0,
-            "source_rows": int((result["api_blocks"]["stocks"] or {}).get("rows_in_range") or 0),
-        }
+            if int(block.get("source_rows") or 0) <= 0 and table_name != "products":
+                result["missing"].append(table_name)
+        for block_name in ("sales", "orders", "finance", "advertising", "stocks", "products"):
+            block = block_map.get(block_name) or {}
+            result["api_blocks"][block_name] = {
+                "status": block.get("raw_status") or block.get("status") or "WB_API_UNAVAILABLE_FOR_PERIOD",
+                "sync_status": block.get("status"),
+                "rows_in_range": int(block.get("source_rows") or 0),
+                "next_allowed_at": block.get("next_allowed_at"),
+            }
     finally:
         target_conn.close()
 

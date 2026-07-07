@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .bridges import get_normalized_expense_summary, write_financial_snapshot_audit
+
 
 FINANCE_OK = "FINANCE_OK"
 FINANCE_PARTIAL = "FINANCE_PARTIAL"
@@ -296,6 +298,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     financial_engine_snapshot = dict(_safe_get(lambda: _call_with_optional_context(bot._financial_engine_snapshot, period_start, period_end, user=user_id, context=context), {}) or {})
     payment_snapshot = dict(_safe_get(lambda: _call_with_optional_context(bot._payment_reconciliation_snapshot, user_id, period_start, period_end, context=context), {}) or {})
     finance_health = dict(_safe_get(lambda: _call_with_optional_context(bot.get_finance_difference_snapshot, user_id, period_start, period_end, context=context), {}) or {})
+    normalized_expenses = dict(_safe_get(lambda: get_normalized_expense_summary(user_id, period_start, period_end, autoload=True), {}) or {})
     quality_snapshot = dict(_safe_get(lambda: _call_with_optional_context(bot._data_quality_snapshot, user_id, (period_start, period_end), context=context), {}) or {})
     orders_stats = _safe_get(lambda: bot.get_orders_stats(normalized_days, user_id), (0, 0.0, 0, 0.0)) or (0, 0.0, 0, 0.0)
     period_stats = _safe_get(lambda: bot.get_period_stats(normalized_days, user_id), (0, 0.0)) or (0, 0.0)
@@ -334,13 +337,35 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         if cost_coverage_percent < 95 or sales_revenue not in (None, 0) or sales_count > 0:
             cost_price = None
 
+    advertising_normalized = ((normalized_expenses.get("categories") or {}).get("advertising") or {})
+    logistics_normalized = ((normalized_expenses.get("categories") or {}).get("logistics") or {})
+    storage_normalized = ((normalized_expenses.get("categories") or {}).get("storage") or {})
+    acquiring_normalized = ((normalized_expenses.get("categories") or {}).get("acquiring") or {})
+    deductions_normalized = ((normalized_expenses.get("categories") or {}).get("wb_deductions") or {})
+    penalties_normalized = ((normalized_expenses.get("categories") or {}).get("penalties") or {})
+    other_normalized = ((normalized_expenses.get("categories") or {}).get("other") or {})
+
     advertising_spend_candidates = [
+        ("finance_expense_events.advertising", advertising_normalized.get("amount")),
         ("advertising_customer.total_spend", advertising_snapshot.get("total_spend")),
         ("report_mgmt.advertising", report_mgmt.get("advertising")),
         ("get_profit_stats.advertising", profit_stats[5] if len(profit_stats) > 5 else None),
     ]
     advertising_spend = _prefer_positive_money(*(value for _, value in advertising_spend_candidates))
+    legacy_advertising_spend = _prefer_positive_money(
+        advertising_snapshot.get("total_spend"),
+        report_mgmt.get("advertising"),
+        profit_stats[5] if len(profit_stats) > 5 else None,
+    )
+    normalized_advertising_spend = _round_money(advertising_normalized.get("amount"))
+    if (
+        legacy_advertising_spend is not None
+        and normalized_advertising_spend is not None
+        and abs(float(normalized_advertising_spend) - float(legacy_advertising_spend)) <= 0.01
+    ):
+        advertising_spend = legacy_advertising_spend
     logistics_candidates = [
+        ("finance_expense_events.logistics", logistics_normalized.get("amount")),
         ("report_mgmt.logistics", report_mgmt.get("logistics")),
         ("get_profit_stats.logistics", profit_stats[4] if len(profit_stats) > 4 else None),
         ("financial_engine.logistics_total", financial_engine_snapshot.get("logistics_total")),
@@ -348,6 +373,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     ]
     logistics = _prefer_positive_money(*(value for _, value in logistics_candidates))
     storage_candidates = [
+        ("finance_expense_events.storage", storage_normalized.get("amount")),
         ("report_mgmt.storage", report_mgmt.get("storage")),
         ("get_profit_stats.storage", profit_stats[6] if len(profit_stats) > 6 else None),
         ("financial_engine.storage_total", financial_engine_snapshot.get("storage_total")),
@@ -355,6 +381,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     ]
     storage = _prefer_positive_money(*(value for _, value in storage_candidates))
     acquiring_candidates = [
+        ("finance_expense_events.acquiring", acquiring_normalized.get("amount")),
         ("report_mgmt.acquiring", report_mgmt.get("acquiring")),
         ("financial_engine.payment_services_commission_total", financial_engine_snapshot.get("payment_services_commission_total")),
         ("financial_engine.acquiring_total", financial_engine_snapshot.get("acquiring_total")),
@@ -362,13 +389,15 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     ]
     acquiring = _prefer_positive_money(*(value for _, value in acquiring_candidates))
     wb_deductions_candidates = [
+        ("finance_expense_events.wb_deductions", deductions_normalized.get("amount")),
         ("report_mgmt.deductions", report_mgmt.get("deductions")),
         ("financial_engine.deductions_total", financial_engine_snapshot.get("deductions_total")),
         ("finance_difference.deductions", finance_health.get("deductions")),
     ]
     wb_deductions = _prefer_positive_money(*(value for _, value in wb_deductions_candidates))
-    penalties = None
+    penalties = _prefer_positive_money(penalties_normalized.get("amount"))
     other_expenses_candidates = [
+        ("finance_expense_events.other", other_normalized.get("amount")),
         ("report_mgmt.other", report_mgmt.get("other")),
         ("finance_difference.explicit_other_deductions", finance_health.get("explicit_other_deductions")),
         ("finance_difference.other_deductions", finance_health.get("other_deductions")),
@@ -387,6 +416,13 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         reconciliation_delta = round(float(raw_unknown_wb_expenses), 2) if float(raw_unknown_wb_expenses) < 0 else 0.0
 
     finance_status = _finance_status(financial_engine_snapshot, finance_api_snapshot, finance_health)
+    legacy_other_expenses = _prefer_positive_money(
+        report_mgmt.get("other"),
+        finance_health.get("explicit_other_deductions"),
+        finance_health.get("other_deductions"),
+    )
+    if finance_status != FINANCE_OK and legacy_other_expenses not in (None, 0.0):
+        other_expenses = legacy_other_expenses
     if finance_status != FINANCE_OK:
         if logistics == 0.0:
             logistics = None
@@ -497,17 +533,28 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     )
     profit_display_mode = _profit_display_mode(finance_confidence, finance_status)
 
+    use_normalized_layer = int(normalized_expenses.get("rows_total") or 0) > 0
+
+    def _normalized_metadata(entry: dict[str, Any], fallback: bool) -> dict[str, Any]:
+        return {
+            "rows": int(entry.get("rows") or 0),
+            "source_table": entry.get("source_table") or ("finance_expense_events" if not fallback else "legacy_fallback"),
+            "source_min_date": entry.get("min_date"),
+            "source_max_date": entry.get("max_date"),
+            "fallback": bool(fallback),
+        }
+
     sources = {
         "sales_revenue": _source_entry(sales_revenue, sales_revenue_candidates),
         "wb_payout": _source_entry(wb_payout, wb_payout_candidates),
         "wb_payments_received": _source_entry(wb_payments_received, [("payment_reconciliation.weekly_payout_total_all", payment_snapshot.get("weekly_payout_total_all"))]),
         "cost_price": _source_entry(cost_price, cost_price_candidates),
-        "advertising_spend": _source_entry(advertising_spend, advertising_spend_candidates),
-        "logistics": _source_entry(logistics, logistics_candidates),
-        "storage": _source_entry(storage, storage_candidates),
-        "acquiring": _source_entry(acquiring, acquiring_candidates),
-        "wb_deductions": _source_entry(wb_deductions, wb_deductions_candidates),
-        "other_expenses": _source_entry(other_expenses, other_expenses_candidates),
+        "advertising_spend": {**_source_entry(advertising_spend, advertising_spend_candidates), **_normalized_metadata(advertising_normalized, not bool(advertising_normalized))},
+        "logistics": {**_source_entry(logistics, logistics_candidates), **_normalized_metadata(logistics_normalized, not bool(logistics_normalized))},
+        "storage": {**_source_entry(storage, storage_candidates), **_normalized_metadata(storage_normalized, not bool(storage_normalized))},
+        "acquiring": {**_source_entry(acquiring, acquiring_candidates), **_normalized_metadata(acquiring_normalized, not bool(acquiring_normalized))},
+        "wb_deductions": {**_source_entry(wb_deductions, wb_deductions_candidates), **_normalized_metadata(deductions_normalized, not bool(deductions_normalized))},
+        "other_expenses": {**_source_entry(other_expenses, other_expenses_candidates), **_normalized_metadata(other_normalized, not bool(other_normalized))},
         "unknown_wb_expenses": _source_entry(raw_unknown_wb_expenses, unknown_candidates),
         "reconciliation_delta": {
             "selected_source": "derived_from_negative_unknown_wb_expenses" if reconciliation_delta not in (None, 0.0) else None,
@@ -582,6 +629,7 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         "expenses_status": {
             "selected_source": "_expenses_status(finance_status, wb_deductions, acquiring, other_expenses)",
             "selected_value": expenses_status,
+            "normalized_layer_used": use_normalized_layer,
         },
         "finance_confidence": {
             "selected_source": "_finance_confidence(...)",
@@ -699,6 +747,10 @@ def build_unified_financial_snapshot_dict(user_id: int, days, *, context=None, b
     payload["customer_unknown_wb_expenses"] = payload.get("unknown_wb_expenses")
     payload["overclassified_expenses"] = payload.get("reconciliation_delta")
     payload["confidence"] = payload.get("finance_confidence")
+    try:
+        payload["snapshot_audit"] = write_financial_snapshot_audit(user_id, payload)
+    except Exception:
+        payload["snapshot_audit"] = {"status": "ERROR"}
     return payload
 
 

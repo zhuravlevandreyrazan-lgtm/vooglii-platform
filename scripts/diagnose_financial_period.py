@@ -13,7 +13,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from config import DB_NAME
 import telegram_bot
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+from vooglii_finance.bridges import get_latest_stock_snapshot_info, get_snapshot_audit_rows
 from vooglii_telegram.services.token_resolver import resolve_wb_token
+from vooglii_wb_sync.sync_state import list_sync_state
 
 
 def _money(value) -> str:
@@ -441,6 +443,7 @@ def _print_runtime_snapshots(user_id: int) -> None:
         print(f"{key}: {unified.get(key)}")
 
     _print_mapping("Unified Snapshot Sources", sources)
+    _print_mapping("Source Map", dict(unified.get("source_map") or {}))
 
     _print_section("Report Mgmt Snapshot")
     for key in ("revenue", "payout", "cost_price", "advertising", "logistics", "storage", "acquiring", "deductions", "other", "unexplained"):
@@ -467,6 +470,7 @@ def _print_runtime_snapshots(user_id: int) -> None:
     print(f"finance_status source: {((sources.get('finance_status') or {}).get('selected_source'))}")
     print(f"ads_status source: {((sources.get('advertising_status') or {}).get('selected_source'))}")
     print(f"cost_status source: {((sources.get('cost_status') or {}).get('selected_source'))}")
+    _print_mapping("Sync State", list_sync_state(user_id))
 
     _print_section("Advertising Source Selection")
     advertising_table_total = _money((telegram_bot._advertising_customer_snapshot(user_id, days) or {}).get("total_spend"))
@@ -499,6 +503,56 @@ def _print_runtime_snapshots(user_id: int) -> None:
             _print_expense_classification_audit(conn.cursor(), user_id, unified, mgmt, finance)
         finally:
             conn.close()
+
+    _print_section("Missing Blocks")
+    missing_blocks = []
+    for block_name, state in (list_sync_state(user_id) or {}).items():
+        if str(state.get("status") or "") not in ("OK",):
+            missing_blocks.append(f"{block_name}: {state.get('status')} ({state.get('status_reason') or '-'})")
+    if missing_blocks:
+        for item in missing_blocks:
+            print(item)
+    else:
+        print("none")
+
+    _print_section("Snapshot Audit")
+    for row in get_snapshot_audit_rows(user_id, ARGS.date_from, ARGS.date_to)[:3]:
+        print(f"snapshot_key: {row.get('snapshot_key')}")
+        print(f"finance_status: {row.get('finance_status')}")
+        print(f"finance_confidence: {row.get('finance_confidence')}")
+        print(f"revenue: {_money(row.get('revenue'))}")
+        print(f"expenses_total: {_money(row.get('expenses_total'))}")
+        print(f"net_profit: {_money(row.get('net_profit'))}")
+        print(f"updated_at: {row.get('updated_at')}")
+        print()
+
+    _print_section("Expense Events")
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        cur = conn.cursor()
+        rows = _fetchall(
+            cur,
+            """
+            SELECT expense_category, COUNT(*), COALESCE(SUM(amount),0), MIN(event_date), MAX(event_date), GROUP_CONCAT(DISTINCT COALESCE(source_table,'-'))
+            FROM finance_expense_events
+            WHERE user_id=? AND substr(event_date,1,10) BETWEEN ? AND ?
+            GROUP BY expense_category
+            ORDER BY SUM(amount) DESC, expense_category ASC
+            """,
+            (user_id, ARGS.date_from, ARGS.date_to),
+        )
+        if rows:
+            for category, count_rows, total_amount, min_date, max_date, source_table in rows:
+                print(f"{category}: amount {_money(total_amount)} | rows {count_rows} | dates {min_date or '-'}..{max_date or '-'} | source {source_table or '-'}")
+        else:
+            print("no normalized expense events")
+    finally:
+        conn.close()
+
+    _print_section("Stock Snapshots")
+    latest_stock_snapshot = get_latest_stock_snapshot_info(user_id)
+    print(f"latest snapshot date: {latest_stock_snapshot.get('snapshot_date') or '-'}")
+    print(f"rows: {int(latest_stock_snapshot.get('rows') or 0)}")
 
     _print_section("Customer Outputs")
     print("/report")

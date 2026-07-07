@@ -6557,123 +6557,58 @@ def _finance_local_expenses_analysis(user, days):
 async def finance_explain_command(update, context, period_name, days, user):
     if not await access(update, 'report'):
         return
+    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
-    analysis = _finance_local_expenses_analysis(user, days)
-    st = analysis['st']
-    after = analysis['after']
+    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    source_map = dict(snapshot.get("source_map") or {})
 
-    revenue = round(float(st[0] or 0), 2)
-    wb_difference = round(float(st[1] or 0), 2)
-    payout = round(float(st[2] or 0), 2)
-    cost_price = round(float(st[3] or 0), 2)
-    logistics = round(float(st[4] or 0), 2)
-    advertising = round(float(st[5] or 0), 2)
-    storage = round(float(st[6] or 0), 2)
-    other = round(float(st[7] or 0), 2)
-    acquiring = round(float(analysis.get('acquiring') or 0), 2)
-    deductions = round(float(analysis.get('deduction') or 0), 2)
-    wb_other = round(float(analysis.get('other_local') or 0), 2)
-    unexplained = round(float(analysis.get('hidden_difference') or 0), 2)
-    tax = round(float(after.get('tax') or 0), 2)
-    profit_before_tax = round(float(after.get('profit_before_tax') or 0), 2)
-    profit_after_tax = round(float(after.get('profit_after_tax') or 0), 2)
-
-    current_formula = round(payout - cost_price - logistics - advertising - storage - other, 2)
-    alt_formula = round(revenue - wb_difference - cost_price - logistics - advertising - storage - other, 2)
-
-    promotion_overlap = 'LOW'
-    if advertising > 0 and deductions > 0:
-        promotion_overlap = 'CHECK'
-
-    double_count_risk = any([
-        acquiring > 0 and wb_difference > 0,
-        deductions > 0 and wb_difference > 0,
-        wb_other > 0 and wb_difference > 0,
-    ])
-
-    verdicts = []
-    if abs(current_formula - profit_before_tax) <= 0.01 and abs(alt_formula - profit_before_tax) <= 0.01:
-        verdicts.append('formula_ok')
-    if double_count_risk or promotion_overlap == 'CHECK':
-        verdicts.append('possible_double_count')
-    if revenue <= 0 or payout <= 0:
-        verdicts.append('missing_sales_data')
-    if tax > 0 and profit_before_tax <= 0:
-        verdicts.append('tax_needs_review')
-    if wb_difference > 0 and unexplained > 0:
-        verdicts.append('wb_difference_not_decomposed')
-    if not verdicts:
-        verdicts.append('formula_ok')
-
-    tax_base_text = f'revenue ({money(revenue)})' if 'доход' in str(format_tax_settings_label(user)).lower() or 'НПД' in str(format_tax_settings_label(user)) else f'profit_before_tax ({money(profit_before_tax)})'
+    def _explain_metric(label, key, value):
+        item = dict(source_map.get(key) or {})
+        lines = [
+            f"{label}:",
+            f"{_money_or_state(value, 'нет данных')}",
+            f"Источник: {item.get('source_table') or item.get('selected_source') or '-'}",
+        ]
+        if item.get("rows") is not None:
+            lines.append(f"Строк: {int(item.get('rows') or 0)}")
+        if item.get("source_min_date") or item.get("source_max_date"):
+            lines.append(f"Даты: {item.get('source_min_date') or '-'}..{item.get('source_max_date') or '-'}")
+        if item.get("fallback") is True:
+            lines.append("Режим: legacy fallback")
+        elif item.get("fallback") is False:
+            lines.append("Режим: normalized layer")
+        return lines
 
     lines = [
-        f'FINANCE EXPLAIN ({period_name})',
-        '',
-        'БАЗОВЫЕ ДАННЫЕ',
-        f'revenue: {money(revenue)}',
-        f'payout: {money(payout)}',
-        f'wb_difference = revenue - payout: {money(wb_difference)}',
-        f'cost_price: {money(cost_price)}',
-        f'logistics: {money(logistics)}',
-        f'advertising: {money(advertising)}',
-        f'storage: {money(storage)}',
-        f'other: {money(other)}',
-        f'acquiring: {money(acquiring)}',
-        f'deductions: {money(deductions)}',
-        f'tax: {money(tax)}',
-        f'profit_before_tax: {money(profit_before_tax)}',
-        f'profit_after_tax: {money(profit_after_tax)}',
-        '',
-        'CURRENT FORMULA:',
-        f'payout: {money(payout)}',
-        f'- cost_price: {money(cost_price)}',
-        f'- logistics: {money(logistics)}',
-        f'- advertising: {money(advertising)}',
-        f'- storage: {money(storage)}',
-        f'- other: {money(other)}',
-        f'= profit_before_tax: {money(current_formula)}',
-        '',
-        'АЛЬТЕРНАТИВНАЯ ФОРМУЛА ОТ ВЫРУЧКИ',
-        f'revenue: {money(revenue)}',
-        f'- wb_difference: {money(wb_difference)}',
-        f'- cost_price: {money(cost_price)}',
-        f'- logistics: {money(logistics)}',
-        f'- advertising: {money(advertising)}',
-        f'- storage: {money(storage)}',
-        f'- other: {money(other)}',
-        f'= profit_before_tax_alt: {money(alt_formula)}',
-        '',
-        'CHECKS:',
-        f'входит ли acquiring в wb_difference: {"yes" if acquiring > 0 and wb_difference > 0 else "no"}',
-        f'входит ли deductions в wb_difference: {"yes" if deductions > 0 and wb_difference > 0 else "no"}',
-        f'входит ли other в wb_difference: {"yes" if wb_other > 0 and wb_difference > 0 else "no"}',
-        f'не вычитается ли WB Продвижение одновременно как advertising и deduction: {promotion_overlap}',
-        f'не вычитается ли wb_difference и его части одновременно: {"yes" if double_count_risk else "no"}',
-        '',
-        'НАЛОГ',
-        f'tax: {money(tax)}',
-        f'tax base: {tax_base_text}',
-        f'почему налог начислен: режим {format_tax_settings_label(user)}',
+        "Финансовая расшифровка",
+        "",
+        f"Период: {period_name}",
+        "",
+        *_explain_metric("Выручка", "sales_revenue", snapshot.get("sales_revenue")),
+        "",
+        *_explain_metric("Реклама", "advertising_spend", snapshot.get("advertising_spend")),
+        "",
+        *_explain_metric("Логистика", "logistics", snapshot.get("logistics")),
+        "",
+        *_explain_metric("Хранение", "storage", snapshot.get("storage")),
+        "",
+        *_explain_metric("Эквайринг", "acquiring", snapshot.get("acquiring")),
+        "",
+        *_explain_metric("Удержания WB", "wb_deductions", snapshot.get("wb_deductions")),
+        "",
+        *_explain_metric("Прочие расходы", "other_expenses", snapshot.get("other_expenses")),
+        "",
+        *_explain_metric("Себестоимость", "cost_price", snapshot.get("cost_price")),
+        "",
+        *_explain_metric("Расходы всего", "expenses_total", snapshot.get("expenses_total")),
+        "",
+        *_explain_metric("Чистая прибыль", "net_profit", snapshot.get("net_profit")),
     ]
-    if profit_before_tax <= 0:
-        lines.append('В управленческом P&L налог при отрицательной прибыли требует отдельной проверки')
-    if after.get('tax_warning'):
-        lines.append(str(after['tax_warning']))
-    for note in after.get('tax_notes') or []:
-        lines.append(str(note))
-
-    lines.extend([
-        '',
-        'VERDICT:',
-    ])
-    for item in verdicts:
-        lines.append(item)
-    lines.extend([
-        '',
-        'Это диагностическая команда. БД, report.py, P&L, finance expenses, налоги и реклама не изменялись.',
-    ])
-    await send_long(update, '\n'.join(lines))
+    if snapshot.get("warnings"):
+        lines.extend(["", "Важно:"])
+        for item in list(snapshot.get("warnings") or [])[:5]:
+            lines.append(f"- {item}")
+    await send_long(update, "\n".join(lines))
 
 
 def _finance_mgmt_lines(period_name, days, user):
