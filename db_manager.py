@@ -303,6 +303,30 @@ def init_db():
         started_at TEXT NOT NULL,
         PRIMARY KEY(telegram_id, sync_block)
     )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS sync_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        block TEXT NOT NULL,
+        period_from TEXT NOT NULL,
+        period_to TEXT NOT NULL,
+        status TEXT NOT NULL,
+        priority INTEGER DEFAULT 100,
+        run_after TEXT,
+        attempts INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS sync_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        block TEXT NOT NULL,
+        status TEXT NOT NULL,
+        source_rows INTEGER DEFAULT 0,
+        retry_at TEXT,
+        message TEXT,
+        created_at TEXT
+    )''')
         cur.execute('''CREATE TABLE IF NOT EXISTS tax_settings(
         telegram_id INTEGER PRIMARY KEY,
         tax_mode TEXT DEFAULT 'none',
@@ -465,6 +489,9 @@ def init_db():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period ON financial_snapshot_audit (user_id, period_start, period_end)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period_key ON financial_snapshot_audit (user_id, period_key)')
         cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_snapshot_audit_snapshot_key ON financial_snapshot_audit (user_id, snapshot_key) WHERE snapshot_key IS NOT NULL')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_queue_ready ON sync_queue (status, run_after, priority)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_queue_user_block ON sync_queue (user_id, block, period_from, period_to)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_history_user_created ON sync_history (user_id, created_at)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_jobs_cabinet_started ON wb_sync_jobs (cabinet_id, started_at)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_wb_sync_schedules_cabinet_next_run ON wb_sync_schedules (cabinet_id, next_run_at)')
         cur.execute("INSERT OR IGNORE INTO organizations(id,name,plan,status,created_at,updated_at) VALUES('org_vooglii_main','VOOGLII Workspace','starter','active',datetime('now'),datetime('now'))")

@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from config import DB_NAME
+import config
 from db_manager import init_db
 
 
@@ -52,7 +52,7 @@ class BlockSyncState:
 
 def _connect() -> sqlite3.Connection:
     init_db()
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(config.DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
 

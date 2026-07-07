@@ -35,6 +35,7 @@ COMMAND_SPECS = [
     _spec("connect", "Подключить кабинет", "Подключить кабинет Wildberries", "customer", menu=True, help_item=True),
     _spec("disconnect", "Отключить кабинет", "Безопасно удалить WB-токен", "customer", help_item=True),
     _spec("update", "Обновить данные", "Запустить синхронизацию данных", "customer", menu=True, help_item=True),
+    _spec("sync", "Синхронизация", "Статус и история автоматических повторов WB", "customer", help_item=True),
     _spec("dashboard", "Главная сводка", "Главный экран и бизнес-сводка", "customer", menu=True, help_item=True),
     _spec("report", "Отчёт", "Ключевой отчёт за выбранный период", "customer", menu=True, help_item=True),
     _spec("business", "Бизнес", "Состояние бизнеса и рекомендации", "customer", menu=True, help_item=True),

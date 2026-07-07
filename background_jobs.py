@@ -123,9 +123,19 @@ async def sync_ads_job(context):
     _sync_many('advertising', _job_telegram_id(context))
 
 
+async def wb_sync_queue_worker_job(context):
+    try:
+        from vooglii_telegram.services.sync_service import run_sync_queue_worker
+
+        run_sync_queue_worker(now=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    except Exception:
+        logger.exception('WB_SYNC_QUEUE_WORKER_ERROR')
+
+
 def schedule_background_jobs(job_queue):
     if not job_queue:
         return
+    job_queue.run_repeating(wb_sync_queue_worker_job, interval=60, first=20, name='wb_sync_queue_worker')
     job_queue.run_repeating(sync_sales_job, interval=SYNC_INTERVALS['sales'], first=30, name='wb_sync_sales')
     job_queue.run_repeating(sync_orders_job, interval=SYNC_INTERVALS['orders'], first=60, name='wb_sync_orders')
     job_queue.run_repeating(sync_stocks_job, interval=SYNC_INTERVALS['stocks'], first=90, name='wb_sync_stocks')

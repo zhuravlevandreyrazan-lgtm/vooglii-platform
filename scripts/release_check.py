@@ -20,9 +20,11 @@ PY_COMPILE_FILES = [
     "vooglii_telegram/legacy_bot.py",
     "vooglii_telegram/registry.py",
     "vooglii_telegram/commands/registry.py",
+    "vooglii_telegram/handlers/sync.py",
     "vooglii_telegram/services/sync_service.py",
     "vooglii_wb_sync/products_loader.py",
     "vooglii_wb_sync/rate_limiter.py",
+    "vooglii_wb_sync/sync_queue.py",
     "vooglii_wb_sync/sync_orchestrator.py",
     "vooglii_finance/unified_snapshot.py",
     "scripts/audit_db_schema_v2.py",
@@ -43,6 +45,9 @@ REQUIRED_PYTEST_TESTS = [
     "tests/test_wb_data_loading_audit.py",
     "tests/test_financial_core_integrity.py",
     "tests/test_financial_core_periods.py",
+    "tests/test_sync_queue.py",
+    "tests/test_autonomous_sync_scheduler.py",
+    "tests/test_update_auto_retry_ux.py",
 ]
 
 COMMANDS: list[tuple[str, list[str]]] = [

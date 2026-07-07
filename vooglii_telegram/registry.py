@@ -37,6 +37,7 @@ def _command_handlers():
     from .handlers.start import start_command
     from .handlers.stocks import forecast_command, replenishment_command, stock_command, stocks_command
     from .handlers.system import system_command
+    from .handlers.sync import sync_command
     from .handlers.update import update_command
     from .legacy_bot import (
         buy_command,
@@ -158,6 +159,7 @@ def _command_handlers():
         "abc": abc_command,
         "health": health_command,
         "system": system_command,
+        "sync": sync_command,
         "status": status_command,
         "telegram": telegram_command,
         "ui": ui_command,

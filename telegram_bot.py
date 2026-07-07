@@ -42,6 +42,7 @@ from vooglii_telegram.handlers.sales import orders_command, sales_command
 from vooglii_telegram.handlers.start import start_command
 from vooglii_telegram.handlers.stocks import forecast_command, replenishment_command, stock_command, stocks_command
 from vooglii_telegram.handlers.system import system_command
+from vooglii_telegram.handlers.sync import sync_command
 from vooglii_telegram.handlers.update import update_command
 
 from vooglii_telegram.app import main
