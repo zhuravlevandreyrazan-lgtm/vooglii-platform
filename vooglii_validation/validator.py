@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict
 from datetime import date, datetime
 from typing import Any
 
@@ -10,26 +9,28 @@ import config
 from db_manager import init_db
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
-from .models import ValidationMetricResult, ValidationResult, WBWeeklyReference
+from .models import FinancialMode, ValidationMetricResult, ValidationResult, WBWeeklyReference
 from .report_builder import build_validation_report_text
 from .root_cause import infer_root_cause
+from .wb_weekly_snapshot import build_wb_weekly_snapshot_dict
 
 
 PASS = "PASS"
 WARN = "WARN"
 FAIL = "FAIL"
 INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+MODE_NOTE = "Weekly parity compares the WB weekly reference against WB-aligned source layers, not management P&L."
 
 METRIC_MAP = {
-    "revenue": {"wb_field": "revenue", "vooglii_field": "sales_revenue", "tolerance": 1.0},
-    "payout": {"wb_field": "payout", "vooglii_field": "wb_payout", "tolerance": 1.0},
-    "logistics": {"wb_field": "logistics", "vooglii_field": "logistics", "tolerance": 1.0},
-    "storage": {"wb_field": "storage", "vooglii_field": "storage", "tolerance": 1.0},
-    "acquiring": {"wb_field": "acquiring", "vooglii_field": "acquiring", "tolerance": 1.0},
+    "revenue": {"wb_field": "revenue", "vooglii_field": "wb_sale_amount", "tolerance": 1.0},
+    "payout": {"wb_field": "payout", "vooglii_field": "wb_payout_amount", "tolerance": 1.0},
+    "logistics": {"wb_field": "logistics", "vooglii_field": "wb_logistics", "tolerance": 1.0},
+    "storage": {"wb_field": "storage", "vooglii_field": "wb_storage", "tolerance": 1.0},
+    "acquiring": {"wb_field": "acquiring", "vooglii_field": "wb_acquiring", "tolerance": 1.0},
     "wb_deductions": {"wb_field": "wb_deductions", "vooglii_field": "wb_deductions", "tolerance": 1.0},
-    "other_expenses": {"wb_field": "other_expenses", "vooglii_field": "other_expenses", "tolerance": 1.0},
+    "other_expenses": {"wb_field": "other_expenses", "vooglii_field": "wb_other", "tolerance": 1.0},
     "penalties": {"wb_field": "penalties", "vooglii_field": "penalties", "tolerance": 1.0},
-    "advertising": {"wb_field": "advertising", "vooglii_field": "advertising_spend", "tolerance": 1.0},
+    "advertising": {"wb_field": "advertising", "vooglii_field": "advertising", "tolerance": 1.0},
     "orders_count": {"wb_field": "orders_count", "vooglii_field": "orders_count", "tolerance": 0.0},
     "buyouts_count": {"wb_field": "buyouts_count", "vooglii_field": "buyouts_count", "tolerance": 0.0},
     "returns_count": {"wb_field": "returns_count", "vooglii_field": "returns_count", "tolerance": 0.0},
@@ -56,6 +57,10 @@ def build_vooglii_validation_snapshot(user_id: int, period_from: date, period_to
     return build_unified_financial_snapshot_dict(int(user_id), (str(period_from), str(period_to)))
 
 
+def build_wb_weekly_validation_snapshot(user_id: int, period_from: date, period_to: date) -> dict[str, Any]:
+    return build_wb_weekly_snapshot_dict(int(user_id), period_from, period_to)
+
+
 def _metric_status(wb_value: Any, vooglii_value: Any, tolerance: float, snapshot: dict[str, Any]) -> tuple[str, float | None]:
     if wb_value is None or vooglii_value is None:
         return INSUFFICIENT_DATA, None
@@ -68,9 +73,11 @@ def _metric_status(wb_value: Any, vooglii_value: Any, tolerance: float, snapshot
 
 
 def validate_weekly_report(user_id: int, reference: WBWeeklyReference) -> ValidationResult:
-    snapshot = build_vooglii_validation_snapshot(int(user_id), reference.period_from, reference.period_to)
+    snapshot = build_wb_weekly_validation_snapshot(int(user_id), reference.period_from, reference.period_to)
+    management_context = build_vooglii_validation_snapshot(int(user_id), reference.period_from, reference.period_to)
     metrics: list[ValidationMetricResult] = []
     warnings = list(dict.fromkeys([str(item) for item in list(snapshot.get("warnings") or []) if str(item).strip()]))
+    warnings.append(MODE_NOTE)
     for metric_name, mapping in METRIC_MAP.items():
         wb_value = getattr(reference, str(mapping["wb_field"]))
         vooglii_value = snapshot.get(str(mapping["vooglii_field"]))
@@ -95,11 +102,12 @@ def validate_weekly_report(user_id: int, reference: WBWeeklyReference) -> Valida
     passed = [item for item in comparable if item.status == PASS]
     failed_metrics = [item.metric for item in metrics if item.status == FAIL]
     parity_score = round((len(passed) / len(comparable) * 100) if comparable else 0.0, 1)
+    material_warnings = [item for item in warnings if item != MODE_NOTE]
     if not comparable:
         overall_status = INSUFFICIENT_DATA
     elif failed_metrics:
         overall_status = FAIL
-    elif any(item.status == WARN for item in metrics) or warnings:
+    elif any(item.status == WARN for item in metrics) or material_warnings:
         overall_status = WARN
     else:
         overall_status = PASS
@@ -113,6 +121,9 @@ def validate_weekly_report(user_id: int, reference: WBWeeklyReference) -> Valida
         failed_metrics=failed_metrics,
         warnings=list(dict.fromkeys(warnings)),
         status=overall_status,
+        mode=FinancialMode.WB_WEEKLY_PARITY,
+        snapshot_summary=snapshot,
+        management_context=management_context,
     )
     save_validation_result(reference, result)
     return result

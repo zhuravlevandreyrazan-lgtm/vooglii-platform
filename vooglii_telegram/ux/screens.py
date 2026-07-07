@@ -11,13 +11,13 @@ def start_screen(command_lines: list[str]) -> str:
         "📊 продажи",
         "💰 прибыль и выплаты",
         "📦 товары и остатки",
-        "📢 рекламу",
+        "📣 рекламу",
         "🤖 рекомендации",
         "",
         "Быстрый старт:",
-        "1. Подключите кабинет WB — /connect",
-        "2. Обновите данные — /update",
-        "3. Откройте главную сводку — /home",
+        "1. Подключите кабинет WB - /connect",
+        "2. Обновите данные - /update",
+        "3. Откройте главную сводку - /home",
         "",
         "Главные разделы:",
     ]
@@ -53,10 +53,25 @@ def profile_screen(username: str, tariff: str, role: str, wb_status: str, subscr
     return "\n".join(lines)
 
 
-def home_screen(period_label: str, cards: list[tuple[str, str, str]], actions: list[str], sections: list[str]) -> str:
-    lines = [title("🏢", BRAND_NAME), "", "Главная сводка", "", f"Период: {period_label}", ""]
+def home_screen(
+    period_label: str,
+    cards: list[tuple[str, str, str]],
+    actions: list[str],
+    sections: list[str],
+    mode_label: str | None = None,
+    mode_hint: str | None = None,
+    validation_summary: str | None = None,
+) -> str:
+    lines = [title("🏢", BRAND_NAME), "", "Главная сводка", "", f"Период: {period_label}"]
+    if mode_label:
+        lines.extend(["", "Режим:", mode_label])
+    if mode_hint:
+        lines.append(mode_hint)
+    lines.append("")
     for header, status, message in cards:
         lines.extend([f"{status_dot(status)} {header}", message, ""])
+    if validation_summary:
+        lines.extend([validation_summary, ""])
     lines.append("Что сделать сейчас:")
     lines.extend(actions)
     lines.extend(["", "Разделы:"])
@@ -72,9 +87,25 @@ def system_customer_screen(items: list[str], actions: list[str]) -> str:
     return "\n".join(lines)
 
 
-def business_screen(period_label: str, status_text: str, highlights: list[str], actions: list[str], next_sections: list[str]) -> str:
-    lines = [title("📊", "Бизнес"), "", f"Период: {period_label}", "", "Статус:", status_text, "", "Главное:"]
+def business_screen(
+    period_label: str,
+    status_text: str,
+    highlights: list[str],
+    actions: list[str],
+    next_sections: list[str],
+    mode_label: str | None = None,
+    mode_hint: str | None = None,
+    validation_summary: str | None = None,
+) -> str:
+    lines = [title("📊", "Бизнес"), "", f"Период: {period_label}"]
+    if mode_label:
+        lines.extend(["", "Режим:", mode_label])
+    if mode_hint:
+        lines.append(mode_hint)
+    lines.extend(["", "Статус:", status_text, "", "Главное:"])
     lines.extend(highlights)
+    if validation_summary:
+        lines.extend(["", validation_summary])
     lines.extend(["", "Что сделать сегодня:"])
     lines.extend(actions)
     lines.extend(["", "Следующие разделы:"])
@@ -82,9 +113,25 @@ def business_screen(period_label: str, status_text: str, highlights: list[str], 
     return "\n".join(lines)
 
 
-def finance_screen(period_label: str, status_text: str, money_lines: list[str], important_note: str, actions: list[str]) -> str:
-    lines = [title("💰", "Финансы"), "", f"Период: {period_label}", "", "Статус:", status_text, "", "Деньги:"]
+def finance_screen(
+    period_label: str,
+    status_text: str,
+    money_lines: list[str],
+    important_note: str,
+    actions: list[str],
+    mode_label: str | None = None,
+    mode_hint: str | None = None,
+    validation_summary: str | None = None,
+) -> str:
+    lines = [title("💰", "Финансы"), "", f"Период: {period_label}"]
+    if mode_label:
+        lines.extend(["", "Режим:", mode_label])
+    if mode_hint:
+        lines.append(mode_hint)
+    lines.extend(["", "Статус:", status_text, "", "Деньги:"])
     lines.extend(money_lines)
+    if validation_summary:
+        lines.extend(["", validation_summary])
     lines.extend(["", "Важно:", important_note, "", "Что сделать:"])
     lines.extend(actions)
     return "\n".join(lines)

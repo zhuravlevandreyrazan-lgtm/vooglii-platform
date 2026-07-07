@@ -17486,6 +17486,8 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label, validation_summary_text
+
     snapshot = _home_snapshot(user=user, days=days)
     sales_ok = _ux_status_is_ok(snapshot.get('sales_status'))
     finance_ok = str(snapshot.get('finance_status') or '').upper() == 'FINANCE_OK'
@@ -17528,7 +17530,15 @@ def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         "Открыть /products и заполнить себестоимость." if not costs_ok else "",
         "Открыть /business и посмотреть ключевые итоги.",
     )
-    return home_screen(str(snapshot.get('period_label') or '-'), cards, actions, main_sections())
+    return home_screen(
+        str(snapshot.get('period_label') or '-'),
+        cards,
+        actions,
+        main_sections(),
+        mode_label=financial_mode_label(FinancialMode.MANAGEMENT_PNL),
+        mode_hint=financial_mode_hint(FinancialMode.MANAGEMENT_PNL),
+        validation_summary=validation_summary_text(user, compact=True),
+    )
 
 
 def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -17572,6 +17582,8 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 
 def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label, validation_summary_text
+
     days = _center_days(days)
     snapshot = _business_center_snapshot(user=user, days=days)
     state = dict(snapshot.get('business_state') or {})
@@ -17616,6 +17628,9 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         highlights=highlights,
         actions=actions,
         next_sections=next_sections,
+        mode_label=financial_mode_label(FinancialMode.MANAGEMENT_PNL),
+        mode_hint=financial_mode_hint(FinancialMode.MANAGEMENT_PNL),
+        validation_summary=validation_summary_text(user, compact=True),
     )
 
 
@@ -17679,6 +17694,8 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
+    from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label, validation_summary_text
+
     days = _center_days(days)
     snapshot = _finance_center_snapshot(user=user, days=days)
     finance_status = str(snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
@@ -17754,10 +17771,21 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     )
     if finance_confidence == 'LOW':
         money_lines.extend(["", *(_customer_finance_confidence_warning(unified_snapshot) or [])])
-    return finance_screen(_customer_period_label(user, days), status_text, money_lines, important_note, actions)
+    return finance_screen(
+        _customer_period_label(user, days),
+        status_text,
+        money_lines,
+        important_note,
+        actions,
+        mode_label=financial_mode_label(FinancialMode.MANAGEMENT_PNL),
+        mode_hint=financial_mode_hint(FinancialMode.MANAGEMENT_PNL),
+        validation_summary=validation_summary_text(user, compact=False),
+    )
 
 
 def _pnl_customer_text(user, days):
+    from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label
+
     days = _center_days(days)
     from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
@@ -17773,6 +17801,10 @@ def _pnl_customer_text(user, days):
         '💰 P&L',
         '',
         f'Период: {_customer_period_label(user, days)}',
+        '',
+        'Режим:',
+        financial_mode_label(FinancialMode.MANAGEMENT_PNL),
+        financial_mode_hint(FinancialMode.MANAGEMENT_PNL),
         '',
         'Главное:',
         f'- Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
@@ -19564,6 +19596,8 @@ def _report_mgmt_text(period_name, days, user):
 
 
 def _unified_report_text(user, days):
+    from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label
+
     from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
     snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
@@ -19587,6 +19621,10 @@ def _unified_report_text(user, days):
         '📊 Отчёт',
         '',
         f'Период: {_customer_period_label(user, days)}',
+        '',
+        'Режим:',
+        financial_mode_label(FinancialMode.MANAGEMENT_PNL),
+        financial_mode_hint(FinancialMode.MANAGEMENT_PNL),
         '',
         f'Заказов: {int(snapshot.get("orders_count") or 0)}',
         f'Выкупов: {int(snapshot.get("sales_count") or 0)}',

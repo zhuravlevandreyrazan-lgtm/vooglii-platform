@@ -18,11 +18,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--user-id", required=True, type=int)
     parser.add_argument("--file", required=True)
+    parser.add_argument("--mode", default="weekly-parity", choices=["weekly-parity"])
     args = parser.parse_args()
 
     reference = load_wb_weekly_reference(str(args.file))
     result = validate_weekly_report(int(args.user_id), reference)
 
+    print(f"mode: {args.mode}")
     print(f"reference period: {reference.period_from}..{reference.period_to}")
     print(f"reference hash: {reference.source_hash}")
     print(f"report number: {reference.report_number or '-'}")
