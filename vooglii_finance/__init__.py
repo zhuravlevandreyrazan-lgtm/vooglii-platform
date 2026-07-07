@@ -1,3 +1,4 @@
+from .customer_snapshot import build_customer_financial_snapshot, build_customer_financial_snapshot_dict
 from .unified_snapshot import (
     FINANCE_STATUS_LABELS,
     FINANCE_STATUS_TEXT,
@@ -8,6 +9,8 @@ from .unified_snapshot import (
 )
 
 __all__ = [
+    "build_customer_financial_snapshot",
+    "build_customer_financial_snapshot_dict",
     "FINANCE_STATUS_LABELS",
     "FINANCE_STATUS_TEXT",
     "UnifiedFinancialSnapshot",

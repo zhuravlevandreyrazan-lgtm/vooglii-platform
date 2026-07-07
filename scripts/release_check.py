@@ -29,6 +29,7 @@ PY_COMPILE_FILES = [
     "vooglii_wb_sync/rate_limiter.py",
     "vooglii_wb_sync/sync_queue.py",
     "vooglii_wb_sync/sync_orchestrator.py",
+    "vooglii_finance/customer_snapshot.py",
     "vooglii_finance/unified_snapshot.py",
     "vooglii_validation/__init__.py",
     "vooglii_validation/models.py",
@@ -71,9 +72,10 @@ REQUIRED_PYTEST_TESTS = [
     "tests/test_validation_report_builder.py",
     "tests/test_wb_weekly_parity_validator.py",
     "tests/test_wb_weekly_mode_separation.py",
-    "tests/test_financial_modes_ux.py",
-    "tests/test_finance_validate_command.py",
-    "tests/test_validation_summary_in_reports.py",
+    "tests/test_customer_financial_snapshot.py",
+    "tests/test_wb_native_closed_period.py",
+    "tests/test_customer_no_manual_validation_ux.py",
+    "tests/test_wb_financial_periods.py",
 ]
 
 COMMANDS: list[tuple[str, list[str]]] = [

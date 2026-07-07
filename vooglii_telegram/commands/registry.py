@@ -39,13 +39,12 @@ COMMAND_SPECS = [
     _spec("dashboard", "Главная сводка", "Главный экран и бизнес-сводка", "customer", menu=True, help_item=True),
     _spec("report", "Отчёт", "Ключевой отчёт за выбранный период", "customer", menu=True, help_item=True),
     _spec("business", "Бизнес", "Состояние бизнеса и рекомендации", "customer", menu=True, help_item=True),
-    _spec("finance", "Финансы", "Прибыль, выплаты и деньги", "customer", menu=True, help_item=True),
+    _spec("finance", "Финансы", "Деньги, выплаты и расходы", "customer", menu=True, help_item=True),
     _spec("advert", "Реклама", "Аналитика рекламы Wildberries", "customer", menu=True, help_item=True),
     _spec("products", "Товары", "SKU, ассортимент и прибыльность", "customer", menu=True, help_item=True),
     _spec("cost", "Себестоимость", "Диагностика и заполнение себестоимости SKU", "customer", help_item=True),
     _spec("stocks", "Остатки", "Остатки и риски out-of-stock", "customer", menu=True, help_item=True),
     _spec("forecast", "Прогноз", "План пополнения и будущие риски", "customer", menu=True, help_item=True),
-    _spec("validate", "Валидация", "Сертификация VOOGLII по weekly report WB", "customer", help_item=True),
     _spec("advisor", "Советник", "AI-рекомендации по бизнесу", "customer", menu=True, help_item=True),
     _spec("system", "Система", "Состояние данных и синхронизаций", "customer", menu=True, help_item=True),
     _spec("profile", "Профиль", "Статус кабинета и подписки", "customer", menu=True, help_item=True),
@@ -62,6 +61,7 @@ COMMAND_SPECS = [
     _spec("ui", "UI", "Внутренние UI-спеки", "developer"),
     _spec("rc", "Release Candidate", "Диагностика RC", "developer"),
     _spec("data", "Data", "Внутренняя диагностика данных", "developer"),
+    _spec("validate", "Валидация", "Внутренняя диагностика финансов WB", "developer"),
     _spec("adsfullstatsprobe", "Ads Probe", "Низкоуровневая диагностика ads fullstats", "developer"),
 ]
 
