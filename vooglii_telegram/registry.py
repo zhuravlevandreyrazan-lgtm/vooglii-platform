@@ -39,6 +39,7 @@ def _command_handlers():
     from .handlers.system import system_command
     from .handlers.sync import sync_command
     from .handlers.update import update_command
+    from .handlers.validate import validate_command
     from .legacy_bot import (
         buy_command,
         card_command,
@@ -164,4 +165,5 @@ def _command_handlers():
         "telegram": telegram_command,
         "ui": ui_command,
         "admin": admin_command,
+        "validate": validate_command,
     }

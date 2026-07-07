@@ -27,6 +27,12 @@ PY_COMPILE_FILES = [
     "vooglii_wb_sync/sync_queue.py",
     "vooglii_wb_sync/sync_orchestrator.py",
     "vooglii_finance/unified_snapshot.py",
+    "vooglii_validation/__init__.py",
+    "vooglii_validation/models.py",
+    "vooglii_validation/wb_weekly_loader.py",
+    "vooglii_validation/validator.py",
+    "vooglii_validation/report_builder.py",
+    "vooglii_validation/root_cause.py",
     "scripts/audit_db_schema_v2.py",
     "scripts/audit_finance_sources.py",
     "scripts/audit_product_catalog.py",
@@ -35,6 +41,7 @@ PY_COMPILE_FILES = [
     "scripts/audit_advertising_sync.py",
     "scripts/diagnose_financial_period.py",
     "scripts/backfill_financial_period.py",
+    "scripts/validate_wb_weekly_report.py",
 ]
 
 REQUIRED_PYTEST_TESTS = [
@@ -52,6 +59,10 @@ REQUIRED_PYTEST_TESTS = [
     "tests/test_advertising_partial_root_cause.py",
     "tests/test_advertising_selected_total.py",
     "tests/test_sync_ux_texts.py",
+    "tests/test_wb_weekly_loader.py",
+    "tests/test_financial_validation.py",
+    "tests/test_validation_history.py",
+    "tests/test_validation_report_builder.py",
 ]
 
 COMMANDS: list[tuple[str, list[str]]] = [

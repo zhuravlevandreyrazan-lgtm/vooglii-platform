@@ -54,6 +54,7 @@ CUSTOMER_PERMISSION_MAP = {
     "dashboard": "customer.dashboard",
     "home": "customer.dashboard",
     "forecast": "customer.forecast",
+    "validate": "customer.report",
 }
 
 _READONLY_CUSTOMER_PERMISSIONS = {

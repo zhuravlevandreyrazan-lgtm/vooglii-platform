@@ -45,6 +45,7 @@ COMMAND_SPECS = [
     _spec("cost", "Себестоимость", "Диагностика и заполнение себестоимости SKU", "customer", help_item=True),
     _spec("stocks", "Остатки", "Остатки и риски out-of-stock", "customer", menu=True, help_item=True),
     _spec("forecast", "Прогноз", "План пополнения и будущие риски", "customer", menu=True, help_item=True),
+    _spec("validate", "Валидация", "Сертификация VOOGLII по weekly report WB", "customer", help_item=True),
     _spec("advisor", "Советник", "AI-рекомендации по бизнесу", "customer", menu=True, help_item=True),
     _spec("system", "Система", "Состояние данных и синхронизаций", "customer", menu=True, help_item=True),
     _spec("profile", "Профиль", "Статус кабинета и подписки", "customer", menu=True, help_item=True),

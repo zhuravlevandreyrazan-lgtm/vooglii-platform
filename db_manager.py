@@ -297,6 +297,20 @@ def init_db():
         created_at TEXT,
         updated_at TEXT
         )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS financial_validation_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        period_from TEXT NOT NULL,
+        period_to TEXT NOT NULL,
+        reference_hash TEXT NOT NULL,
+        reference_file TEXT,
+        parity_score REAL,
+        status TEXT,
+        failed_metrics TEXT,
+        warnings TEXT,
+        report_text TEXT,
+        created_at TEXT NOT NULL
+        )''')
         cur.execute('''CREATE TABLE IF NOT EXISTS sync_locks(
         telegram_id INTEGER NOT NULL,
         sync_block TEXT NOT NULL,
@@ -489,6 +503,7 @@ def init_db():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period ON financial_snapshot_audit (user_id, period_start, period_end)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_snapshot_audit_user_period_key ON financial_snapshot_audit (user_id, period_key)')
         cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_financial_snapshot_audit_snapshot_key ON financial_snapshot_audit (user_id, snapshot_key) WHERE snapshot_key IS NOT NULL')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_financial_validation_history_user_period ON financial_validation_history (user_id, period_from, period_to)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_queue_ready ON sync_queue (status, run_after, priority)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_queue_user_block ON sync_queue (user_id, block, period_from, period_to)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_sync_history_user_created ON sync_history (user_id, created_at)')

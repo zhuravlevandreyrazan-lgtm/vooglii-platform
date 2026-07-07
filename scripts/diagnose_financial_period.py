@@ -14,6 +14,7 @@ from config import DB_NAME
 import telegram_bot
 from product_catalog import build_product_catalog_audit
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
+from vooglii_validation.validator import get_latest_validation_result
 from vooglii_finance.bridges import (
     get_finance_expense_event_duplicates,
     get_finance_expense_event_out_of_period_rows,
@@ -476,6 +477,16 @@ def _print_runtime_snapshots(user_id: int) -> None:
         print(f"net_profit: {_money(row.get('net_profit'))}")
         print(f"updated_at: {row.get('updated_at')}")
         print()
+
+    _print_section("Validation History")
+    validation_row = get_latest_validation_result(user_id)
+    if validation_row:
+        print(f"last validation score: {float(validation_row.get('parity_score') or 0):.1f}%")
+        print(f"last validation status: {validation_row.get('status')}")
+        print(f"failed metrics: {', '.join(validation_row.get('failed_metrics') or []) or '-'}")
+        print(f"reference_hash: {validation_row.get('reference_hash') or '-'}")
+    else:
+        print("none")
 
     _print_section("Expense Events")
     conn = sqlite3.connect(DB_NAME)
