@@ -51,3 +51,19 @@ def test_sync_queue_deduplicates_active_tasks_and_claims_ready(tmp_path):
     assert claimed[0]["status"] == sync_queue.QUEUE_RUNNING
     assert claimed[0]["attempts"] == 1
 
+
+def test_wait_limit_without_run_after_gets_default_policy(tmp_path):
+    _prepare_db(tmp_path)
+
+    queued = sync_queue.enqueue_sync_task(
+        42,
+        "sales",
+        "2026-07-01",
+        "2026-07-31",
+        status=sync_queue.QUEUE_WAIT_LIMIT,
+        run_after=None,
+        last_error="RATE_LIMIT",
+    )
+
+    assert queued["run_after"]
+    assert queued["run_after"] != "-"

@@ -71,6 +71,28 @@ def normalize_sync_error(error_code):
     return f"⚠ Ошибка обновления: {status}"
 
 
+def _retry_source(payload: dict | None) -> str:
+    meta = dict((payload or {}).get("meta") or {})
+    return str(meta.get("retry_source") or "")
+
+
+def _history_retry_source(message: str | None) -> str:
+    text = str(message or "")
+    marker = "retry_source="
+    if marker not in text:
+        return ""
+    return text.split(marker, 1)[1].strip().split()[0]
+
+
+def _retry_text(next_at, retry_source: str) -> str:
+    if not next_at:
+        return "скоро"
+    formatted = format_user_time(next_at)
+    if retry_source == "default_policy":
+        return f"примерно в {formatted}"
+    return formatted
+
+
 def run_user_sync(user_id, token=None, days=30):
     if not token:
         resolution = resolve_wb_token(int(user_id))
@@ -99,7 +121,14 @@ def _format_block_line(name, block):
             suffix = "заполнена частично"
         return f"✅ {bot.block_label(name)} {suffix}"
     if status == "API_LIMIT":
-        retry_text = f"\nАвтоматически повторю после {format_user_time(next_at)}" if next_at else ""
+        retry_source = _retry_source(block)
+        if next_at:
+            if retry_source == "default_policy":
+                retry_text = f"\nАвтоматически повторю примерно в {format_user_time(next_at)}"
+            else:
+                retry_text = f"\nАвтоматически повторю после {format_user_time(next_at)}"
+        else:
+            retry_text = ""
         if name == "advertising":
             return f"⏳ {bot.block_label(name)} временно ограничена WB{retry_text}"
         return f"⏳ {bot.block_label(name)} временно ограничены WB{retry_text}"
@@ -194,7 +223,9 @@ def _sync_status_line(block_name: str, state: dict, queue_task: dict | None) -> 
         return f"{bot.block_label(block_name)}: частично"
     if status == "API_LIMIT":
         next_at = (queue_task or {}).get("run_after") or (state or {}).get("next_allowed_at")
-        return f"{bot.block_label(block_name)}: ожидает лимит WB\nСледующая попытка: {format_user_time(next_at)}"
+        retry_source = _retry_source(state)
+        label = _retry_text(next_at, retry_source)
+        return f"{bot.block_label(block_name)}: ожидает лимит WB\nСледующая попытка: {label}"
     if status == "UNAVAILABLE":
         return f"{bot.block_label(block_name)}: недоступны"
     if status == "NO_TOKEN":
@@ -226,7 +257,8 @@ def build_sync_history_text(user_id: int, limit: int = 10) -> str:
         if status == "OK":
             lines.append(f"{created_at} {block_label} - OK, {source_rows} rows")
         elif status == "API_LIMIT":
-            lines.append(f"{created_at} {block_label} - WAIT_LIMIT, retry {format_user_time(retry_at)}")
+            retry_source = _history_retry_source(row.get("message"))
+            lines.append(f"{created_at} {block_label} - WAIT_LIMIT, retry {_retry_text(retry_at, retry_source)}")
         elif status == "PARTIAL":
             lines.append(f"{created_at} {block_label} - PARTIAL, {source_rows} rows")
         else:

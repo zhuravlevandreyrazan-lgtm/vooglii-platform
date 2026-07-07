@@ -12,6 +12,7 @@ from .finance_loader import sync_finance
 from .orders_loader import sync_orders
 from .products_loader import refresh_products_index
 from .rate_limiter import (
+    DEFAULT_RETRY_SECONDS,
     SYNC_API_LIMIT,
     SYNC_ERROR,
     SYNC_NO_TOKEN,
@@ -20,6 +21,7 @@ from .rate_limiter import (
     SYNC_UNAVAILABLE,
     next_allowed_at,
     parse_status_kind,
+    resolve_retry_policy,
 )
 from .sales_loader import sync_sales
 from .stocks_loader import sync_stocks
@@ -52,7 +54,23 @@ def _run_block(user_id: int, block: str, raw_status: str, payload: dict[str, Any
     sync_status = parse_status_kind(raw_status)
     status_reason = str(raw_status or "")
     last_success_at = load_sales._now_str() if sync_status == SYNC_OK else None
+    payload_meta = dict(payload.get("meta") or {})
     block_next_allowed = next_allowed_at(user_id, block if block != "products" else "sales")
+    if sync_status == SYNC_API_LIMIT:
+        retry_policy = resolve_retry_policy(
+            int(user_id),
+            str(block),
+            status_reason,
+            next_allowed=block_next_allowed,
+        )
+        block_next_allowed = str(retry_policy.get("retry_at") or block_next_allowed or "")
+        payload_meta.update(
+            {
+                "retry_source": retry_policy.get("retry_source"),
+                "retry_seconds": int(retry_policy.get("retry_seconds") or DEFAULT_RETRY_SECONDS.get(str(block), 600)),
+                "retry_is_approximate": bool(retry_policy.get("retry_is_approximate")),
+            }
+        )
     save_sync_state(
         user_id,
         block,
@@ -66,7 +84,7 @@ def _run_block(user_id: int, block: str, raw_status: str, payload: dict[str, Any
         rows_invalid=int(payload.get("invalid") or 0),
         source_rows=int(payload.get("source_rows") or 0),
         source_name=payload.get("source_name"),
-        meta=payload.get("meta") or {},
+        meta=payload_meta,
     )
     return {
         "status": sync_status,
@@ -78,7 +96,7 @@ def _run_block(user_id: int, block: str, raw_status: str, payload: dict[str, Any
         "rows_invalid": int(payload.get("invalid") or 0),
         "source_rows": int(payload.get("source_rows") or 0),
         "source_name": payload.get("source_name"),
-        "meta": payload.get("meta") or {},
+        "meta": payload_meta,
     }
 
 
@@ -87,6 +105,8 @@ def _register_queue_and_history(user_id: int, block: str, period: int | tuple[st
     status = str(result.get("status") or "")
     raw_status = str(result.get("raw_status") or "")
     retry_at = result.get("next_allowed_at")
+    retry_source = str(((result.get("meta") or {}).get("retry_source")) or "")
+    history_message = raw_status if not retry_source else f"{raw_status} retry_source={retry_source}"
     if status == SYNC_API_LIMIT:
         enqueue_sync_task(
             user_id,
@@ -95,7 +115,7 @@ def _register_queue_and_history(user_id: int, block: str, period: int | tuple[st
             period_to,
             status=QUEUE_WAIT_LIMIT,
             run_after=retry_at,
-            last_error=raw_status,
+            last_error=history_message,
         )
     record_sync_history(
         user_id,
@@ -103,7 +123,7 @@ def _register_queue_and_history(user_id: int, block: str, period: int | tuple[st
         status or SYNC_ERROR,
         source_rows=int(result.get("source_rows") or 0),
         retry_at=retry_at,
-        message=raw_status,
+        message=history_message,
     )
 
 

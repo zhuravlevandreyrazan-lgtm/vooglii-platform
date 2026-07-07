@@ -6,6 +6,7 @@ from typing import Any
 
 import config
 from db_manager import init_db
+from .rate_limiter import resolve_retry_policy
 
 
 QUEUE_PENDING = "PENDING"
@@ -93,6 +94,9 @@ def enqueue_sync_task(
     conn = _connect()
     try:
         cur = conn.cursor()
+        if str(status or "") == QUEUE_WAIT_LIMIT and not run_after:
+            retry_policy = resolve_retry_policy(int(user_id), str(block), last_error)
+            run_after = str(retry_policy.get("retry_at") or "")
         row = cur.execute(
             f"""
             SELECT *
@@ -194,6 +198,15 @@ def update_sync_task(
     conn = _connect()
     try:
         now = _now()
+        existing = conn.execute("SELECT user_id, block, last_error FROM sync_queue WHERE id=?", (int(task_id),)).fetchone()
+        if str(status or "") == QUEUE_WAIT_LIMIT and not run_after and existing:
+            retry_policy = resolve_retry_policy(
+                int(existing["user_id"]),
+                str(existing["block"]),
+                last_error or existing["last_error"],
+                now=now,
+            )
+            run_after = str(retry_policy.get("retry_at") or "")
         conn.execute(
             """
             UPDATE sync_queue

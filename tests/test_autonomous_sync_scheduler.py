@@ -81,6 +81,16 @@ def test_failed_block_does_not_break_other_blocks(monkeypatch):
         monkeypatch.setattr(orchestrator, "sync_stocks", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "source_name": "stocks", "source_rows": 3, "inserted": 3, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
         monkeypatch.setattr(orchestrator, "refresh_products_index", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "inserted": 4, "updated": 0, "skipped": 0, "invalid": 0, "source_rows": 4, "meta": {}})
         monkeypatch.setattr(orchestrator, "next_allowed_at", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            orchestrator,
+            "resolve_retry_policy",
+            lambda *_args, **_kwargs: {
+                "retry_at": "2026-07-08 00:10:00",
+                "retry_source": "default_policy",
+                "retry_seconds": 600,
+                "retry_is_approximate": True,
+            },
+        )
 
         result = orchestrator.run_sync(42, token="t", days=30)
 
@@ -90,3 +100,55 @@ def test_failed_block_does_not_break_other_blocks(monkeypatch):
         assert result["blocks"]["advertising"]["status"] == "OK"
         assert result["blocks"]["stocks"]["status"] == "OK"
 
+
+def test_wait_limit_without_next_allowed_at_uses_default_run_after(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        os.environ["DB_DIR"] = tmp_dir
+        os.environ["VOOGLII_TOKEN_ENCRYPTION_KEY"] = "test-encryption-key-1234567890-abcdef"
+
+        import config
+        import db_manager
+        import vooglii_telegram.services.sync_service as sync_service
+        import vooglii_wb_sync.sync_orchestrator as orchestrator
+        import vooglii_wb_sync.sync_queue as sync_queue
+
+        importlib.reload(config)
+        importlib.reload(db_manager)
+        importlib.reload(sync_queue)
+        importlib.reload(orchestrator)
+        importlib.reload(sync_service)
+
+        monkeypatch.setattr(orchestrator, "resolve_sync_token", lambda *_args, **_kwargs: type("Token", (), {"token": "t", "source": "test", "reason": None})())
+        monkeypatch.setattr(orchestrator, "sync_sales", lambda *_args, **_kwargs: {"raw_status": "RATE_LIMIT", "source_name": "sales", "source_rows": 0, "inserted": 0, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
+        monkeypatch.setattr(orchestrator, "sync_orders", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "source_name": "orders", "source_rows": 1, "inserted": 1, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
+        monkeypatch.setattr(orchestrator, "sync_finance", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "source_name": "finance", "source_rows": 1, "inserted": 1, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
+        monkeypatch.setattr(orchestrator, "sync_advertising", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "source_name": "ads", "source_rows": 1, "inserted": 1, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
+        monkeypatch.setattr(orchestrator, "sync_stocks", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "source_name": "stocks", "source_rows": 1, "inserted": 1, "updated": 0, "skipped": 0, "invalid": 0, "meta": {}})
+        monkeypatch.setattr(orchestrator, "refresh_products_index", lambda *_args, **_kwargs: {"raw_status": "SUCCESS", "inserted": 1, "updated": 0, "skipped": 0, "invalid": 0, "source_rows": 1, "meta": {}})
+        monkeypatch.setattr(orchestrator, "next_allowed_at", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            orchestrator,
+            "resolve_retry_policy",
+            lambda *_args, **_kwargs: {
+                "retry_at": "2026-07-08 00:10:00",
+                "retry_source": "default_policy",
+                "retry_seconds": 600,
+                "retry_is_approximate": True,
+            },
+        )
+
+        result = orchestrator.run_sync(42, token="t", days=30)
+
+        assert result["blocks"]["sales"]["status"] == "API_LIMIT"
+        assert result["blocks"]["sales"]["next_allowed_at"]
+        assert result["blocks"]["sales"]["meta"]["retry_source"] == "default_policy"
+
+        queued = sync_queue.get_next_sync_task(42, "sales")
+        assert queued is not None
+        assert queued["run_after"] == result["blocks"]["sales"]["next_allowed_at"]
+
+        worker_early = sync_service.run_sync_queue_worker(now="2026-07-08 00:09:59")
+        assert worker_early["claimed"] == 0
+
+        worker_ready = sync_service.run_sync_queue_worker(now="2026-07-08 00:10:00")
+        assert worker_ready["claimed"] == 1
