@@ -594,7 +594,7 @@ def build_finance_source_integrity_report(user_id: int, period_start: str, perio
             "finance_expense_events": _money(((categories.get("advertising") or {}).get("amount"))),
             "drift": advertising_drift,
         }
-        if advertising_drift <= 0.01:
+        if advertising_drift < 1.0:
             accepted_warnings.append({
                 **drift_payload,
                 "reason": "customer advertising source is stable; minor aggregation drift stays in source_map",

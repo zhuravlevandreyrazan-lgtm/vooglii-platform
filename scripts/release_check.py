@@ -32,6 +32,7 @@ PY_COMPILE_FILES = [
     "scripts/audit_product_catalog.py",
     "scripts/check_wb_token_scopes.py",
     "scripts/audit_wb_data_loading.py",
+    "scripts/audit_advertising_sync.py",
     "scripts/diagnose_financial_period.py",
     "scripts/backfill_financial_period.py",
 ]
@@ -48,6 +49,9 @@ REQUIRED_PYTEST_TESTS = [
     "tests/test_sync_queue.py",
     "tests/test_autonomous_sync_scheduler.py",
     "tests/test_update_auto_retry_ux.py",
+    "tests/test_advertising_partial_root_cause.py",
+    "tests/test_advertising_selected_total.py",
+    "tests/test_sync_ux_texts.py",
 ]
 
 COMMANDS: list[tuple[str, list[str]]] = [

@@ -1008,6 +1008,8 @@ def _advertising_quality_label(status):
 
 
 def _advertising_customer_snapshot(user, days):
+    from services.advertising_service import evaluate_advertising_sync_audit
+
     start_date, end_date = _period_dates(days)
     ads_stats = get_advertising_stats(days, user)
     ads_health = get_advertising_health_snapshot(user, start_date, end_date)
@@ -1015,7 +1017,8 @@ def _advertising_customer_snapshot(user, days):
     advertising_quality = dict((quality_snapshot.get('advertising') or {}))
     sync_row = (get_sync_status_map(user).get('advertising') or {})
     raw_status = str(sync_row.get('last_status') or sync_row.get('last_error') or '')
-    normalized_status = normalize_advertising_status(raw_status)
+    audit_status = evaluate_advertising_sync_audit(user, start_date, end_date)
+    normalized_status = str(audit_status.get('final_ads_status') or normalize_advertising_status(raw_status))
     status_kind = _status_kind(raw_status)
     total_spend = round(float(ads_health.get('api_total') or ads_stats[4] or 0), 2)
     orders = int(ads_stats[2] or 0)
@@ -1023,8 +1026,10 @@ def _advertising_customer_snapshot(user, days):
     return {
         'period_label': _atlas_month_label(days),
         'raw_status': raw_status,
+        'raw_normalized_status': normalize_advertising_status(raw_status),
         'normalized_status': normalized_status,
         'status_kind': status_kind,
+        'status_reason': audit_status.get('final_ads_reason'),
         'last_success': sync_row.get('last_success'),
         'coverage_percent': round(float(advertising_quality.get('coverage_percent') or 0), 1),
         'coverage_status': ads_health.get('coverage_status') or advertising_quality.get('status') or 'LOW',
@@ -1049,6 +1054,9 @@ def _advertising_customer_snapshot(user, days):
         'cpa': cpa,
         'stale': bool(ads_health.get('stale')),
         'status': str(ads_health.get('status') or 'LOW'),
+        'sync_lookback_period': audit_status.get('sync_lookback_period') or {},
+        'missing_campaign_ids': list(audit_status.get('missing_ids') or []),
+        'report_period_missing_days': list(audit_status.get('report_period_missing_days') or []),
     }
 
 

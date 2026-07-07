@@ -94,16 +94,20 @@ def _format_block_line(name, block):
     raw_status = str(block.get("raw_status") or "")
     next_at = block.get("next_allowed_at")
     if status == "OK":
-        suffix = "обновлён" if name in {"products", "cost"} else "обновлены"
+        suffix = "обновлён" if name == "products" else "обновлена" if name == "cost" else "обновлены"
         if name == "cost" and str(raw_status).upper().startswith("MISSING_COST_VALUES"):
             suffix = "заполнена частично"
         return f"✅ {bot.block_label(name)} {suffix}"
     if status == "API_LIMIT":
         retry_text = f"\nАвтоматически повторю после {format_user_time(next_at)}" if next_at else ""
-        return f"⏳ {bot.block_label(name)} временно ограничена WB{retry_text}" if name == "advertising" else f"⏳ {bot.block_label(name)} временно ограничены WB{retry_text}"
+        if name == "advertising":
+            return f"⏳ {bot.block_label(name)} временно ограничена WB{retry_text}"
+        return f"⏳ {bot.block_label(name)} временно ограничены WB{retry_text}"
     if status == "PARTIAL":
         if name == "cost":
             return "⚠ Себестоимость заполнена частично"
+        if name == "advertising":
+            return f"⚠ {bot.block_label(name)} обновлена частично"
         return f"⚠ {bot.block_label(name)} обновлены частично"
     if status == "UNAVAILABLE":
         return f"⚠ {bot.block_label(name)} недоступны для периода"
@@ -121,7 +125,11 @@ def format_sync_result(result):
     overall_status = str(result.get("overall_status") or "")
 
     if isinstance(blocks, dict) and any(isinstance(item, dict) and "raw_status" in item for item in blocks.values()):
-        lines = [_format_block_line(name, blocks.get(name) or {}) for name in ["sales", "orders", "finance", "advertising", "stocks", "products", "cost"] if blocks.get(name)]
+        lines = [
+            _format_block_line(name, blocks.get(name) or {})
+            for name in ["sales", "orders", "finance", "advertising", "stocks", "products", "cost"]
+            if blocks.get(name)
+        ]
         if overall_status == "API_LIMIT":
             return "Часть WB-блоков временно ограничена.\n\n" + "\n".join(lines)
         if overall_status == "PARTIAL":
@@ -148,7 +156,8 @@ def format_sync_result(result):
                 all_limited = False
             if kind == "success":
                 any_success = True
-                lines.append(f"✅ {bot.block_label(name)} обновлены")
+                suffix = "обновлена" if name == "advertising" else "обновлён" if name == "products" else "обновлена" if name == "cost" else "обновлены"
+                lines.append(f"✅ {bot.block_label(name)} {suffix}")
             elif kind == "cooldown":
                 lines.append(f"⏳ {bot.block_label(name)}: повтор через {bot.rate_text(block_status)}")
             elif normalized_ads_status == "ADS_PARTIAL":
@@ -172,10 +181,16 @@ def _sync_status_line(block_name: str, state: dict, queue_task: dict | None) -> 
     if status == "OK":
         if block_name == "cost":
             return "Себестоимость: заполнена"
-        return f"{bot.block_label(block_name)}: обновлены" if block_name != "products" else "Каталог товаров: обновлён"
+        if block_name == "products":
+            return "Каталог товаров: обновлён"
+        if block_name == "advertising":
+            return "Реклама: обновлена"
+        return f"{bot.block_label(block_name)}: обновлены"
     if status == "PARTIAL":
         if block_name == "cost":
             return "Себестоимость: заполнена частично"
+        if block_name == "advertising":
+            return "Реклама: обновлена частично"
         return f"{bot.block_label(block_name)}: частично"
     if status == "API_LIMIT":
         next_at = (queue_task or {}).get("run_after") or (state or {}).get("next_allowed_at")
@@ -209,13 +224,13 @@ def build_sync_history_text(user_id: int, limit: int = 10) -> str:
         source_rows = int(row.get("source_rows") or 0)
         retry_at = row.get("retry_at")
         if status == "OK":
-            lines.append(f"{created_at} {block_label} — OK, {source_rows} rows")
+            lines.append(f"{created_at} {block_label} - OK, {source_rows} rows")
         elif status == "API_LIMIT":
-            lines.append(f"{created_at} {block_label} — WAIT_LIMIT, retry {format_user_time(retry_at)}")
+            lines.append(f"{created_at} {block_label} - WAIT_LIMIT, retry {format_user_time(retry_at)}")
         elif status == "PARTIAL":
-            lines.append(f"{created_at} {block_label} — PARTIAL, {source_rows} rows")
+            lines.append(f"{created_at} {block_label} - PARTIAL, {source_rows} rows")
         else:
-            lines.append(f"{created_at} {block_label} — {status}")
+            lines.append(f"{created_at} {block_label} - {status}")
     return "\n".join(lines)
 
 
@@ -236,7 +251,12 @@ def run_sync_queue_worker(*, now: str | None = None, bot=None, limit: int = 10) 
         if status == "API_LIMIT":
             from vooglii_wb_sync.sync_queue import update_sync_task
 
-            update_sync_task(int(task["id"]), QUEUE_WAIT_LIMIT, run_after=result.get("next_allowed_at"), last_error=str(result.get("raw_status") or ""))
+            update_sync_task(
+                int(task["id"]),
+                QUEUE_WAIT_LIMIT,
+                run_after=result.get("next_allowed_at"),
+                last_error=str(result.get("raw_status") or ""),
+            )
             processed.append({"task": task, "result": result})
             continue
         from vooglii_wb_sync.sync_queue import update_sync_task

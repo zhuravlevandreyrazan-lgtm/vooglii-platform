@@ -345,25 +345,29 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
     penalties_normalized = ((normalized_expenses.get("categories") or {}).get("penalties") or {})
     other_normalized = ((normalized_expenses.get("categories") or {}).get("other") or {})
 
-    advertising_spend_candidates = [
-        ("finance_expense_events.advertising", advertising_normalized.get("amount")),
-        ("advertising_customer.total_spend", advertising_snapshot.get("total_spend")),
-        ("report_mgmt.advertising", report_mgmt.get("advertising")),
-        ("get_profit_stats.advertising", profit_stats[5] if len(profit_stats) > 5 else None),
-    ]
-    advertising_spend = _prefer_positive_money(*(value for _, value in advertising_spend_candidates))
-    legacy_advertising_spend = _prefer_positive_money(
-        advertising_snapshot.get("total_spend"),
-        report_mgmt.get("advertising"),
-        profit_stats[5] if len(profit_stats) > 5 else None,
-    )
-    normalized_advertising_spend = _round_money(advertising_normalized.get("amount"))
-    if (
-        legacy_advertising_spend is not None
-        and normalized_advertising_spend is not None
-        and abs(float(normalized_advertising_spend) - float(legacy_advertising_spend)) <= 0.01
-    ):
-        advertising_spend = legacy_advertising_spend
+    advertising_table_total = _round_money(advertising_snapshot.get("total_spend"))
+    finance_expense_events_total = _round_money(advertising_normalized.get("amount"))
+    advertising_drift_amount = None
+    if advertising_table_total is not None and finance_expense_events_total is not None:
+        advertising_drift_amount = round(abs(float(advertising_table_total) - float(finance_expense_events_total)), 2)
+    advertising_minor_drift = advertising_drift_amount is not None and advertising_drift_amount < 1.0
+    if advertising_minor_drift and advertising_table_total is not None:
+        advertising_spend = advertising_table_total
+        advertising_spend_candidates = [
+            ("advertising_table", advertising_table_total),
+            ("finance_expense_events.advertising", finance_expense_events_total),
+            ("report_mgmt.advertising", report_mgmt.get("advertising")),
+            ("get_profit_stats.advertising", profit_stats[5] if len(profit_stats) > 5 else None),
+        ]
+    else:
+        advertising_spend_candidates = [
+            ("finance_expense_events.advertising", finance_expense_events_total),
+            ("advertising_table", advertising_table_total),
+            ("report_mgmt.advertising", report_mgmt.get("advertising")),
+            ("get_profit_stats.advertising", profit_stats[5] if len(profit_stats) > 5 else None),
+        ]
+        advertising_spend = _prefer_positive_money(*(value for _, value in advertising_spend_candidates))
+    advertising_source_entry = _source_entry(advertising_spend, advertising_spend_candidates)
     logistics_candidates = [
         ("finance_expense_events.logistics", logistics_normalized.get("amount")),
         ("report_mgmt.logistics", report_mgmt.get("logistics")),
@@ -555,7 +559,28 @@ def build_unified_financial_snapshot(user_id: int, days, *, context=None, bot=No
         "wb_payout": _source_entry(wb_payout, wb_payout_candidates),
         "wb_payments_received": _source_entry(wb_payments_received, [("payment_reconciliation.weekly_payout_total_all", payment_snapshot.get("weekly_payout_total_all"))]),
         "cost_price": _source_entry(cost_price, cost_price_candidates),
-        "advertising_spend": {**_source_entry(advertising_spend, advertising_spend_candidates), **_normalized_metadata(advertising_normalized, not bool(advertising_normalized))},
+        "advertising_spend": {
+            **advertising_source_entry,
+            **_normalized_metadata(advertising_normalized, not bool(advertising_normalized)),
+            "advertising_table_total": advertising_table_total,
+            "finance_expense_events_total": finance_expense_events_total,
+            "selected_customer_total": _round_money(advertising_spend),
+            "drift_amount": advertising_drift_amount,
+            "drift_status": (
+                "accepted_minor_drift"
+                if advertising_minor_drift
+                else "significant_drift"
+                if advertising_drift_amount is not None
+                else "not_available"
+            ),
+            "selected_source": (
+                "advertising_table"
+                if advertising_minor_drift and advertising_table_total is not None
+                else "needs_review"
+                if advertising_drift_amount is not None and not advertising_minor_drift
+                else advertising_source_entry.get("selected_source")
+            ),
+        },
         "logistics": {**_source_entry(logistics, logistics_candidates), **_normalized_metadata(logistics_normalized, not bool(logistics_normalized))},
         "storage": {**_source_entry(storage, storage_candidates), **_normalized_metadata(storage_normalized, not bool(storage_normalized))},
         "acquiring": {**_source_entry(acquiring, acquiring_candidates), **_normalized_metadata(acquiring_normalized, not bool(acquiring_normalized))},
@@ -769,9 +794,9 @@ def build_consistency_audit(user_id: int, days, *, context=None, bot=None) -> di
     products_snapshot = dict(_safe_get(lambda: bot._products_center_snapshot(user=user_id, days=days), {}) or {})
 
     comparisons = {
-        "Business vs Finance": abs(float(advertising_snapshot.get("total_spend") or 0) - float(unified.get("advertising_spend") or 0)) <= 0.01,
-        "Finance vs P&L": abs(float(finance_snapshot.get("advertising_total") or 0) - float(unified.get("advertising_spend") or 0)) <= 0.01,
-        "Ads vs Finance": abs(float(advertising_snapshot.get("total_spend") or 0) - float(unified.get("advertising_spend") or 0)) <= 0.01,
+        "Business vs Finance": abs(float(advertising_snapshot.get("total_spend") or 0) - float(unified.get("advertising_spend") or 0)) < 1.0,
+        "Finance vs P&L": abs(float(finance_snapshot.get("advertising_total") or 0) - float(unified.get("advertising_spend") or 0)) < 1.0,
+        "Ads vs Finance": abs(float(advertising_snapshot.get("total_spend") or 0) - float(unified.get("advertising_spend") or 0)) < 1.0,
         "Products vs Cost": (
             unified.get("cost_status") == "COST_OK"
             if float(products_snapshot.get("cost_coverage_percent") or 0) >= 95
