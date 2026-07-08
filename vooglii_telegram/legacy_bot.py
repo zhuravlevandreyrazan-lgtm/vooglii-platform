@@ -14318,6 +14318,10 @@ def _manual_bank_payment_reference_rows():
 
 def _normalize_finance_report_row(row):
     row = dict(row or {})
+    normalized = {
+        _gold_standard_normalize_key(key): value
+        for key, value in row.items()
+    }
     period_text = str(row.get('period') or '').strip()
     parsed_period_start = None
     parsed_period_end = None
@@ -14360,22 +14364,57 @@ def _normalize_finance_report_row(row):
             or ''
         ) or None,
         'revenue': round(float(
-            row.get('retailAmount')
-            or row.get('retail_amount')
+            _gold_standard_pick(normalized, 'retail_amount')
             or row.get('salesSum')
             or row.get('sales_sum')
             or row.get('realizationSum')
             or row.get('realization_sum')
-            or row.get('sale_amount')
             or 0
         ), 2),
-        'for_pay': round(float(row.get('forPaySum') or row.get('for_pay') or 0), 2),
-        'bank_payment': round(float(row.get('bankPaymentSum') or row.get('bank_payment') or 0), 2),
-        'delivery': round(float(row.get('deliveryServiceSum') or row.get('delivery') or 0), 2),
-        'storage': round(float(row.get('paidStorageSum') or row.get('storage') or 0), 2),
-        'deduction': round(float(row.get('deductionSum') or row.get('deduction') or 0), 2),
-        'penalty': round(float(row.get('penaltySum') or row.get('penalty') or 0), 2),
-        'additional_payment': round(float(row.get('additionalPaymentSum') or row.get('additional_payment') or 0), 2),
+        'for_pay': round(float(
+            _gold_standard_pick(normalized, 'for_pay')
+            or row.get('forPaySum')
+            or row.get('for_pay')
+            or 0
+        ), 2),
+        'bank_payment': round(float(
+            row.get('bankPaymentSum')
+            or row.get('bank_payment')
+            or _gold_standard_pick(normalized, 'payment_total')
+            or row.get('paymentTotal')
+            or row.get('payment_total')
+            or 0
+        ), 2),
+        'delivery': round(float(
+            row.get('deliveryServiceSum')
+            or row.get('delivery_service_sum')
+            or _gold_standard_pick(normalized, 'delivery')
+            or 0
+        ), 2),
+        'storage': round(float(
+            row.get('paidStorageSum')
+            or row.get('paid_storage_sum')
+            or _gold_standard_pick(normalized, 'storage')
+            or 0
+        ), 2),
+        'deduction': round(float(
+            row.get('deductionSum')
+            or row.get('deduction_sum')
+            or _gold_standard_pick(normalized, 'deductions')
+            or 0
+        ), 2),
+        'penalty': round(float(
+            row.get('penaltySum')
+            or row.get('penalty_sum')
+            or _gold_standard_pick(normalized, 'penalty')
+            or 0
+        ), 2),
+        'additional_payment': round(float(
+            row.get('additionalPaymentSum')
+            or row.get('additional_payment_sum')
+            or _gold_standard_pick(normalized, 'additional_payment')
+            or 0
+        ), 2),
         'payment_schedule': str(row.get('paymentSchedule') or row.get('payment_schedule') or '') or None,
         'currency': str(row.get('currencyName') or row.get('currency') or '') or None,
     }
@@ -17714,12 +17753,15 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         cost_value=snapshot.get('cost_price_total'),
         coverage_percent=((snapshot.get('unified_snapshot') or {}).get('cost_coverage_percent') if isinstance(snapshot.get('unified_snapshot'), dict) else None),
     )
+    wb_total_to_pay = snapshot.get('wb_total_to_pay')
+    source_mode = str(unified_snapshot.get('source_mode') or '')
+    wb_total_to_pay_text = _money_or_state(wb_total_to_pay) if wb_total_to_pay not in (None, 0, 0.0) else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
     money_lines = [
         f"- Продажа WB: {_money_or_state(unified_snapshot.get('sales_revenue'), 'нет данных')}",
         f"- К перечислению WB: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
     ]
-    if snapshot.get('wb_total_to_pay') is not None:
-        money_lines.append(f"- Итого к оплате WB: {_money_or_state(snapshot.get('wb_total_to_pay'))}")
+    if wb_total_to_pay_text:
+        money_lines.append(f"- Итого к оплате WB: {wb_total_to_pay_text}")
     if snapshot.get('advertising_total') is not None:
         money_lines.append(f"- Реклама: {_money_or_state(snapshot.get('advertising_total'))}")
     if snapshot.get('logistics_total') is not None:
@@ -19582,6 +19624,12 @@ def _unified_report_text(user, days):
     official_available = str(snapshot.get("finance_status") or "") == "FINANCE_OK"
     finance_confidence = str(snapshot.get("finance_confidence") or "UNKNOWN")
     is_preliminary = bool(snapshot.get("is_preliminary"))
+    wb_total_to_pay = snapshot.get("wb_total_to_pay")
+    total_to_pay_text = (
+        _money_or_state(wb_total_to_pay)
+        if wb_total_to_pay not in (None, 0, 0.0)
+        else ("ожидает данные" if str(snapshot.get("source_mode") or "") == "WB_NATIVE_CLOSED" else "данные обновляются")
+    )
     lines = [
         '📊 Отчёт',
         '',
@@ -19599,7 +19647,7 @@ def _unified_report_text(user, days):
         f'Хранение: {_money_or_state(snapshot.get("storage"), "данные обновляются")}',
         f'Эквайринг: {_money_or_state(snapshot.get("acquiring"), "данные обновляются")}',
         f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}',
-        f'Итого к оплате WB: {_money_or_state(snapshot.get("wb_total_to_pay"), "данные обновляются")}',
+        f'Итого к оплате WB: {total_to_pay_text}',
         '',
         'Дополнительно для управления:',
         f'Реклама: {_money_or_state(snapshot.get("advertising_spend"), "данные обновляются")}',

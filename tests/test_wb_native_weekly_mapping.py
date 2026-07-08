@@ -45,12 +45,12 @@ def test_wb_native_weekly_mapping_prefers_weekly_report_totals(tmp_path, monkeyp
                     "deduction": 2148.00,
                 }
             ],
-            "payment_reports_total_revenue": 14046.08,
-            "payment_reports_total_for_pay": 15327.09,
-            "payment_reports_total_bank_payment": 9084.94,
-            "payment_reports_total_delivery": 3463.06,
-            "payment_reports_total_storage": 631.09,
-            "payment_reports_total_deduction": 2148.00,
+            "payment_reports_total_revenue": 0.0,
+            "payment_reports_total_for_pay": 0.0,
+            "payment_reports_total_bank_payment": 0.0,
+            "payment_reports_total_delivery": 0.0,
+            "payment_reports_total_storage": 0.0,
+            "payment_reports_total_deduction": 0.0,
             "weekly_payout_total_all": 15327.09,
         },
     )
@@ -65,4 +65,7 @@ def test_wb_native_weekly_mapping_prefers_weekly_report_totals(tmp_path, monkeyp
     assert snapshot.wb_deductions == 2148.00
     assert snapshot.wb_total_to_pay == 9084.94
     assert snapshot.source_map["wb_sale_amount"]["selected_source"] == "payment_reports.revenue"
+    assert snapshot.source_map["wb_logistics"]["source_table"] == "payment_reports_rows"
+    assert snapshot.source_map["wb_storage"]["source_column"] == "storage"
     assert snapshot.source_map["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
+    assert snapshot.source_map["wb_total_to_pay"]["source_column"] == "bank_payment"

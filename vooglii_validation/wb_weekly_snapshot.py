@@ -66,6 +66,11 @@ def _sum_values(values: list[float | None]) -> float | None:
     return round(sum(known), 2)
 
 
+def _sum_payment_rows(rows: list[dict[str, Any]], key: str) -> float | None:
+    values = [_money((row or {}).get(key)) for row in rows]
+    return _sum_values(values)
+
+
 def _pick_source(candidates: list[tuple[str, float | None, int]]) -> tuple[str | None, float | None, int]:
     fallback: tuple[str | None, float | None, int] = (None, None, 0)
     for source_name, value, rows in candidates:
@@ -285,12 +290,19 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
             if str(row.get("period_start") or "")[:10] <= str(period_to)
             and str(row.get("period_end") or "")[:10] >= str(period_from)
         ]
-        payment_total_revenue = payment_snapshot.get("payment_reports_total_revenue") if payment_rows else None
-        payment_total_for_pay = payment_snapshot.get("payment_reports_total_for_pay") if payment_rows else None
-        payment_total_bank_payment = payment_snapshot.get("payment_reports_total_bank_payment") if payment_rows else None
-        payment_total_delivery = payment_snapshot.get("payment_reports_total_delivery") if payment_rows else None
-        payment_total_storage = payment_snapshot.get("payment_reports_total_storage") if payment_rows else None
-        payment_total_deduction = payment_snapshot.get("payment_reports_total_deduction") if payment_rows else None
+        payment_total_revenue = _money(payment_snapshot.get("payment_reports_total_revenue")) if payment_rows else None
+        payment_total_for_pay = _money(payment_snapshot.get("payment_reports_total_for_pay")) if payment_rows else None
+        payment_total_bank_payment = _money(payment_snapshot.get("payment_reports_total_bank_payment")) if payment_rows else None
+        payment_total_delivery = _money(payment_snapshot.get("payment_reports_total_delivery")) if payment_rows else None
+        payment_total_storage = _money(payment_snapshot.get("payment_reports_total_storage")) if payment_rows else None
+        payment_total_deduction = _money(payment_snapshot.get("payment_reports_total_deduction")) if payment_rows else None
+        if payment_rows:
+            payment_total_revenue = payment_total_revenue if payment_total_revenue not in (None, 0.0) else _sum_payment_rows(payment_rows, "revenue")
+            payment_total_for_pay = payment_total_for_pay if payment_total_for_pay not in (None, 0.0) else _sum_payment_rows(payment_rows, "for_pay")
+            payment_total_bank_payment = payment_total_bank_payment if payment_total_bank_payment not in (None, 0.0) else _sum_payment_rows(payment_rows, "bank_payment")
+            payment_total_delivery = payment_total_delivery if payment_total_delivery not in (None, 0.0) else _sum_payment_rows(payment_rows, "delivery")
+            payment_total_storage = payment_total_storage if payment_total_storage not in (None, 0.0) else _sum_payment_rows(payment_rows, "storage")
+            payment_total_deduction = payment_total_deduction if payment_total_deduction not in (None, 0.0) else _sum_payment_rows(payment_rows, "deduction")
         payment_breakdown = {
             str(item.get("type") or "unknown"): int(
                 sum(1 for row in payment_rows if str(row.get("type") or "unknown") == str(item.get("type") or "unknown"))
@@ -592,14 +604,6 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
                     source_min_date=payment_min_date,
                     source_max_date=payment_max_date,
                     breakdown=payment_breakdown,
-                ),
-                _candidate(
-                    "payment_reconciliation.weekly_payout_total_all",
-                    payment_snapshot.get("weekly_payout_total_all"),
-                    int(len(payment_snapshot.get("weekly_payout_reference") or [])),
-                    source_table="weekly_payout_reference",
-                    source_column="payout",
-                    source_filter=weekly_filter,
                 ),
                 _candidate(
                     "finance_raw_audit.raw_json",
