@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 
@@ -10,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import telegram_bot
+from vooglii_validation.wb_weekly_snapshot import build_wb_weekly_snapshot_dict
 
 
 FIELDS = (
@@ -44,7 +46,29 @@ def main() -> int:
     args = parser.parse_args()
 
     days = (args.date_from, args.date_to)
+    period_from = date.fromisoformat(args.date_from)
+    period_to = date.fromisoformat(args.date_to)
     snapshot = telegram_bot._customer_financial_snapshot(args.user_id, days)
+    wb_weekly_snapshot = None
+    closed_period_mismatches: list[str] = []
+    if str(snapshot.get("source_mode") or "") == "WB_NATIVE_CLOSED":
+        wb_weekly_snapshot = build_wb_weekly_snapshot_dict(args.user_id, period_from, period_to)
+        for field_name in (
+            "wb_sale_amount",
+            "wb_payout_amount",
+            "wb_total_to_pay",
+            "wb_logistics",
+            "wb_storage",
+            "wb_acquiring",
+            "wb_deductions",
+            "wb_other",
+        ):
+            customer_value = snapshot.get(field_name)
+            weekly_value = wb_weekly_snapshot.get(field_name)
+            if customer_value != weekly_value:
+                closed_period_mismatches.append(
+                    f"{field_name}: customer_snapshot={_money(customer_value)} wb_weekly_snapshot={_money(weekly_value)}"
+                )
     surfaces = {
         "Snapshot": telegram_bot._customer_financial_values(snapshot),
         "Home": _surface_values("Home", telegram_bot._home_snapshot(args.user_id, days)),
@@ -66,7 +90,16 @@ def main() -> int:
             status = "OK" if value == expected else "MISMATCH"
             print(f"{surface_name:10} {status:8} {_money(value)}")
         print("")
-    return 0
+    if wb_weekly_snapshot is not None:
+        print("WB Weekly Snapshot Alignment")
+        print("--------------------------")
+        if closed_period_mismatches:
+            for mismatch in closed_period_mismatches:
+                print(f"MISMATCH {mismatch}")
+        else:
+            print("OK customer_snapshot matches wb_weekly_snapshot selected values")
+        print("")
+    return 1 if closed_period_mismatches else 0
 
 
 if __name__ == "__main__":

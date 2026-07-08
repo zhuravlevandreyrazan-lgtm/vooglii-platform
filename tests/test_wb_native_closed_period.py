@@ -1,15 +1,32 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import telegram_bot
+import vooglii_telegram.legacy_bot as legacy_bot
 
 from vooglii_finance.customer_snapshot import FrozenSnapshot
+
+
+class _Message:
+    def __init__(self):
+        self.replies: list[str] = []
+
+    async def reply_text(self, text, **kwargs):
+        self.replies.append(str(text))
+
+
+class _Update:
+    def __init__(self):
+        self.message = _Message()
+        self.effective_user = SimpleNamespace(id=42, username="owner")
 
 
 def _closed_snapshot(*, total_to_pay: float | None = 9084.94) -> FrozenSnapshot:
@@ -46,7 +63,41 @@ def _closed_snapshot(*, total_to_pay: float | None = 9084.94) -> FrozenSnapshot:
             "is_preliminary": False,
             "cost_status": "FULL",
             "wb_data_status_text": "Данные WB: 🟢 период закрыт",
-            "field_trace": {},
+            "field_trace": {
+                "wb_logistics": {
+                    "value": 3463.06,
+                    "selected_source": "payment_reports.delivery",
+                    "selected_table": "payment_reports_rows",
+                    "selected_column": "delivery",
+                    "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
+                    "row_count": 1,
+                    "sum": 3463.06,
+                    "source_min_date": "2026-06-29",
+                    "source_max_date": "2026-07-05",
+                },
+                "wb_storage": {
+                    "value": 631.09,
+                    "selected_source": "payment_reports.storage",
+                    "selected_table": "payment_reports_rows",
+                    "selected_column": "storage",
+                    "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
+                    "row_count": 1,
+                    "sum": 631.09,
+                    "source_min_date": "2026-06-29",
+                    "source_max_date": "2026-07-05",
+                },
+                "wb_total_to_pay": {
+                    "value": total_to_pay,
+                    "selected_source": "payment_reports.bank_payment",
+                    "selected_table": "payment_reports_rows",
+                    "selected_column": "bank_payment",
+                    "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
+                    "row_count": 1,
+                    "sum": total_to_pay,
+                    "source_min_date": "2026-06-29",
+                    "source_max_date": "2026-07-05",
+                },
+            },
         }
     )
 
@@ -88,3 +139,24 @@ def test_closed_week_report_shows_waiting_text_when_total_to_pay_missing(monkeyp
     text = telegram_bot._unified_report_text(42, ("2026-06-29", "2026-07-05"))
 
     assert "Итого к оплате WB: ожидает данные" in text
+
+
+def test_finance_explain_closed_week_shows_wb_weekly_selected_sources(monkeypatch):
+    async def _access(*_args, **_kwargs):
+        return True
+
+    async def _send_long(update, text, **_kwargs):
+        update.message.replies.append(str(text))
+
+    monkeypatch.setattr(legacy_bot, "access", _access)
+    monkeypatch.setattr(legacy_bot, "send_long", _send_long)
+    monkeypatch.setattr(legacy_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: _closed_snapshot())
+
+    update = _Update()
+    asyncio.run(legacy_bot.finance_explain_command(update, SimpleNamespace(args=[]), "29.06.2026 - 05.07.2026", ("2026-06-29", "2026-07-05"), 42))
+    text = update.message.replies[-1]
+
+    assert "Источник: payment_reports.delivery" in text
+    assert "Источник: payment_reports.storage" in text
+    assert "Источник: payment_reports.bank_payment" in text
+    assert "Источник: finance_raw_audit" not in text

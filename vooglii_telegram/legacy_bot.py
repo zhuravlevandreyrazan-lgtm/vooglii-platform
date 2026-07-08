@@ -6669,8 +6669,10 @@ async def finance_explain_command(update, context, period_name, days, user):
         lines = [
             f"{label}:",
             f"{_money_or_state(value, 'нет данных')}",
-            f"Источник: {item.get('selected_table') or item.get('selected_source') or '-'}",
+            f"Источник: {item.get('selected_source') or item.get('selected_table') or '-'}",
         ]
+        if item.get("selected_table"):
+            lines.append(f"Таблица: {item.get('selected_table')}")
         if item.get("selected_column"):
             lines.append(f"Колонка: {item.get('selected_column')}")
         if item.get("selected_reason"):

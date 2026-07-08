@@ -220,6 +220,35 @@ def _alias_trace(trace: dict[str, Any]) -> dict[str, Any]:
     return dict(trace)
 
 
+def _closed_selected_value(wb_snapshot: Mapping[str, Any], field_name: str) -> float | None:
+    source_map = dict(wb_snapshot.get("source_map") or {})
+    source_entry = dict(source_map.get(field_name) or {})
+    if "selected_value" in source_entry:
+        return _money(source_entry.get("selected_value"))
+    direct_value = wb_snapshot.get(field_name)
+    if direct_value is not None:
+        return _money(direct_value)
+    return None
+
+
+def _select_snapshot_value(
+    *,
+    use_wb_native: bool,
+    wb_snapshot: Mapping[str, Any],
+    wb_field_name: str,
+    unified_snapshot: Mapping[str, Any],
+    unified_field_name: str,
+    allow_unified_fallback: bool = True,
+) -> float | None:
+    if use_wb_native:
+        selected_value = _closed_selected_value(wb_snapshot, wb_field_name)
+        if selected_value is not None:
+            return selected_value
+        if not allow_unified_fallback:
+            return None
+    return _money(unified_snapshot.get(unified_field_name))
+
+
 def _build_field_trace(
     unified_snapshot: Mapping[str, Any],
     wb_snapshot: Mapping[str, Any],
@@ -233,19 +262,48 @@ def _build_field_trace(
     wb_sources = dict(wb_snapshot.get("source_map") or {})
     use_wb = source_mode == "WB_NATIVE_CLOSED"
 
-    wb_sale_amount = unified_snapshot.get("sales_revenue")
-    wb_payout_amount = unified_snapshot.get("wb_payout")
-    wb_logistics = unified_snapshot.get("logistics")
-    wb_storage = unified_snapshot.get("storage")
-    wb_acquiring = unified_snapshot.get("acquiring")
-    wb_deductions = unified_snapshot.get("wb_deductions")
-    if use_wb:
-        wb_sale_amount = wb_snapshot.get("wb_sale_amount")
-        wb_payout_amount = wb_snapshot.get("wb_payout_amount")
-        wb_logistics = wb_snapshot.get("wb_logistics")
-        wb_storage = wb_snapshot.get("wb_storage")
-        wb_acquiring = wb_snapshot.get("wb_acquiring")
-        wb_deductions = wb_snapshot.get("wb_deductions")
+    wb_sale_amount = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_sale_amount",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="sales_revenue",
+    )
+    wb_payout_amount = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_payout_amount",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="wb_payout",
+    )
+    wb_logistics = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_logistics",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="logistics",
+    )
+    wb_storage = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_storage",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="storage",
+    )
+    wb_acquiring = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_acquiring",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="acquiring",
+    )
+    wb_deductions = _select_snapshot_value(
+        use_wb_native=use_wb,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_deductions",
+        unified_snapshot=unified_snapshot,
+        unified_field_name="wb_deductions",
+    )
 
     reason = TRACE_REASON_CLOSED if use_wb else TRACE_REASON_OPEN
     field_trace = {
@@ -292,15 +350,70 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
     source_mode = "WB_NATIVE_CLOSED" if use_wb_native else "OPERATIONAL_PRELIMINARY"
     is_preliminary = not use_wb_native
 
-    wb_sale_amount = wb_snapshot.get("wb_sale_amount") if use_wb_native else unified.get("sales_revenue")
-    wb_payout_amount = wb_snapshot.get("wb_payout_amount") if use_wb_native else unified.get("wb_payout")
-    wb_total_to_pay = wb_snapshot.get("wb_total_to_pay") if use_wb_native else unified.get("wb_payout")
-    wb_logistics = wb_snapshot.get("wb_logistics") if use_wb_native else unified.get("logistics")
-    wb_storage = wb_snapshot.get("wb_storage") if use_wb_native else unified.get("storage")
-    wb_acquiring = wb_snapshot.get("wb_acquiring") if use_wb_native else unified.get("acquiring")
-    wb_deductions = wb_snapshot.get("wb_deductions") if use_wb_native else unified.get("wb_deductions")
-    wb_other = wb_snapshot.get("wb_other") if use_wb_native else unified.get("other_expenses")
-    advertising = wb_snapshot.get("advertising") if use_wb_native else unified.get("advertising_spend")
+    wb_sale_amount = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_sale_amount",
+        unified_snapshot=unified,
+        unified_field_name="sales_revenue",
+    )
+    wb_payout_amount = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_payout_amount",
+        unified_snapshot=unified,
+        unified_field_name="wb_payout",
+    )
+    wb_total_to_pay = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_total_to_pay",
+        unified_snapshot=unified,
+        unified_field_name="wb_payout",
+        allow_unified_fallback=False,
+    )
+    wb_logistics = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_logistics",
+        unified_snapshot=unified,
+        unified_field_name="logistics",
+    )
+    wb_storage = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_storage",
+        unified_snapshot=unified,
+        unified_field_name="storage",
+    )
+    wb_acquiring = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_acquiring",
+        unified_snapshot=unified,
+        unified_field_name="acquiring",
+    )
+    wb_deductions = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_deductions",
+        unified_snapshot=unified,
+        unified_field_name="wb_deductions",
+    )
+    wb_other = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="wb_other",
+        unified_snapshot=unified,
+        unified_field_name="other_expenses",
+    )
+    advertising = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="advertising",
+        unified_snapshot=unified,
+        unified_field_name="advertising_spend",
+    )
     operational_profit = unified.get("profit_before_tax")
     cost_price = unified.get("cost_price")
 
