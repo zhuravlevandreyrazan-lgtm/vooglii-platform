@@ -19,7 +19,7 @@ RAW_LOGISTICS_KEYS = (
     "delivery_amount",
 )
 RAW_STORAGE_KEYS = ("storage_fee", "storage", "storage_cost")
-RAW_REVENUE_KEYS = ("retail_amount", "retail_price_withdisc_rub", "sale_amount", "ppvz_sales_commission")
+RAW_REVENUE_KEYS = ("sale_amount", "retail_amount", "retail_price_withdisc_rub")
 RAW_PAYOUT_KEYS = ("ppvz_for_pay", "supplier_operating_reward", "supplier_payment", "to_pay", "payment_amount")
 RAW_TOTAL_TO_PAY_KEYS = ("ppvz_for_pay", "to_pay", "payment_amount")
 
@@ -51,6 +51,14 @@ def _sum_row_keys(payload: dict[str, Any], keys: tuple[str, ...]) -> float | Non
     return round(sum(values), 2)
 
 
+def _pick_row_key(payload: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    for key in keys:
+        amount = _money(payload.get(key))
+        if amount is not None:
+            return abs(amount)
+    return None
+
+
 def _sum_values(values: list[float | None]) -> float | None:
     known = [float(value) for value in values if value is not None]
     if not known:
@@ -65,6 +73,31 @@ def _pick_source(candidates: list[tuple[str, float | None, int]]) -> tuple[str |
             continue
         return source_name, _money(value), int(rows or 0)
     return fallback
+
+
+def _candidate(
+    source_name: str,
+    value: float | None,
+    rows: int,
+    *,
+    source_table: str,
+    source_column: str,
+    source_filter: str,
+    source_min_date: str | None = None,
+    source_max_date: str | None = None,
+    breakdown: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "source": source_name,
+        "value": _money(value),
+        "rows": int(rows or 0),
+        "source_table": source_table,
+        "source_column": source_column,
+        "source_filter": source_filter,
+        "source_min_date": source_min_date,
+        "source_max_date": source_max_date,
+        "breakdown": dict(breakdown or {}),
+    }
 
 
 def _fetch_sales_counts(conn: sqlite3.Connection, user_id: int, period_from: date, period_to: date) -> dict[str, int]:
@@ -175,6 +208,8 @@ def _build_raw_summary(
     raw_payout_values: list[float | None] = []
     raw_total_to_pay_values: list[float | None] = []
     operation_types: dict[str, int] = {}
+    min_date = str(rows[0]["report_date"])[:10] if rows else None
+    max_date = str(rows[-1]["report_date"])[:10] if rows else None
     for row in rows:
         payload = {}
         try:
@@ -184,9 +219,9 @@ def _build_raw_summary(
         if isinstance(payload, dict):
             raw_logistics_values.append(_sum_row_keys(payload, RAW_LOGISTICS_KEYS))
             raw_storage_values.append(_sum_row_keys(payload, RAW_STORAGE_KEYS))
-            raw_revenue_values.append(_sum_row_keys(payload, RAW_REVENUE_KEYS))
-            raw_payout_values.append(_sum_row_keys(payload, RAW_PAYOUT_KEYS))
-            raw_total_to_pay_values.append(_sum_row_keys(payload, RAW_TOTAL_TO_PAY_KEYS))
+            raw_revenue_values.append(_pick_row_key(payload, RAW_REVENUE_KEYS))
+            raw_payout_values.append(_pick_row_key(payload, RAW_PAYOUT_KEYS))
+            raw_total_to_pay_values.append(_pick_row_key(payload, RAW_TOTAL_TO_PAY_KEYS))
         operation_name = str(row["operation_type"] or row["doc_type_name"] or "").strip()
         if operation_name:
             operation_types[operation_name] = int(operation_types.get(operation_name, 0)) + 1
@@ -213,23 +248,25 @@ def _build_raw_summary(
         else None,
         "penalties": penalties,
         "operation_types": operation_types,
+        "min_date": min_date,
+        "max_date": max_date,
     }
     return summary
 
 
-def _source_entry(selected_source: str | None, selected_value: float | int | None, rows: int, candidates: list[tuple[str, Any, int]]) -> dict[str, Any]:
+def _source_entry(selected_source: str | None, selected_value: float | int | None, rows: int, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    selected_candidate = next((item for item in candidates if item.get("source") == selected_source), {})
     return {
         "selected_source": selected_source,
         "selected_value": selected_value,
         "rows": int(rows or 0),
-        "candidates": [
-            {
-                "source": source_name,
-                "value": _money(value) if isinstance(value, (int, float)) or value is None else value,
-                "rows": int(source_rows or 0),
-            }
-            for source_name, value, source_rows in candidates
-        ],
+        "source_table": selected_candidate.get("source_table"),
+        "source_column": selected_candidate.get("source_column"),
+        "source_filter": selected_candidate.get("source_filter"),
+        "source_min_date": selected_candidate.get("source_min_date"),
+        "source_max_date": selected_candidate.get("source_max_date"),
+        "breakdown": dict(selected_candidate.get("breakdown") or {}),
+        "candidates": [dict(item) for item in candidates],
     }
 
 
@@ -242,57 +279,344 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
         expenses = _fetch_grouped_expenses(conn, int(user_id), period_from, period_to)
         payment_snapshot = _fetch_payment_snapshot(int(user_id), period_from, period_to)
 
+        payment_rows = [
+            row
+            for row in list(payment_snapshot.get("payment_reports_rows") or [])
+            if str(row.get("period_start") or "")[:10] <= str(period_to)
+            and str(row.get("period_end") or "")[:10] >= str(period_from)
+        ]
+        payment_total_revenue = payment_snapshot.get("payment_reports_total_revenue") if payment_rows else None
+        payment_total_for_pay = payment_snapshot.get("payment_reports_total_for_pay") if payment_rows else None
+        payment_total_bank_payment = payment_snapshot.get("payment_reports_total_bank_payment") if payment_rows else None
+        payment_total_delivery = payment_snapshot.get("payment_reports_total_delivery") if payment_rows else None
+        payment_total_storage = payment_snapshot.get("payment_reports_total_storage") if payment_rows else None
+        payment_total_deduction = payment_snapshot.get("payment_reports_total_deduction") if payment_rows else None
+        payment_breakdown = {
+            str(item.get("type") or "unknown"): int(
+                sum(1 for row in payment_rows if str(row.get("type") or "unknown") == str(item.get("type") or "unknown"))
+            )
+            for item in payment_rows
+        }
+        payment_min_date = min(
+            [str(item.get("period_start") or "")[:10] for item in payment_rows if str(item.get("period_start") or "").strip()],
+            default=None,
+        )
+        payment_max_date = max(
+            [str(item.get("period_end") or "")[:10] for item in payment_rows if str(item.get("period_end") or "").strip()],
+            default=None,
+        )
+        weekly_filter = f"period overlaps {period_from}..{period_to}"
+        raw_filter = f"telegram_id={int(user_id)} AND report_date BETWEEN {period_from} AND {period_to}"
         metrics = {
             "wb_logistics": [
-                ("finance_raw_audit.raw_json", raw.get("logistics"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.logistics", (events.get("logistics") or {}).get("amount"), (events.get("logistics") or {}).get("rows", 0)),
-                ("expenses.logistics", (expenses.get("logistics") or {}).get("amount"), (expenses.get("logistics") or {}).get("rows", 0)),
+                _candidate(
+                    "payment_reports.delivery",
+                    payment_total_delivery,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="delivery",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "finance_raw_audit.raw_json",
+                    raw.get("logistics"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="raw_json.delivery_rub|rebill_logistic_cost|return_amount|delivery_amount",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.logistics",
+                    (events.get("logistics") or {}).get("amount"),
+                    (events.get("logistics") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=logistics AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.logistics",
+                    (expenses.get("logistics") or {}).get("amount"),
+                    (expenses.get("logistics") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=logistics AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "wb_storage": [
-                ("finance_raw_audit.raw_json", raw.get("storage"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.storage", (events.get("storage") or {}).get("amount"), (events.get("storage") or {}).get("rows", 0)),
-                ("expenses.storage", (expenses.get("storage") or {}).get("amount"), (expenses.get("storage") or {}).get("rows", 0)),
+                _candidate(
+                    "payment_reports.storage",
+                    payment_total_storage,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="storage",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "finance_raw_audit.raw_json",
+                    raw.get("storage"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="raw_json.storage_fee|storage|storage_cost",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.storage",
+                    (events.get("storage") or {}).get("amount"),
+                    (events.get("storage") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=storage AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.storage",
+                    (expenses.get("storage") or {}).get("amount"),
+                    (expenses.get("storage") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=storage AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "wb_acquiring": [
-                ("finance_raw_audit.acquiring_fee", raw.get("acquiring"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.acquiring", (events.get("acquiring") or {}).get("amount"), (events.get("acquiring") or {}).get("rows", 0)),
-                ("expenses.acquiring", (expenses.get("acquiring") or {}).get("amount"), (expenses.get("acquiring") or {}).get("rows", 0)),
+                _candidate(
+                    "finance_raw_audit.acquiring_fee",
+                    raw.get("acquiring"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="acquiring_fee",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.acquiring",
+                    (events.get("acquiring") or {}).get("amount"),
+                    (events.get("acquiring") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=acquiring AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.acquiring",
+                    (expenses.get("acquiring") or {}).get("amount"),
+                    (expenses.get("acquiring") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=acquiring AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "wb_deductions": [
-                ("finance_raw_audit.deduction", raw.get("wb_deductions"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.wb_deductions", (events.get("wb_deductions") or {}).get("amount"), (events.get("wb_deductions") or {}).get("rows", 0)),
-                ("expenses.wb_deductions", (expenses.get("wb_deductions") or {}).get("amount"), (expenses.get("wb_deductions") or {}).get("rows", 0)),
+                _candidate(
+                    "payment_reports.deduction",
+                    payment_total_deduction,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="deduction",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "finance_raw_audit.deduction",
+                    raw.get("wb_deductions"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="deduction",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.wb_deductions",
+                    (events.get("wb_deductions") or {}).get("amount"),
+                    (events.get("wb_deductions") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=wb_deductions AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.wb_deductions",
+                    (expenses.get("wb_deductions") or {}).get("amount"),
+                    (expenses.get("wb_deductions") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=wb_deductions AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "wb_other": [
-                ("finance_raw_audit.other", raw.get("other"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.other", (events.get("other") or {}).get("amount"), (events.get("other") or {}).get("rows", 0)),
-                ("expenses.other", (expenses.get("other") or {}).get("amount"), (expenses.get("other") or {}).get("rows", 0)),
+                _candidate(
+                    "finance_raw_audit.other",
+                    raw.get("other"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="penalty|acceptance|acceptance_fee|additional_payment",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.other",
+                    (events.get("other") or {}).get("amount"),
+                    (events.get("other") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=other AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.other",
+                    (expenses.get("other") or {}).get("amount"),
+                    (expenses.get("other") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=other AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "penalties": [
-                ("finance_raw_audit.penalty", raw.get("penalties"), int(raw.get("rows") or 0)),
-                ("finance_expense_events.penalties", (events.get("penalties") or {}).get("amount"), (events.get("penalties") or {}).get("rows", 0)),
-                ("expenses.penalties", (expenses.get("penalties") or {}).get("amount"), (expenses.get("penalties") or {}).get("rows", 0)),
+                _candidate(
+                    "finance_raw_audit.penalty",
+                    raw.get("penalties"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="penalty",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
+                _candidate(
+                    "finance_expense_events.penalties",
+                    (events.get("penalties") or {}).get("amount"),
+                    (events.get("penalties") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=penalties AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.penalties",
+                    (expenses.get("penalties") or {}).get("amount"),
+                    (expenses.get("penalties") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=penalties AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "advertising": [
-                ("finance_expense_events.advertising", (events.get("advertising") or {}).get("amount"), (events.get("advertising") or {}).get("rows", 0)),
-                ("expenses.advertising", (expenses.get("advertising") or {}).get("amount"), (expenses.get("advertising") or {}).get("rows", 0)),
+                _candidate(
+                    "finance_expense_events.advertising",
+                    (events.get("advertising") or {}).get("amount"),
+                    (events.get("advertising") or {}).get("rows", 0),
+                    source_table="finance_expense_events",
+                    source_column="amount",
+                    source_filter=f"expense_category=advertising AND event_date BETWEEN {period_from} AND {period_to}",
+                ),
+                _candidate(
+                    "expenses.advertising",
+                    (expenses.get("advertising") or {}).get("amount"),
+                    (expenses.get("advertising") or {}).get("rows", 0),
+                    source_table="expenses",
+                    source_column="amount",
+                    source_filter=f"expense_type=advertising AND expense_date BETWEEN {period_from} AND {period_to}",
+                ),
             ],
             "wb_sale_amount": [
-                ("finance_raw_audit.raw_json", raw.get("revenue"), int(raw.get("rows") or 0)),
-                ("payment_reconciliation.sales_revenue_total", payment_snapshot.get("sales_revenue_total"), int(payment_snapshot.get("sales_rows_count") or 0)),
+                _candidate(
+                    "payment_reports.revenue",
+                    payment_total_revenue,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="revenue",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "finance_raw_audit.raw_json",
+                    raw.get("revenue"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="raw_json.sale_amount|retail_amount|retail_price_withdisc_rub",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
             ],
             "wb_payout_amount": [
-                ("finance_raw_audit.raw_json", raw.get("payout"), int(raw.get("rows") or 0)),
-                ("payment_reconciliation.sales_for_pay_total", payment_snapshot.get("sales_for_pay_total"), int(payment_snapshot.get("sales_rows_count") or 0)),
+                _candidate(
+                    "payment_reports.for_pay",
+                    payment_total_for_pay,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="for_pay",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "finance_raw_audit.raw_json",
+                    raw.get("payout"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="raw_json.ppvz_for_pay|supplier_operating_reward|supplier_payment|to_pay|payment_amount",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
             ],
             "wb_total_to_pay": [
-                ("finance_raw_audit.raw_json", raw.get("total_to_pay"), int(raw.get("rows") or 0)),
-                ("payment_reconciliation.weekly_payout_total_all", payment_snapshot.get("weekly_payout_total_all"), int(len(payment_snapshot.get("weekly_payout_reference") or []))),
+                _candidate(
+                    "payment_reports.bank_payment",
+                    payment_total_bank_payment,
+                    len(payment_rows),
+                    source_table="payment_reports_rows",
+                    source_column="bank_payment",
+                    source_filter=weekly_filter,
+                    source_min_date=payment_min_date,
+                    source_max_date=payment_max_date,
+                    breakdown=payment_breakdown,
+                ),
+                _candidate(
+                    "payment_reconciliation.weekly_payout_total_all",
+                    payment_snapshot.get("weekly_payout_total_all"),
+                    int(len(payment_snapshot.get("weekly_payout_reference") or [])),
+                    source_table="weekly_payout_reference",
+                    source_column="payout",
+                    source_filter=weekly_filter,
+                ),
+                _candidate(
+                    "finance_raw_audit.raw_json",
+                    raw.get("total_to_pay"),
+                    int(raw.get("rows") or 0),
+                    source_table="finance_raw_audit",
+                    source_column="raw_json.ppvz_for_pay|to_pay|payment_amount",
+                    source_filter=raw_filter,
+                    source_min_date=raw.get("min_date"),
+                    source_max_date=raw.get("max_date"),
+                    breakdown=raw.get("operation_types"),
+                ),
             ],
         }
 
         selected: dict[str, tuple[str | None, float | None, int]] = {
-            metric_name: _pick_source(candidates)
+            metric_name: _pick_source([(item["source"], item["value"], item["rows"]) for item in candidates])
             for metric_name, candidates in metrics.items()
         }
         warnings: list[str] = []

@@ -14359,6 +14359,16 @@ def _normalize_finance_report_row(row):
             or row.get('type')
             or ''
         ) or None,
+        'revenue': round(float(
+            row.get('retailAmount')
+            or row.get('retail_amount')
+            or row.get('salesSum')
+            or row.get('sales_sum')
+            or row.get('realizationSum')
+            or row.get('realization_sum')
+            or row.get('sale_amount')
+            or 0
+        ), 2),
         'for_pay': round(float(row.get('forPaySum') or row.get('for_pay') or 0), 2),
         'bank_payment': round(float(row.get('bankPaymentSum') or row.get('bank_payment') or 0), 2),
         'delivery': round(float(row.get('deliveryServiceSum') or row.get('delivery') or 0), 2),
@@ -14810,6 +14820,7 @@ def _payment_reconciliation_snapshot(user, start_date, end_date, context=None):
     else:
         for_pay_until_cutoff_minus_weekly = None
 
+    payment_reports_total_revenue = round(sum(float(item.get('revenue') or 0) for item in payment_report_rows), 2)
     payment_reports_total_for_pay = round(sum(float(item.get('for_pay') or 0) for item in payment_report_rows), 2)
     payment_reports_total_bank_payment = round(sum(float(item.get('bank_payment') or 0) for item in payment_report_rows), 2)
     payment_reports_total_delivery = round(sum(float(item.get('delivery') or 0) for item in payment_report_rows), 2)
@@ -14905,6 +14916,7 @@ def _payment_reconciliation_snapshot(user, start_date, end_date, context=None):
         'payment_reports_message': payment_reports_source_data.get('message') or '',
         'payment_reports_count': int(len(payment_report_rows)),
         'payment_reports_rows': payment_report_rows,
+        'payment_reports_total_revenue': payment_reports_total_revenue,
         'payment_reports_total_for_pay': payment_reports_total_for_pay,
         'payment_reports_total_bank_payment': payment_reports_total_bank_payment,
         'payment_reports_total_delivery': payment_reports_total_delivery,
@@ -17732,6 +17744,9 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         if not is_preliminary
         else "Текущий период ещё обновляется. Операционная оценка предварительная."
     )
+    validation_summary = str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
+    if validation_summary == important_note:
+        validation_summary = None
     actions = _customer_actions(
         "Обновить данные через /update." if not official_available else "",
         "Открыть /business и сверить общую картину." if not official_available else "",
@@ -17743,7 +17758,7 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         money_lines,
         important_note,
         actions,
-        validation_summary=str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются'),
+        validation_summary=validation_summary,
     )
 
 
@@ -17758,7 +17773,12 @@ def _pnl_customer_text(user, days):
     expense_total = snapshot.get('expenses_total')
     margin_value = float(snapshot.get('margin_percent') or 0)
     cost_label = _customer_cost_status_label(snapshot.get('cost_status'), cost_value=snapshot.get('cost_price'))
-    expense_label = '- Расходы:' if official_available and finance_confidence == 'HIGH' else '- Расходы (частично):'
+    has_closed_wb_expense_fields = all(
+        snapshot.get(name) is not None
+        for name in ("logistics", "storage", "acquiring", "wb_deductions")
+    )
+    is_closed_wb_period = str(snapshot.get("source_mode") or "") == "WB_NATIVE_CLOSED"
+    expense_label = '- Расходы:' if (official_available and finance_confidence == 'HIGH') or (is_closed_wb_period and has_closed_wb_expense_fields) else '- Расходы (частично):'
     lines = [
         '💰 P&L',
         '',
