@@ -1229,6 +1229,46 @@ def _customer_finance_waiting_note(snapshot):
     return 'Финансовые данные WB ещё не подтверждены.'
 
 
+_CUSTOMER_FINANCIAL_FIELDS = (
+    'wb_sale_amount',
+    'wb_payout_amount',
+    'wb_total_to_pay',
+    'wb_logistics',
+    'wb_storage',
+    'wb_deductions',
+    'wb_acquiring',
+    'advertising',
+    'cost_price',
+    'operational_profit',
+)
+
+
+def _customer_financial_snapshot(user, days):
+    from vooglii_finance.customer_snapshot import build_customer_snapshot
+
+    return build_customer_snapshot(user, days, bot=_unified_finance_bot())
+
+
+def _customer_financial_values(snapshot):
+    return {
+        'wb_sale_amount': snapshot.wb_sale_amount,
+        'wb_payout_amount': snapshot.wb_payout_amount,
+        'wb_total_to_pay': snapshot.wb_total_to_pay,
+        'wb_logistics': snapshot.wb_logistics,
+        'wb_storage': snapshot.wb_storage,
+        'wb_deductions': snapshot.wb_deductions,
+        'wb_acquiring': snapshot.wb_acquiring,
+        'advertising': snapshot.advertising,
+        'cost_price': snapshot.cost_price,
+        'operational_profit': snapshot.operational_profit,
+    }
+
+
+def _customer_financial_trace(snapshot, field_name):
+    trace = snapshot.field_trace.get(field_name, {})
+    return dict(trace or {})
+
+
 def _customer_default_period(args, default='current_month'):
     return _try_center_period(args, default, executive=True)
 
@@ -6621,30 +6661,26 @@ def _finance_local_expenses_analysis(user, days):
 async def finance_explain_command(update, context, period_name, days, user):
     if not await access(update, 'report'):
         return
-    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
-
-    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
-    source_map = dict(snapshot.get("source_map") or {})
+    snapshot = _customer_financial_snapshot(user, days)
+    source_map = dict(snapshot.field_trace or {})
 
     def _explain_metric(label, key, value):
         item = dict(source_map.get(key) or {})
         lines = [
             f"{label}:",
             f"{_money_or_state(value, 'нет данных')}",
-            f"Источник: {item.get('source_table') or item.get('selected_source') or '-'}",
+            f"Источник: {item.get('selected_table') or item.get('selected_source') or '-'}",
         ]
-        if item.get("rows") is not None:
-            lines.append(f"Строк: {int(item.get('rows') or 0)}")
-        if item.get("unique_documents") is not None:
-            lines.append(f"Документов: {int(item.get('unique_documents') or 0)}")
+        if item.get("selected_column"):
+            lines.append(f"Колонка: {item.get('selected_column')}")
+        if item.get("selected_reason"):
+            lines.append(f"Причина: {item.get('selected_reason')}")
+        if item.get("row_count") is not None:
+            lines.append(f"Строк: {int(item.get('row_count') or 0)}")
+        if item.get("sum") is not None:
+            lines.append(f"Сумма источника: {_money_or_state(item.get('sum'), '-')}")
         if item.get("source_min_date") or item.get("source_max_date"):
             lines.append(f"Даты: {item.get('source_min_date') or '-'}..{item.get('source_max_date') or '-'}")
-        if item.get("unique_sources") is not None:
-            lines.append(f"Источников: {int(item.get('unique_sources') or 0)}")
-        if item.get("fallback") is True:
-            lines.append("Режим: legacy fallback")
-        elif item.get("fallback") is False:
-            lines.append("Режим: normalized layer")
         return lines
 
     lines = [
@@ -6652,23 +6688,27 @@ async def finance_explain_command(update, context, period_name, days, user):
         "",
         f"Период: {period_name}",
         "",
-        *_explain_metric("Выручка", "sales_revenue", snapshot.get("sales_revenue")),
+        *_explain_metric("Продажа WB", "wb_sale_amount", snapshot.wb_sale_amount),
         "",
-        *_explain_metric("Реклама", "advertising_spend", snapshot.get("advertising_spend")),
+        *_explain_metric("К перечислению WB", "wb_payout_amount", snapshot.wb_payout_amount),
         "",
-        *_explain_metric("Логистика", "logistics", snapshot.get("logistics")),
+        *_explain_metric("Итого к оплате WB", "wb_total_to_pay", snapshot.wb_total_to_pay),
         "",
-        *_explain_metric("Хранение", "storage", snapshot.get("storage")),
+        *_explain_metric("Реклама", "advertising", snapshot.advertising),
         "",
-        *_explain_metric("Эквайринг", "acquiring", snapshot.get("acquiring")),
+        *_explain_metric("Логистика", "wb_logistics", snapshot.wb_logistics),
+        "",
+        *_explain_metric("Хранение", "wb_storage", snapshot.wb_storage),
+        "",
+        *_explain_metric("Эквайринг", "wb_acquiring", snapshot.wb_acquiring),
         "",
         *_explain_metric("Удержания WB", "wb_deductions", snapshot.get("wb_deductions")),
         "",
         *_explain_metric("Прочие расходы", "other_expenses", snapshot.get("other_expenses")),
         "",
-        *_explain_metric("Себестоимость", "cost_price", snapshot.get("cost_price")),
+        *_explain_metric("Себестоимость", "cost_price", snapshot.cost_price),
         "",
-        *_explain_metric("Расходы всего", "expenses_total", snapshot.get("expenses_total")),
+        *_explain_metric("Операционная прибыль", "operational_profit", snapshot.operational_profit),
         "",
         *_explain_metric("Чистая прибыль", "net_profit", snapshot.get("net_profit")),
     ]
@@ -17498,16 +17538,13 @@ def _dashboard_prototype_text(user=658486226, days=('2026-05-01', '2026-05-31'))
 
 
 def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
-    from vooglii_finance.customer_snapshot import build_customer_financial_snapshot_dict
-
     request_context = _snapshot_context()
     start_date, end_date = _period_dates(days)
     light_context = _director_lightweight_context(start_date, end_date, user=user, context=request_context)
     financial_engine_snapshot = dict(light_context.get('financial_engine_snapshot') or {})
-    unified_snapshot = dict(light_context.get('unified_data_snapshot') or {})
     ads_snapshot = dict(light_context.get('ads_snapshot') or {})
     sku_registry_snapshot = dict(light_context.get('sku_registry_snapshot') or {})
-    finance_snapshot = build_customer_financial_snapshot_dict(user, (start_date, end_date), bot=_unified_finance_bot())
+    finance_snapshot = _customer_financial_snapshot(user, (start_date, end_date))
     health_snapshot = _health_snapshot(user)
     quality_snapshot = dict(health_snapshot.get('quality') or {})
     user_row = get_user(user)
@@ -17517,13 +17554,15 @@ def _home_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'status': 'OK',
         'period_label': _customer_period_label(user, days),
         'sales_status': ((quality_snapshot.get('sales') or {}).get('status')) or 'UNKNOWN',
-        'finance_status': finance_snapshot.get('finance_status') or financial_engine_snapshot.get('status') or 'UNKNOWN',
+        'finance_status': finance_snapshot.finance_status or financial_engine_snapshot.get('status') or 'UNKNOWN',
         'ads_status': finance_snapshot.get('advertising_status') or ads_snapshot.get('status') or ((quality_snapshot.get('advertising') or {}).get('status')) or 'UNKNOWN',
         'costs_status': cost_status,
-        'cost_value': finance_snapshot.get('cost_price'),
+        'cost_value': finance_snapshot.cost_price,
         'cost_coverage_percent': float(sku_registry_snapshot.get('coverage_percent') or 0),
         'wb_connected': wb_connected,
-        'wb_data_status_text': finance_snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются',
+        'wb_data_status_text': finance_snapshot.wb_data_status_text or 'Данные WB: 🟡 данные обновляются',
+        'customer_financial_snapshot': finance_snapshot,
+        **_customer_financial_values(finance_snapshot),
         'last_updates': dict(health_snapshot.get('last_updates') or {}),
         'sections': [
             '📊 Business',
@@ -17591,8 +17630,6 @@ def _home_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
     context = _snapshot_context()
-    from vooglii_finance.customer_snapshot import build_customer_financial_snapshot_dict
-
     director_snapshot = _director_snapshot(user, days, context=context)
     advisor_snapshot = _advisor_v2_snapshot(user, days, context=context)
     cfo_snapshot = _cfo_insights_snapshot(user, days, context=context)
@@ -17600,7 +17637,7 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
     decision_snapshot = _decision_snapshot(user, days, context=context)
     advertising_snapshot = _advertising_customer_snapshot(user, days)
     products_snapshot = _products_center_snapshot(user, days)
-    unified_snapshot = build_customer_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    unified_snapshot = _customer_financial_snapshot(user, days)
     period_label = f"{days[0]}..{days[1]}"
     return {
         'status': 'OK',
@@ -17618,7 +17655,9 @@ def _business_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31'))
         'advertising': advertising_snapshot,
         'products': products_snapshot,
         'unified_finance': unified_snapshot,
-        'wb_data_status_text': unified_snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются',
+        'wb_data_status_text': unified_snapshot.wb_data_status_text or 'Данные WB: 🟡 данные обновляются',
+        'customer_financial_snapshot': unified_snapshot,
+        **_customer_financial_values(unified_snapshot),
         'quick_links': [
             f'/director {days[0]} {days[1]}',
             f'/advisor v2 {days[0]} {days[1]}',
@@ -17636,7 +17675,7 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     advertising_snapshot = dict(snapshot.get('advertising') or {})
     products_snapshot = dict(snapshot.get('products') or {})
     unified_snapshot = dict(snapshot.get('unified_finance') or {})
-    finance_status = get_finance_status(user, days)
+    finance_snapshot = snapshot.get('customer_financial_snapshot') or snapshot.get('unified_finance') or {}
     finance_confidence = str(unified_snapshot.get('finance_confidence') or 'UNKNOWN')
     recommendation = _customer_business_copy(snapshot.get('main_recommendation') or '')
     recommendation_action = _customer_business_copy(snapshot.get('main_recommendation_action') or '')
@@ -17650,7 +17689,7 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     )
     highlights = [
         f"- Продажи: {_customer_sales_status_label(state.get('sales') or 'UNKNOWN')}",
-        f"- Финансы: {finance_status['business_text']}",
+        f"- Финансы: {_customer_finance_status_label((getattr(finance_snapshot, 'finance_status', None) or (finance_snapshot.get('finance_status') if isinstance(finance_snapshot, dict) else None) or 'FINANCE_WAITING_WB'))}",
         f"- Достоверность финансов: {_customer_finance_confidence_label(finance_confidence)}",
         advertising_line,
         f"- Себестоимость: {cost_label}",
@@ -17680,38 +17719,29 @@ def _business_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
-    from vooglii_finance.customer_snapshot import build_customer_financial_snapshot_dict
-
-    unified_snapshot = build_customer_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
-    finance_api_snapshot = _finance_api_status_snapshot(user)
-    financial_engine_snapshot = _financial_engine_snapshot(days[0], days[1], user=user)
-    payment_snapshot = _payment_reconciliation_snapshot(user, days[0], days[1])
-    finance_health = get_finance_difference_snapshot(user, days[0], days[1])
-    advertising_snapshot = _advertising_customer_snapshot(user, days)
-    management_snapshot = _report_mgmt_snapshot(user, days)
+    unified_snapshot = _customer_financial_snapshot(user, days)
     unified_finance_status = str(unified_snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
     finance_status_text = _customer_finance_status_label(unified_finance_status)
     period_label = f"{days[0]}..{days[1]}"
-    engine_status = str(financial_engine_snapshot.get('status') or 'UNKNOWN')
     return {
         'status': 'OK',
         'period': period_label,
-        'finance_api_status': finance_api_snapshot.get('status') or 'UNKNOWN',
-        'financial_engine_status': engine_status,
-        'official_new_finance_available': bool(financial_engine_snapshot.get('official_new_finance_available')),
-        'official_net_profit': financial_engine_snapshot.get('official_net_profit'),
-        'profit_total': unified_snapshot.get('net_profit'),
-        'legacy_fallback_status': financial_engine_snapshot.get('legacy_gold_validation_status') if engine_status == 'LEGACY_FALLBACK' else 'NOT_ACTIVE',
-        'payment_status': payment_snapshot.get('status') or 'UNKNOWN',
+        'finance_api_status': 'SEE_CUSTOMER_SNAPSHOT',
+        'financial_engine_status': 'SEE_CUSTOMER_SNAPSHOT',
+        'official_new_finance_available': bool(unified_snapshot.get('finance_status') == 'FINANCE_OK'),
+        'official_net_profit': unified_snapshot.get('net_profit'),
+        'profit_total': unified_snapshot.operational_profit if unified_snapshot.is_preliminary else unified_snapshot.net_profit,
+        'legacy_fallback_status': 'NOT_ACTIVE',
+        'payment_status': 'SEE_CUSTOMER_SNAPSHOT',
         'payment_received_total': unified_snapshot.get('wb_payments_received'),
-        'sales_for_pay_total': unified_snapshot.get('wb_payout'),
-        'advertising_total': unified_snapshot.get('advertising_spend'),
-        'cost_price_total': unified_snapshot.get('cost_price'),
-        'logistics_total': unified_snapshot.get('logistics'),
-        'storage_total': unified_snapshot.get('storage'),
-        'deductions_total': unified_snapshot.get('wb_deductions'),
-        'acquiring_total': unified_snapshot.get('acquiring'),
-        'other_expenses_total': unified_snapshot.get('other_expenses'),
+        'sales_for_pay_total': unified_snapshot.wb_payout_amount,
+        'advertising_total': unified_snapshot.advertising,
+        'cost_price_total': unified_snapshot.cost_price,
+        'logistics_total': unified_snapshot.wb_logistics,
+        'storage_total': unified_snapshot.wb_storage,
+        'deductions_total': unified_snapshot.wb_deductions,
+        'acquiring_total': unified_snapshot.wb_acquiring,
+        'other_expenses_total': unified_snapshot.wb_other,
         'unknown_wb_expenses_total': unified_snapshot.get('unknown_wb_expenses'),
         'expenses_total': unified_snapshot.get('expenses_total'),
         'confirmed_expenses_total': unified_snapshot.get('confirmed_expenses_total'),
@@ -17722,14 +17752,16 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'profit_display_mode': unified_snapshot.get('profit_display_mode'),
         'finance_status_text': finance_status_text,
         'finance_status': unified_finance_status,
-        'wb_data_status_text': unified_snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются',
-        'wb_total_to_pay': unified_snapshot.get('wb_total_to_pay'),
-        'is_preliminary': bool(unified_snapshot.get('is_preliminary')),
-        'finance_status_source': ((unified_snapshot.get('debug_sources') or {}).get('finance_status') or {}).get('selected_source'),
-        'profit_audit_safety_status': 'OFFICIAL_READY' if bool(financial_engine_snapshot.get('official_new_finance_available')) else ('LEGACY_FALLBACK' if engine_status == 'LEGACY_FALLBACK' else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE'),
-        'coverage_percent': float(finance_health.get('coverage_percent') or 0),
-        'risks': list(financial_engine_snapshot.get('warnings') or [])[:3],
+        'wb_data_status_text': unified_snapshot.wb_data_status_text or 'Данные WB: 🟡 данные обновляются',
+        'wb_total_to_pay': unified_snapshot.wb_total_to_pay,
+        'is_preliminary': bool(unified_snapshot.is_preliminary),
+        'finance_status_source': (_customer_financial_trace(unified_snapshot, 'net_profit').get('selected_source')),
+        'profit_audit_safety_status': 'OFFICIAL_READY' if bool(unified_snapshot.get('finance_status') == 'FINANCE_OK') else 'OFFICIAL_NEW_FINANCE_UNAVAILABLE',
+        'coverage_percent': float(unified_snapshot.get('finance_confidence_score') or 0),
+        'risks': list(unified_snapshot.get('warnings') or [])[:3],
         'unified_snapshot': unified_snapshot,
+        'customer_financial_snapshot': unified_snapshot,
+        **_customer_financial_values(unified_snapshot),
         'quick_links': [
             '/finance api status',
             f'/financial engine {days[0]} {days[1]}',
@@ -17806,9 +17838,7 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _pnl_customer_text(user, days):
     days = _center_days(days)
-    from vooglii_finance.customer_snapshot import build_customer_financial_snapshot_dict
-
-    snapshot = build_customer_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    snapshot = _customer_financial_snapshot(user, days)
     official_available = str(snapshot.get('finance_status') or '') == 'FINANCE_OK'
     finance_confidence = str(snapshot.get('finance_confidence') or 'UNKNOWN')
     profit_value = snapshot.get('net_profit')
@@ -17855,6 +17885,38 @@ def _pnl_customer_text(user, days):
         lines.extend(_customer_confirmed_pending_expense_lines(snapshot))
         lines.extend(['', 'Итог:', 'Прибыль, маржа и ROI будут рассчитаны после подтверждения финансов WB.'])
     return '\n'.join(lines)
+
+
+def _customer_report_snapshot(user, days):
+    snapshot = _customer_financial_snapshot(user, days)
+    return {
+        'customer_financial_snapshot': snapshot,
+        **_customer_financial_values(snapshot),
+    }
+
+
+def _customer_pnl_snapshot(user, days):
+    snapshot = _customer_financial_snapshot(user, days)
+    return {
+        'customer_financial_snapshot': snapshot,
+        **_customer_financial_values(snapshot),
+    }
+
+
+def _customer_dashboard_snapshot(user, days):
+    snapshot = _customer_financial_snapshot(user, days)
+    return {
+        'customer_financial_snapshot': snapshot,
+        **_customer_financial_values(snapshot),
+    }
+
+
+def _customer_advisor_snapshot(user, days):
+    snapshot = _customer_financial_snapshot(user, days)
+    return {
+        'customer_financial_snapshot': snapshot,
+        **_customer_financial_values(snapshot),
+    }
 
 
 def _products_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
@@ -19618,9 +19680,7 @@ def _report_mgmt_text(period_name, days, user):
 
 
 def _unified_report_text(user, days):
-    from vooglii_finance.customer_snapshot import build_customer_financial_snapshot_dict
-
-    snapshot = build_customer_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    snapshot = _customer_financial_snapshot(user, days)
     official_available = str(snapshot.get("finance_status") or "") == "FINANCE_OK"
     finance_confidence = str(snapshot.get("finance_confidence") or "UNKNOWN")
     is_preliminary = bool(snapshot.get("is_preliminary"))
@@ -19669,9 +19729,7 @@ def _unified_report_text(user, days):
 
 
 def _unified_dashboard_text(user, days):
-    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
-
-    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    snapshot = _customer_financial_snapshot(user, days)
     finance_confidence = str(snapshot.get("finance_confidence") or "UNKNOWN")
     lines = [
         '🏢 VOOGLII Dashboard',
@@ -19680,8 +19738,8 @@ def _unified_dashboard_text(user, days):
         '',
         'Главное:',
         f'- Выручка: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
-        f'- К выплате WB: {_money_or_state(snapshot.get("wb_payout"))}',
-        f'- Реклама WB: {_money_or_state(snapshot.get("advertising_spend"), "данные обновляются")}',
+        f'- К выплате WB: {_money_or_state(snapshot.wb_payout_amount)}',
+        f'- Реклама WB: {_money_or_state(snapshot.advertising, "данные обновляются")}',
         f'- Себестоимость: {_customer_cost_value_text(snapshot)}',
         f'- Расходы всего: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
         (
@@ -19742,10 +19800,8 @@ def _unified_ceo_text(user, days):
 
 
 def _advisor_customer_text(user, days):
-    from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
-
     days = _center_days(days)
-    snapshot = build_unified_financial_snapshot_dict(user, days, bot=_unified_finance_bot())
+    snapshot = _customer_financial_snapshot(user, days)
     advertising_snapshot = _advertising_customer_snapshot(user, days)
     products_snapshot = _products_center_snapshot(user, days)
     finance_status = str(snapshot.get('finance_status') or '')

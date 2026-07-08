@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator, Mapping
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -17,6 +18,51 @@ PERIOD_OPEN = "OPEN"
 PERIOD_CLOSED = "CLOSED"
 PERIOD_PARTIAL = "PARTIAL"
 PERIOD_UNKNOWN = "UNKNOWN"
+
+TRACE_REASON_CLOSED = "closed_wb_period_uses_wb_weekly_snapshot"
+TRACE_REASON_OPEN = "open_period_uses_unified_operational_snapshot"
+TRACE_REASON_OPEN_TOTAL_TO_PAY = "open_period_total_to_pay_matches_current_wb_payout_estimate"
+
+
+class FrozenSnapshot(Mapping[str, Any]):
+    def __init__(self, payload: Mapping[str, Any]):
+        self._payload = dict(payload)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._payload[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._payload)
+
+    def __len__(self) -> int:
+        return len(self._payload)
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self._payload[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __repr__(self) -> str:
+        return f"FrozenSnapshot({self._payload!r})"
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._payload.get(key, default)
+
+    def copy(self) -> dict[str, Any]:
+        return dict(self._payload)
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, FrozenSnapshot):
+        return value
+    if isinstance(value, Mapping):
+        return FrozenSnapshot({str(key): _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze(item) for item in value)
+    return value
 
 
 def _connect() -> sqlite3.Connection:
@@ -152,7 +198,84 @@ def _wb_data_status_text(period_status: str, validation_status: str | None) -> s
     return "Данные WB: 🟡 данные обновляются"
 
 
-def build_customer_financial_snapshot(user_id: int, period_from: date, period_to: date, *, bot=None) -> dict[str, Any]:
+def _trace_entry(value: Any, source_entry: Mapping[str, Any] | None, selected_reason: str) -> dict[str, Any]:
+    entry = dict(source_entry or {})
+    selected_source = entry.get("selected_source") or entry.get("source")
+    selected_table = entry.get("selected_table") or entry.get("source_table")
+    selected_column = entry.get("selected_column") or entry.get("source_column")
+    return {
+        "value": _money(value) if isinstance(value, (int, float)) or value is None else value,
+        "selected_source": selected_source,
+        "selected_table": selected_table,
+        "selected_column": selected_column,
+        "selected_reason": entry.get("source_filter") or selected_reason,
+        "row_count": int(entry.get("rows") or 0) if entry.get("rows") is not None else 0,
+        "sum": entry.get("selected_value", _money(value)),
+        "source_min_date": entry.get("source_min_date"),
+        "source_max_date": entry.get("source_max_date"),
+    }
+
+
+def _alias_trace(trace: dict[str, Any]) -> dict[str, Any]:
+    return dict(trace)
+
+
+def _build_field_trace(
+    unified_snapshot: Mapping[str, Any],
+    wb_snapshot: Mapping[str, Any],
+    source_mode: str,
+    wb_total_to_pay: float | None,
+    advertising_value: float | None,
+    operational_profit: float | None,
+    cost_price: float | None,
+) -> dict[str, Any]:
+    unified_sources = dict(unified_snapshot.get("source_map") or unified_snapshot.get("debug_sources") or {})
+    wb_sources = dict(wb_snapshot.get("source_map") or {})
+    use_wb = source_mode == "WB_NATIVE_CLOSED"
+
+    wb_sale_amount = unified_snapshot.get("sales_revenue")
+    wb_payout_amount = unified_snapshot.get("wb_payout")
+    wb_logistics = unified_snapshot.get("logistics")
+    wb_storage = unified_snapshot.get("storage")
+    wb_acquiring = unified_snapshot.get("acquiring")
+    wb_deductions = unified_snapshot.get("wb_deductions")
+    if use_wb:
+        wb_sale_amount = wb_snapshot.get("wb_sale_amount")
+        wb_payout_amount = wb_snapshot.get("wb_payout_amount")
+        wb_logistics = wb_snapshot.get("wb_logistics")
+        wb_storage = wb_snapshot.get("wb_storage")
+        wb_acquiring = wb_snapshot.get("wb_acquiring")
+        wb_deductions = wb_snapshot.get("wb_deductions")
+
+    reason = TRACE_REASON_CLOSED if use_wb else TRACE_REASON_OPEN
+    field_trace = {
+        "wb_sale_amount": _trace_entry(wb_sale_amount, wb_sources.get("wb_sale_amount") if use_wb else unified_sources.get("sales_revenue"), reason),
+        "sales_revenue": _trace_entry(wb_sale_amount, wb_sources.get("wb_sale_amount") if use_wb else unified_sources.get("sales_revenue"), reason),
+        "wb_payout_amount": _trace_entry(wb_payout_amount, wb_sources.get("wb_payout_amount") if use_wb else unified_sources.get("wb_payout"), reason),
+        "wb_payout": _trace_entry(wb_payout_amount, wb_sources.get("wb_payout_amount") if use_wb else unified_sources.get("wb_payout"), reason),
+        "wb_total_to_pay": _trace_entry(
+            wb_total_to_pay,
+            wb_sources.get("wb_total_to_pay") if use_wb else unified_sources.get("wb_payout"),
+            TRACE_REASON_CLOSED if use_wb else TRACE_REASON_OPEN_TOTAL_TO_PAY,
+        ),
+        "wb_logistics": _trace_entry(wb_logistics, wb_sources.get("wb_logistics") if use_wb else unified_sources.get("logistics"), reason),
+        "logistics": _trace_entry(wb_logistics, wb_sources.get("wb_logistics") if use_wb else unified_sources.get("logistics"), reason),
+        "wb_storage": _trace_entry(wb_storage, wb_sources.get("wb_storage") if use_wb else unified_sources.get("storage"), reason),
+        "storage": _trace_entry(wb_storage, wb_sources.get("wb_storage") if use_wb else unified_sources.get("storage"), reason),
+        "wb_acquiring": _trace_entry(wb_acquiring, wb_sources.get("wb_acquiring") if use_wb else unified_sources.get("acquiring"), reason),
+        "acquiring": _trace_entry(wb_acquiring, wb_sources.get("wb_acquiring") if use_wb else unified_sources.get("acquiring"), reason),
+        "wb_deductions": _trace_entry(wb_deductions, wb_sources.get("wb_deductions") if use_wb else unified_sources.get("wb_deductions"), reason),
+        "advertising": _trace_entry(advertising_value, wb_sources.get("advertising") if use_wb else unified_sources.get("advertising_spend"), reason),
+        "advertising_spend": _trace_entry(advertising_value, wb_sources.get("advertising") if use_wb else unified_sources.get("advertising_spend"), reason),
+        "cost_price": _trace_entry(cost_price, unified_sources.get("cost_price"), "customer_snapshot_uses_unified_cost_price"),
+        "operational_profit": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), "customer_snapshot_uses_unified_operational_profit"),
+        "profit_before_tax": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), "customer_snapshot_uses_unified_operational_profit"),
+        "net_profit": _trace_entry(unified_snapshot.get("net_profit"), unified_sources.get("net_profit"), "customer_snapshot_uses_unified_net_profit"),
+    }
+    return {key: _alias_trace(value) for key, value in field_trace.items()}
+
+
+def build_customer_financial_snapshot(user_id: int, period_from: date, period_to: date, *, bot=None) -> FrozenSnapshot:
     unified = build_unified_financial_snapshot_dict(int(user_id), (str(period_from), str(period_to)), bot=bot)
     period_info = refresh_wb_financial_period(int(user_id), period_from, period_to)
     latest_validation = get_latest_validation_result(int(user_id))
@@ -164,59 +287,78 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         else None
     )
 
-    if period_info["status"] == PERIOD_CLOSED:
-        wb_snapshot = build_wb_weekly_snapshot_dict(int(user_id), period_from, period_to)
-        primary = {
-            "source_mode": "WB_NATIVE_CLOSED",
-            "is_preliminary": False,
-            "sales_count": wb_snapshot.get("sales_count"),
-            "returns_count": wb_snapshot.get("returns_count"),
-            "buyouts_count": wb_snapshot.get("buyouts_count"),
-            "orders_count": wb_snapshot.get("orders_count"),
-            "sales_revenue": wb_snapshot.get("wb_sale_amount"),
-            "wb_payout": wb_snapshot.get("wb_payout_amount"),
-            "wb_total_to_pay": wb_snapshot.get("wb_total_to_pay"),
-            "logistics": wb_snapshot.get("wb_logistics"),
-            "storage": wb_snapshot.get("wb_storage"),
-            "acquiring": wb_snapshot.get("wb_acquiring"),
-            "wb_deductions": wb_snapshot.get("wb_deductions"),
-            "other_expenses": wb_snapshot.get("wb_other"),
-            "advertising_spend": wb_snapshot.get("advertising"),
-        }
-    else:
-        wb_snapshot = {}
-        primary = {
-            "source_mode": "OPERATIONAL_PRELIMINARY",
-            "is_preliminary": True,
-            "sales_count": unified.get("sales_count"),
-            "returns_count": unified.get("returns_count"),
-            "buyouts_count": unified.get("buyouts_count"),
-            "orders_count": unified.get("orders_count"),
-            "sales_revenue": unified.get("sales_revenue"),
-            "wb_payout": unified.get("wb_payout"),
-            "wb_total_to_pay": unified.get("wb_payout"),
-            "logistics": unified.get("logistics"),
-            "storage": unified.get("storage"),
-            "acquiring": unified.get("acquiring"),
-            "wb_deductions": unified.get("wb_deductions"),
-            "other_expenses": unified.get("other_expenses"),
-            "advertising_spend": unified.get("advertising_spend"),
-        }
+    use_wb_native = period_info["status"] == PERIOD_CLOSED
+    wb_snapshot = build_wb_weekly_snapshot_dict(int(user_id), period_from, period_to) if use_wb_native else {}
+    source_mode = "WB_NATIVE_CLOSED" if use_wb_native else "OPERATIONAL_PRELIMINARY"
+    is_preliminary = not use_wb_native
 
-    snapshot = dict(unified)
-    snapshot.update(primary)
-    snapshot["period_status"] = period_info["status"]
-    snapshot["period_status_source"] = period_info["source"]
-    snapshot["period_status_confidence"] = period_info["confidence"]
-    snapshot["wb_data_status_text"] = _wb_data_status_text(period_info["status"], (same_period_validation or {}).get("status"))
-    snapshot["wb_native_snapshot"] = wb_snapshot
-    snapshot["operational_snapshot"] = dict(unified)
-    snapshot["validation_status"] = (same_period_validation or {}).get("status")
-    snapshot["validation_score"] = _money((same_period_validation or {}).get("parity_score"))
-    snapshot["operational_estimate"] = unified.get("profit_before_tax")
-    return snapshot
+    wb_sale_amount = wb_snapshot.get("wb_sale_amount") if use_wb_native else unified.get("sales_revenue")
+    wb_payout_amount = wb_snapshot.get("wb_payout_amount") if use_wb_native else unified.get("wb_payout")
+    wb_total_to_pay = wb_snapshot.get("wb_total_to_pay") if use_wb_native else unified.get("wb_payout")
+    wb_logistics = wb_snapshot.get("wb_logistics") if use_wb_native else unified.get("logistics")
+    wb_storage = wb_snapshot.get("wb_storage") if use_wb_native else unified.get("storage")
+    wb_acquiring = wb_snapshot.get("wb_acquiring") if use_wb_native else unified.get("acquiring")
+    wb_deductions = wb_snapshot.get("wb_deductions") if use_wb_native else unified.get("wb_deductions")
+    wb_other = wb_snapshot.get("wb_other") if use_wb_native else unified.get("other_expenses")
+    advertising = wb_snapshot.get("advertising") if use_wb_native else unified.get("advertising_spend")
+    operational_profit = unified.get("profit_before_tax")
+    cost_price = unified.get("cost_price")
+
+    field_trace = _build_field_trace(
+        unified,
+        wb_snapshot,
+        source_mode,
+        _money(wb_total_to_pay),
+        _money(advertising),
+        _money(operational_profit),
+        _money(cost_price),
+    )
+
+    payload = {
+        **dict(unified),
+        "source_mode": source_mode,
+        "is_preliminary": is_preliminary,
+        "sales_count": wb_snapshot.get("sales_count") if use_wb_native else unified.get("sales_count"),
+        "returns_count": wb_snapshot.get("returns_count") if use_wb_native else unified.get("returns_count"),
+        "buyouts_count": wb_snapshot.get("buyouts_count") if use_wb_native else unified.get("buyouts_count"),
+        "orders_count": wb_snapshot.get("orders_count") if use_wb_native else unified.get("orders_count"),
+        "sales_revenue": _money(wb_sale_amount),
+        "wb_sale_amount": _money(wb_sale_amount),
+        "wb_payout": _money(wb_payout_amount),
+        "wb_payout_amount": _money(wb_payout_amount),
+        "wb_total_to_pay": _money(wb_total_to_pay),
+        "logistics": _money(wb_logistics),
+        "wb_logistics": _money(wb_logistics),
+        "storage": _money(wb_storage),
+        "wb_storage": _money(wb_storage),
+        "acquiring": _money(wb_acquiring),
+        "wb_acquiring": _money(wb_acquiring),
+        "wb_deductions": _money(wb_deductions),
+        "other_expenses": _money(wb_other),
+        "wb_other": _money(wb_other),
+        "advertising_spend": _money(advertising),
+        "advertising": _money(advertising),
+        "cost_price": _money(cost_price),
+        "operational_profit": _money(operational_profit),
+        "operational_estimate": _money(operational_profit),
+        "period_status": period_info["status"],
+        "period_status_source": period_info["source"],
+        "period_status_confidence": period_info["confidence"],
+        "wb_data_status_text": _wb_data_status_text(period_info["status"], (same_period_validation or {}).get("status")),
+        "wb_native_snapshot": _freeze(wb_snapshot),
+        "operational_snapshot": _freeze(dict(unified)),
+        "validation_status": (same_period_validation or {}).get("status"),
+        "validation_score": _money((same_period_validation or {}).get("parity_score")),
+        "field_trace": _freeze(field_trace),
+        "financial_trace": _freeze(field_trace),
+    }
+    return _freeze(payload)
 
 
-def build_customer_financial_snapshot_dict(user_id: int, days, *, bot=None) -> dict[str, Any]:
+def build_customer_financial_snapshot_dict(user_id: int, days, *, bot=None) -> FrozenSnapshot:
     period_from, period_to = _to_dates(days)
     return build_customer_financial_snapshot(int(user_id), period_from, period_to, bot=bot)
+
+
+def build_customer_snapshot(user_id: int, days, *, bot=None) -> FrozenSnapshot:
+    return build_customer_financial_snapshot_dict(int(user_id), days, bot=bot)

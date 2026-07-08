@@ -21,6 +21,11 @@ def test_customer_snapshot_uses_wb_native_for_closed_period(monkeypatch):
             "net_profit": 3500.0,
             "finance_status": "FINANCE_OK",
             "finance_confidence": "HIGH",
+            "source_map": {
+                "cost_price": {"selected_source": "catalog.cost"},
+                "profit_before_tax": {"selected_source": "derived"},
+                "net_profit": {"selected_source": "engine.net_profit"},
+            },
         },
     )
     monkeypatch.setattr(
@@ -43,6 +48,16 @@ def test_customer_snapshot_uses_wb_native_for_closed_period(monkeypatch):
             "wb_total_to_pay": 9084.94,
             "wb_other": 0.0,
             "advertising": 280.0,
+            "source_map": {
+                "wb_sale_amount": {"selected_source": "payment_reports.revenue", "source_table": "payment_reports_rows", "source_column": "revenue"},
+                "wb_payout_amount": {"selected_source": "payment_reports.for_pay", "source_table": "payment_reports_rows", "source_column": "for_pay"},
+                "wb_logistics": {"selected_source": "payment_reports.delivery", "source_table": "payment_reports_rows", "source_column": "delivery"},
+                "wb_storage": {"selected_source": "payment_reports.storage", "source_table": "payment_reports_rows", "source_column": "storage"},
+                "wb_acquiring": {"selected_source": "finance_raw_audit.acquiring_fee", "source_table": "finance_raw_audit", "source_column": "acquiring_fee"},
+                "wb_deductions": {"selected_source": "payment_reports.deduction", "source_table": "payment_reports_rows", "source_column": "deduction"},
+                "wb_total_to_pay": {"selected_source": "payment_reports.bank_payment", "source_table": "payment_reports_rows", "source_column": "bank_payment"},
+                "advertising": {"selected_source": "finance_expense_events.advertising", "source_table": "finance_expense_events", "source_column": "amount"},
+            },
         },
     )
     monkeypatch.setattr("vooglii_finance.customer_snapshot.get_latest_validation_result", lambda _user_id: None)
@@ -50,9 +65,13 @@ def test_customer_snapshot_uses_wb_native_for_closed_period(monkeypatch):
     snapshot = build_customer_financial_snapshot(42, date(2026, 6, 29), date(2026, 7, 5))
 
     assert snapshot["source_mode"] == "WB_NATIVE_CLOSED"
-    assert snapshot["sales_revenue"] == 14046.08
-    assert snapshot["wb_payout"] == 15327.09
-    assert snapshot["wb_total_to_pay"] == 9084.94
+    assert snapshot.sales_revenue == 14046.08
+    assert snapshot.wb_sale_amount == 14046.08
+    assert snapshot.wb_payout_amount == 15327.09
+    assert snapshot.wb_total_to_pay == 9084.94
+    assert snapshot.wb_logistics == 3463.06
+    assert snapshot.field_trace["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
+    assert snapshot.field_trace["wb_storage"]["selected_column"] == "storage"
     assert snapshot["wb_data_status_text"] == "Данные WB: 🟢 период закрыт"
 
 
@@ -72,6 +91,18 @@ def test_customer_snapshot_uses_operational_for_open_period(monkeypatch):
             "net_profit": None,
             "finance_status": "FINANCE_WAITING_WB",
             "finance_confidence": "LOW",
+            "source_map": {
+                "sales_revenue": {"selected_source": "sales"},
+                "wb_payout": {"selected_source": "sales.for_pay"},
+                "logistics": {"selected_source": "expenses.logistics"},
+                "storage": {"selected_source": "expenses.storage"},
+                "acquiring": {"selected_source": "finance_raw_audit.acquiring_fee"},
+                "wb_deductions": {"selected_source": "finance_raw_audit.deduction"},
+                "advertising_spend": {"selected_source": "advertising.total_spend"},
+                "cost_price": {"selected_source": "catalog.cost"},
+                "profit_before_tax": {"selected_source": "derived"},
+                "net_profit": {"selected_source": None},
+            },
         },
     )
     monkeypatch.setattr(
@@ -83,6 +114,8 @@ def test_customer_snapshot_uses_operational_for_open_period(monkeypatch):
     snapshot = build_customer_financial_snapshot(42, date(2026, 7, 7), date(2026, 7, 8))
 
     assert snapshot["source_mode"] == "OPERATIONAL_PRELIMINARY"
-    assert snapshot["is_preliminary"] is True
-    assert snapshot["sales_revenue"] == 1200.0
+    assert snapshot.is_preliminary is True
+    assert snapshot.sales_revenue == 1200.0
+    assert snapshot.operational_profit == 200.0
+    assert snapshot.field_trace["wb_sale_amount"]["selected_source"] == "sales"
     assert snapshot["wb_data_status_text"] == "Данные WB: 🟡 данные обновляются"

@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import telegram_bot
 
+from vooglii_finance.customer_snapshot import FrozenSnapshot
 from vooglii_telegram.handlers.finance import finance_command
 from vooglii_telegram.handlers.validate import validate_command
 
@@ -54,27 +55,37 @@ def test_customer_commands_do_not_show_manual_validation(monkeypatch):
 
 def test_customer_report_has_no_manual_validation_copy(monkeypatch):
     monkeypatch.setattr(
-        "vooglii_finance.customer_snapshot.build_customer_financial_snapshot_dict",
-        lambda *_args, **_kwargs: {
+        telegram_bot,
+        "_customer_financial_snapshot",
+        lambda *_args, **_kwargs: FrozenSnapshot({
             "orders_count": 10,
             "buyouts_count": 8,
             "returns_count": 2,
             "sales_revenue": 1200.0,
+            "wb_sale_amount": 1200.0,
             "wb_payout": 900.0,
+            "wb_payout_amount": 900.0,
             "logistics": 40.0,
+            "wb_logistics": 40.0,
             "storage": 5.0,
+            "wb_storage": 5.0,
             "acquiring": 3.0,
+            "wb_acquiring": 3.0,
             "wb_deductions": 10.0,
             "wb_total_to_pay": 850.0,
             "advertising_spend": 50.0,
+            "advertising": 50.0,
             "cost_price": 400.0,
             "profit_before_tax": 200.0,
+            "operational_profit": 200.0,
             "net_profit": None,
             "finance_status": "FINANCE_WAITING_WB",
             "finance_confidence": "LOW",
+            "source_mode": "OPERATIONAL_PRELIMINARY",
             "is_preliminary": True,
             "wb_data_status_text": "Данные WB: 🟡 данные обновляются",
-        },
+            "field_trace": {},
+        }),
     )
     monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "07.07.2026 - 08.07.2026")
 
