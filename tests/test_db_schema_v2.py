@@ -34,12 +34,14 @@ def test_schema_v2_tables_and_indexes_exist():
         for table_name in (
             "sync_state",
             "finance_expense_events",
+            "payment_reports_rows",
             "stock_snapshots",
             "financial_snapshot_audit",
         ):
             assert table_name in report["table_names"]
         for index_name in (
             "idx_finance_expense_events_user_date",
+            "idx_payment_reports_rows_user_period",
             "idx_stock_snapshots_user_date",
             "idx_financial_snapshot_audit_user_period",
         ):

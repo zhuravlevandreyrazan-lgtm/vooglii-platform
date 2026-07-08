@@ -8,7 +8,7 @@ from vooglii_finance.bridges import normalize_finance_expense_events
 from vooglii_finance.unified_snapshot import build_unified_financial_snapshot_dict
 
 from .advertising_loader import sync_advertising
-from .finance_loader import sync_finance
+from .finance_loader import sync_finance, sync_payment_reports
 from .orders_loader import sync_orders
 from .products_loader import refresh_products_index
 from .rate_limiter import (
@@ -16,6 +16,7 @@ from .rate_limiter import (
     SYNC_API_LIMIT,
     SYNC_ERROR,
     SYNC_NO_TOKEN,
+    SYNC_NO_ROWS,
     SYNC_OK,
     SYNC_PARTIAL,
     SYNC_UNAVAILABLE,
@@ -34,7 +35,7 @@ from .sync_state import list_sync_state, save_sync_state
 from .token_provider import resolve_sync_token
 
 
-BLOCK_ORDER = ("sales", "orders", "finance", "advertising", "stocks", "products", "cost")
+BLOCK_ORDER = ("sales", "orders", "finance", "payment_reports", "advertising", "stocks", "products", "cost")
 
 
 def _period_label(period: int | tuple[str, str]) -> str:
@@ -132,6 +133,7 @@ def _loader_for_block(block: str):
         "sales": sync_sales,
         "orders": sync_orders,
         "finance": sync_finance,
+        "payment_reports": sync_payment_reports,
         "advertising": sync_advertising,
         "stocks": sync_stocks,
         "products": refresh_products_index,
@@ -203,12 +205,13 @@ def run_single_block_sync(user_id: int, block: str, period: int | tuple[str, str
 
 def _overall_status(blocks: dict[str, dict[str, Any]]) -> str:
     statuses = [str((blocks.get(name) or {}).get("status") or SYNC_ERROR) for name in BLOCK_ORDER if name in blocks]
-    if statuses and all(item == SYNC_OK for item in statuses):
+    effective_statuses = [SYNC_OK if item == SYNC_NO_ROWS else item for item in statuses]
+    if effective_statuses and all(item == SYNC_OK for item in effective_statuses):
         return SYNC_OK
-    if any(item == SYNC_OK for item in statuses):
+    if any(item == SYNC_OK for item in effective_statuses):
         return SYNC_PARTIAL
-    if statuses and all(item in (SYNC_API_LIMIT, SYNC_UNAVAILABLE, SYNC_NO_TOKEN) for item in statuses):
-        return statuses[0] if len(set(statuses)) == 1 else SYNC_PARTIAL
+    if effective_statuses and all(item in (SYNC_API_LIMIT, SYNC_UNAVAILABLE, SYNC_NO_TOKEN) for item in effective_statuses):
+        return effective_statuses[0] if len(set(effective_statuses)) == 1 else SYNC_PARTIAL
     return SYNC_ERROR
 
 
@@ -238,11 +241,12 @@ def run_sync(user_id: int, token: str | None = None, days: int = 30) -> dict[str
         result["sync_state"] = list_sync_state(user_id)
         return result
 
-    for block in ("sales", "orders", "finance", "advertising", "stocks"):
+    for block in ("sales", "orders", "finance", "payment_reports", "advertising", "stocks"):
         block_result = run_single_block_sync(user_id, block, period, token=resolved.token)
         result["blocks"][block] = block_result
     result["blocks"]["products"] = run_single_block_sync(user_id, "products", period, token=resolved.token)
     result["blocks"]["cost"] = run_single_block_sync(user_id, "cost", period, token=resolved.token)
+    result["post_sync_rebuild"] = run_post_sync_rebuild(user_id, period)
     result["overall_status"] = _overall_status(result["blocks"])
     result["sync_state"] = list_sync_state(user_id)
     return result
@@ -272,10 +276,11 @@ def run_backfill_sync(user_id: int, date_from: str, date_to: str, token: str | N
         result["overall_status"] = SYNC_NO_TOKEN
         result["sync_state"] = list_sync_state(user_id)
         return result
-    for block in ("sales", "orders", "finance", "advertising", "stocks"):
+    for block in ("sales", "orders", "finance", "payment_reports", "advertising", "stocks"):
         result["blocks"][block] = run_single_block_sync(user_id, block, period, token=resolved.token)
     result["blocks"]["products"] = run_single_block_sync(user_id, "products", period, token=resolved.token)
     result["blocks"]["cost"] = run_single_block_sync(user_id, "cost", period, token=resolved.token)
+    result["post_sync_rebuild"] = run_post_sync_rebuild(user_id, period)
     result["overall_status"] = _overall_status(result["blocks"])
     result["sync_state"] = list_sync_state(user_id)
     return result

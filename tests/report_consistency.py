@@ -266,10 +266,10 @@ def case_payment_reconciliation_consistency():
         str(status or "") in ("EXPECTED_TIMING_DIFFERENCE", "NEEDS_REVIEW", "UNKNOWN"),
         "payment reconciliation status out of allowed set",
     )
-    _assert(str(source or "") in ("wb_finance_api", "manual_reference", "unknown"), "payment reports source out of allowed set")
+    _assert(str(source or "") in ("wb_api", "no_rows", "api_limit", "no_token", "unavailable", "error", "unknown"), "payment reports source out of allowed set")
     _assert(int(reports_count or 0) >= 0, "payment_reports_count should be >= 0")
-    if str(source or "") == "wb_finance_api":
-        _assert(float(snapshot.get("payment_reports_total_bank_payment") or 0) >= 0, "payment_reports_total_bank_payment should be >= 0 for wb_finance_api")
+    if str(source or "") == "wb_api":
+        _assert(float(snapshot.get("payment_reports_total_bank_payment") or 0) >= 0, "payment_reports_total_bank_payment should be >= 0 for wb_api")
     _assert(isinstance(timeline, list), "payment_timeline should be list")
     _assert(isinstance(bridge, dict), "payment_bridge should be dict")
     _assert(str(bridge.get("status") or "") in ("OK", "EXPECTED_NEXT_PERIOD", "NEEDS_REVIEW", "UNKNOWN"), "payment bridge status out of allowed set")

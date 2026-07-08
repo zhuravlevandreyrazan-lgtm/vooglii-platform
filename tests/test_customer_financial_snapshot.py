@@ -105,13 +105,27 @@ def test_customer_snapshot_closed_period_keeps_none_total_to_pay_without_payout_
         "vooglii_finance.customer_snapshot.build_wb_weekly_snapshot_dict",
         lambda *_args, **_kwargs: {
             "wb_total_to_pay": 123.45,
+            "wb_logistics": 3613.80,
+            "wb_storage": 540.29,
             "source_map": {
                 "wb_total_to_pay": {
-                    "selected_source": "payment_reports.bank_payment",
+                    "selected_source": "payment_reports.missing",
                     "selected_value": None,
                     "source_table": "payment_reports_rows",
                     "source_column": "bank_payment",
-                }
+                },
+                "wb_logistics": {
+                    "selected_source": "payment_reports.missing",
+                    "selected_value": None,
+                    "source_table": "payment_reports_rows",
+                    "source_column": "delivery",
+                },
+                "wb_storage": {
+                    "selected_source": "payment_reports.missing",
+                    "selected_value": None,
+                    "source_table": "payment_reports_rows",
+                    "source_column": "storage",
+                },
             },
         },
     )
@@ -121,7 +135,11 @@ def test_customer_snapshot_closed_period_keeps_none_total_to_pay_without_payout_
 
     assert snapshot.source_mode == "WB_NATIVE_CLOSED"
     assert snapshot.wb_total_to_pay is None
-    assert snapshot.field_trace["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
+    assert snapshot.wb_logistics is None
+    assert snapshot.wb_storage is None
+    assert snapshot.field_trace["wb_total_to_pay"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.field_trace["wb_logistics"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.field_trace["wb_storage"]["selected_source"] == "payment_reports.missing"
 
 
 def test_customer_snapshot_uses_operational_for_open_period(monkeypatch):

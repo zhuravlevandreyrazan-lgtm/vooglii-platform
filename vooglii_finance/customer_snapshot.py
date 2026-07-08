@@ -282,6 +282,7 @@ def _build_field_trace(
         wb_field_name="wb_logistics",
         unified_snapshot=unified_snapshot,
         unified_field_name="logistics",
+        allow_unified_fallback=False,
     )
     wb_storage = _select_snapshot_value(
         use_wb_native=use_wb,
@@ -289,6 +290,7 @@ def _build_field_trace(
         wb_field_name="wb_storage",
         unified_snapshot=unified_snapshot,
         unified_field_name="storage",
+        allow_unified_fallback=False,
     )
     wb_acquiring = _select_snapshot_value(
         use_wb_native=use_wb,
@@ -378,6 +380,7 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         wb_field_name="wb_logistics",
         unified_snapshot=unified,
         unified_field_name="logistics",
+        allow_unified_fallback=False,
     )
     wb_storage = _select_snapshot_value(
         use_wb_native=use_wb_native,
@@ -385,6 +388,7 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         wb_field_name="wb_storage",
         unified_snapshot=unified,
         unified_field_name="storage",
+        allow_unified_fallback=False,
     )
     wb_acquiring = _select_snapshot_value(
         use_wb_native=use_wb_native,

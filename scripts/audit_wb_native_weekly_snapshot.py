@@ -62,6 +62,7 @@ def main() -> int:
     args = parser.parse_args()
 
     snapshot = build_wb_weekly_snapshot(args.user_id, date.fromisoformat(args.date_from), date.fromisoformat(args.date_to))
+    failures: list[str] = []
 
     _print_section("snapshot totals")
     for field_name in FIELD_ORDER:
@@ -78,10 +79,25 @@ def main() -> int:
             print(f"candidate_{index}: {candidate.get('source') or '-'}")
             _print_candidate("  ", dict(candidate or {}))
 
+    for field_name in ("wb_logistics", "wb_storage", "wb_total_to_pay"):
+        details = dict((snapshot.source_map or {}).get(field_name) or {})
+        selected_source = str(details.get("selected_source") or "")
+        if selected_source.startswith("finance_raw_audit"):
+            failures.append(f"{field_name} incorrectly fell back to finance_raw_audit.raw_json")
+    if snapshot.wb_total_to_pay == snapshot.wb_payout_amount and snapshot.wb_total_to_pay is not None:
+        failures.append("wb_total_to_pay must not equal wb_payout_amount for closed weekly snapshot")
+
     if snapshot.warnings:
         _print_section("warnings")
         for warning in snapshot.warnings:
             print(warning)
+    if failures:
+        _print_section("FAIL")
+        for item in failures:
+            print(item)
+        return 1
+    _print_section("PASS")
+    print("Closed-period official-only mapping is respected.")
     return 0
 
 

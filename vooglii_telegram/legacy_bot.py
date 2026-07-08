@@ -5207,6 +5207,7 @@ def block_label(name):
         'orders': 'Заказы',
         'stocks': 'Остатки',
         'finance': 'Финансы',
+        'payment_reports': 'Платежные отчёты',
         'advertising': 'Реклама',
         'products': 'Каталог товаров',
         'cost': 'Себестоимость',
@@ -14360,105 +14361,67 @@ def _manual_bank_payment_reference_rows():
 
 def _normalize_finance_report_row(row):
     row = dict(row or {})
-    normalized = {
-        _gold_standard_normalize_key(key): value
-        for key, value in row.items()
-    }
-    period_text = str(row.get('period') or '').strip()
-    parsed_period_start = None
-    parsed_period_end = None
-    if '..' in period_text:
-        try:
-            parsed_period_start, parsed_period_end = [part.strip()[:10] for part in period_text.split('..', 1)]
-        except Exception:
-            parsed_period_start, parsed_period_end = None, None
+    raw_fields = sorted(str(key) for key in row.keys())
     return {
         'report_id': str(
             row.get('reportId')
-            or row.get('reportID')
-            or row.get('id')
-            or row.get('report_id')
             or ''
         ),
         'period_start': str(
             row.get('dateFrom')
-            or row.get('date_from')
-            or row.get('period_start')
-            or parsed_period_start
             or ''
         )[:10] or None,
         'period_end': str(
             row.get('dateTo')
-            or row.get('date_to')
-            or row.get('period_end')
-            or parsed_period_end
             or ''
         )[:10] or None,
         'created_at': str(
             row.get('createDate')
-            or row.get('createdAt')
-            or row.get('created_at')
             or ''
         ) or None,
         'type': str(
             row.get('reportType')
-            or row.get('type')
             or ''
         ) or None,
         'revenue': round(float(
-            _gold_standard_pick(normalized, 'retail_amount')
-            or row.get('salesSum')
-            or row.get('sales_sum')
-            or row.get('realizationSum')
-            or row.get('realization_sum')
+            row.get('salesSum')
             or 0
         ), 2),
         'for_pay': round(float(
-            _gold_standard_pick(normalized, 'for_pay')
-            or row.get('forPaySum')
-            or row.get('for_pay')
+            row.get('forPaySum')
             or 0
         ), 2),
         'bank_payment': round(float(
             row.get('bankPaymentSum')
-            or row.get('bank_payment')
-            or _gold_standard_pick(normalized, 'payment_total')
-            or row.get('paymentTotal')
-            or row.get('payment_total')
             or 0
         ), 2),
         'delivery': round(float(
             row.get('deliveryServiceSum')
-            or row.get('delivery_service_sum')
-            or _gold_standard_pick(normalized, 'delivery')
             or 0
         ), 2),
         'storage': round(float(
             row.get('paidStorageSum')
-            or row.get('paid_storage_sum')
-            or _gold_standard_pick(normalized, 'storage')
             or 0
         ), 2),
         'deduction': round(float(
             row.get('deductionSum')
-            or row.get('deduction_sum')
-            or _gold_standard_pick(normalized, 'deductions')
             or 0
         ), 2),
         'penalty': round(float(
             row.get('penaltySum')
-            or row.get('penalty_sum')
-            or _gold_standard_pick(normalized, 'penalty')
             or 0
         ), 2),
         'additional_payment': round(float(
             row.get('additionalPaymentSum')
-            or row.get('additional_payment_sum')
-            or _gold_standard_pick(normalized, 'additional_payment')
             or 0
         ), 2),
-        'payment_schedule': str(row.get('paymentSchedule') or row.get('payment_schedule') or '') or None,
-        'currency': str(row.get('currencyName') or row.get('currency') or '') or None,
+        'payment_schedule': str(row.get('paymentSchedule') or '') or None,
+        'currency': str(row.get('currencyName') or '') or None,
+        'reason': row.get('reason'),
+        'doc_type': row.get('docType'),
+        'income_type': row.get('incomeType'),
+        'raw_fields': raw_fields,
+        'raw_json': json.dumps(row, ensure_ascii=False, sort_keys=True, default=str),
     }
 
 
@@ -14505,6 +14468,24 @@ def fetch_wb_finance_reports_list(date_from, date_to, token=None):
     return {'status': 'SUCCESS', 'rows': normalized, 'message': 'ok', **diagnostics_fields}
 
 
+def _invalidate_payment_reports_source_cache(user=None, start_date=None, end_date=None):
+    if user is None and start_date is None and end_date is None:
+        _PAYMENT_REPORTS_SOURCE_CACHE.clear()
+        return
+    target_user = None if user is None else int(user)
+    target_from = None if start_date is None else str(start_date)
+    target_to = None if end_date is None else str(end_date)
+    for key in list(_PAYMENT_REPORTS_SOURCE_CACHE.keys()):
+        cache_user, cache_from, cache_to = key
+        if target_user is not None and int(cache_user) != target_user:
+            continue
+        if target_from is not None and str(cache_from) != target_from:
+            continue
+        if target_to is not None and str(cache_to) != target_to:
+            continue
+        _PAYMENT_REPORTS_SOURCE_CACHE.pop(key, None)
+
+
 def _finance_api_status_snapshot(user, force=False):
     user = int(user or 0)
     now_dt = datetime.now()
@@ -14523,7 +14504,7 @@ def _finance_api_status_snapshot(user, force=False):
             'message': (
                 'Finance API находится в cooldown. '
                 f'Повторная попытка безопасна после: {cooldown.get("cooldown_until") or retry_after_text or "неизвестно"}. '
-                '/payment reconciliation uses manual_reference.'
+                '/payment reconciliation waits for persisted official payment reports.'
             ),
             'recommended_next_check': retry_after_text or 'через 30–60 минут',
             'retry_after_header': None,
@@ -14615,13 +14596,13 @@ def _finance_api_status_snapshot(user, force=False):
     if http_status == 200:
         status = 'OK'
         source_available = True
-        message = '/payment reconciliation can use wb_finance_api'
+        message = '/payment reconciliation can use persisted wb_api payment reports'
         recommended_next_check = 'по запросу'
         cache_minutes = 10
     elif http_status == 429:
         status = 'RATE_LIMIT'
         source_available = False
-        message = 'Finance API rate limited. /payment reconciliation uses manual_reference.'
+        message = 'Finance API rate limited. /payment reconciliation waits for the next official payment reports sync.'
         if retry_after_header or x_ratelimit_reset:
             retry_after_source = 'header'
             recommended_next_check = str(retry_after_header or x_ratelimit_reset)
@@ -14732,46 +14713,104 @@ def _payment_reports_source_data(user, start_date, end_date):
     if cached is not None:
         return dict(cached)
 
-    fallback_rows = [_normalize_finance_report_row(row) for row in _weekly_payout_reference_rows()]
-    fallback = {
-        'source': 'manual_reference',
-        'status': 'FALLBACK',
-        'message': 'Using manual reference fallback.',
-        'rows': fallback_rows,
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    try:
+        sync_row = cur.execute(
+            "SELECT status, status_reason, source_name, updated_at, meta_json FROM sync_state WHERE telegram_id=? AND sync_block='payment_reports'",
+            (int(user),),
+        ).fetchone()
+        rows = cur.execute(
+            """
+            SELECT report_id, date_from, date_to, create_date, report_type,
+                   revenue, for_pay, bank_payment, delivery, storage, deduction,
+                   penalty, additional_payment, payment_schedule, currency_name,
+                   source_type, raw_json
+            FROM payment_reports_rows
+            WHERE user_id=? AND date_from>=? AND date_to<=?
+            ORDER BY date_from, date_to, create_date, report_id, report_type
+            """,
+            (int(user), str(start_date), str(end_date)),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    normalized_rows = []
+    for row in rows:
+        raw_json = str(row['raw_json'] or '{}')
+        try:
+            raw_payload = json.loads(raw_json)
+        except Exception:
+            raw_payload = {}
+        normalized_rows.append(
+            {
+                'report_id': str(row['report_id'] or ''),
+                'period_start': str(row['date_from'] or ''),
+                'period_end': str(row['date_to'] or ''),
+                'create_date': str(row['create_date'] or ''),
+                'type': str(row['report_type'] or ''),
+                'revenue': round(float(row['revenue'] or 0), 2),
+                'for_pay': round(float(row['for_pay'] or 0), 2),
+                'bank_payment': round(float(row['bank_payment'] or 0), 2),
+                'delivery': round(float(row['delivery'] or 0), 2),
+                'storage': round(float(row['storage'] or 0), 2),
+                'deduction': round(float(row['deduction'] or 0), 2),
+                'penalty': round(float(row['penalty'] or 0), 2),
+                'additional_payment': round(float(row['additional_payment'] or 0), 2),
+                'payment_schedule': str(row['payment_schedule'] or ''),
+                'currency_name': str(row['currency_name'] or ''),
+                'source_type': str(row['source_type'] or ''),
+                'raw_fields': sorted(raw_payload.keys()) if isinstance(raw_payload, dict) else [],
+                'raw_json': raw_json,
+                'reason': raw_payload.get('reason') if isinstance(raw_payload, dict) else None,
+                'doc_type': raw_payload.get('docType') if isinstance(raw_payload, dict) else None,
+                'income_type': raw_payload.get('incomeType') if isinstance(raw_payload, dict) else None,
+            }
+        )
+    sync_payload = dict(sync_row) if sync_row is not None else {}
+    sync_status = str(sync_payload.get('status') or '').upper()
+    status_reason = str(sync_payload.get('status_reason') or '')
+    status_to_source = {
+        'OK': 'wb_api',
+        'NO_ROWS': 'no_rows',
+        'API_LIMIT': 'api_limit',
+        'NO_TOKEN': 'no_token',
+        'UNAVAILABLE': 'unavailable',
+        'ERROR': 'error',
     }
-
-    blocked, cooldown_row = _finance_is_blocked(user)
-    if blocked:
-        fallback['message'] = 'Finance API rate limited'
-        fallback['api_status'] = 'SKIPPED_COOLDOWN'
-        _PAYMENT_REPORTS_SOURCE_CACHE[cache_key] = dict(fallback)
-        return dict(fallback)
-
-    token = get_user_token(user)
-    if not token:
-        fallback['message'] = 'Finance API unavailable'
-        fallback['api_status'] = 'NO_WB_TOKEN'
-        _PAYMENT_REPORTS_SOURCE_CACHE[cache_key] = dict(fallback)
-        return dict(fallback)
-
-    api_result = fetch_wb_finance_reports_list(start_date, end_date, token=token)
-    status = str(api_result.get('status') or '')
-    rows = list(api_result.get('rows') or [])
-    if status == 'SUCCESS' and rows:
+    source = status_to_source.get(sync_status, 'unknown')
+    if normalized_rows:
         result = {
-            'source': 'wb_finance_api',
-            'status': status,
-            'message': api_result.get('message') or 'ok',
-            'rows': rows,
-            'api_status': status,
+            'source': 'wb_api',
+            'status': sync_status or 'OK',
+            'message': 'ok',
+            'rows': normalized_rows,
+            'api_status': sync_status or 'OK',
+            'sync_updated_at': sync_payload.get('updated_at'),
+            'sync_source_name': sync_payload.get('source_name'),
         }
         _PAYMENT_REPORTS_SOURCE_CACHE[cache_key] = dict(result)
         return dict(result)
 
-    fallback['api_status'] = status or 'UNKNOWN'
-    fallback['message'] = api_result.get('message') or 'Finance API unavailable'
-    _PAYMENT_REPORTS_SOURCE_CACHE[cache_key] = dict(fallback)
-    return dict(fallback)
+    message = {
+        'NO_ROWS': 'Official payment reports are not available for the selected period.',
+        'API_LIMIT': 'Official payment reports are waiting for WB API retry window.',
+        'NO_TOKEN': 'Official payment reports cannot be loaded without WB token.',
+        'UNAVAILABLE': 'Official payment reports are temporarily unavailable.',
+        'ERROR': 'Official payment reports sync failed.',
+    }.get(sync_status, 'Official payment reports were not loaded yet.')
+    result = {
+        'source': source,
+        'status': sync_status or 'UNKNOWN',
+        'message': message,
+        'rows': [],
+        'api_status': status_reason or sync_status or 'UNKNOWN',
+        'sync_updated_at': sync_payload.get('updated_at'),
+        'sync_source_name': sync_payload.get('source_name'),
+    }
+    _PAYMENT_REPORTS_SOURCE_CACHE[cache_key] = dict(result)
+    return dict(result)
 
 
 def _reference_period_overlap(period_start, period_end, request_start, request_end):
@@ -14901,22 +14940,23 @@ def _payment_reconciliation_snapshot(user, start_date, end_date, context=None):
     else:
         for_pay_until_cutoff_minus_weekly = None
 
-    payment_reports_total_revenue = round(sum(float(item.get('revenue') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_for_pay = round(sum(float(item.get('for_pay') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_bank_payment = round(sum(float(item.get('bank_payment') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_delivery = round(sum(float(item.get('delivery') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_storage = round(sum(float(item.get('storage') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_deduction = round(sum(float(item.get('deduction') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_penalty = round(sum(float(item.get('penalty') or 0) for item in payment_report_rows), 2)
-    payment_reports_total_additional_payment = round(sum(float(item.get('additional_payment') or 0) for item in payment_report_rows), 2)
+    payment_reports_available = str(payment_reports_source_data.get('source') or '') == 'wb_api' and bool(payment_report_rows)
+    payment_reports_total_revenue = round(sum(float(item.get('revenue') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_for_pay = round(sum(float(item.get('for_pay') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_bank_payment = round(sum(float(item.get('bank_payment') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_delivery = round(sum(float(item.get('delivery') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_storage = round(sum(float(item.get('storage') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_deduction = round(sum(float(item.get('deduction') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_penalty = round(sum(float(item.get('penalty') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
+    payment_reports_total_additional_payment = round(sum(float(item.get('additional_payment') or 0) for item in payment_report_rows), 2) if payment_reports_available else None
     manual_bank_payments_total = round(sum(float(item.get('amount') or 0) for item in _manual_bank_payment_reference_rows()), 2)
     api_bank_payments_total = payment_reports_total_bank_payment
-    bank_payment_delta = round(api_bank_payments_total - manual_bank_payments_total, 2)
-    if payment_reports_source_data.get('source') == 'wb_finance_api':
+    bank_payment_delta = round(float(api_bank_payments_total or 0) - manual_bank_payments_total, 2) if api_bank_payments_total is not None else None
+    if payment_reports_available:
         bank_payment_tolerance = round(max(1000.0, abs(manual_bank_payments_total) * 0.03), 2) if manual_bank_payments_total > 0 else 1000.0
-        if abs(bank_payment_delta) <= 0.01:
+        if abs(float(bank_payment_delta or 0)) <= 0.01:
             bank_payment_match_status = 'MATCH'
-        elif abs(bank_payment_delta) <= bank_payment_tolerance:
+        elif abs(float(bank_payment_delta or 0)) <= bank_payment_tolerance:
             bank_payment_match_status = 'CLOSE'
         else:
             bank_payment_match_status = 'NEEDS_REVIEW'
@@ -15044,7 +15084,7 @@ def _payment_reconciliation_text(period_name, days, user):
     snapshot = _payment_reconciliation_snapshot(user, start_date, end_date)
     bridge = snapshot.get('payment_bridge') or {}
     finance_api_status = None
-    if str(snapshot.get('payment_reports_source') or '') == 'manual_reference' and 'rate limited' in str(snapshot.get('payment_reports_message') or '').lower():
+    if str(snapshot.get('payment_reports_source') or '') == 'api_limit':
         finance_api_status = _finance_api_status_snapshot(user)
     lines = [
         f'FINANCIAL RECONCILIATION ({snapshot["period_start"]} - {snapshot["period_end"]})',
@@ -15165,7 +15205,7 @@ def _money_flow_snapshot(user, start_date, end_date):
     wb_deductions_total = round(max(0.0, sales_revenue_total - sales_for_pay_total), 2)
 
     received_total = round(float(payment_snapshot.get('weekly_payout_total_all') or 0), 2)
-    if str(payment_snapshot.get('payment_reports_source') or '') == 'wb_finance_api':
+    if str(payment_snapshot.get('payment_reports_source') or '') == 'wb_api':
         api_bank_total = round(float(payment_snapshot.get('payment_reports_total_bank_payment') or 0), 2)
         if api_bank_total > 0.01:
             received_total = api_bank_total
@@ -15195,7 +15235,7 @@ def _money_flow_snapshot(user, start_date, end_date):
     )
 
     warnings = []
-    if str(payment_snapshot.get('payment_reports_source') or '') == 'manual_reference':
+    if str(payment_snapshot.get('payment_reports_source') or '') in ('no_rows', 'api_limit', 'no_token', 'unavailable', 'error'):
         warnings.append('Используются ручные reference-данные выплат. Для полной автоматической сверки нужен доступ к WB Finance API.')
     if 'rate limited' in str(payment_snapshot.get('payment_reports_message') or '').lower():
         warnings.append('Finance API временно ограничен по rate limit.')
@@ -17790,6 +17830,8 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     wb_total_to_pay = snapshot.get('wb_total_to_pay')
     source_mode = str(unified_snapshot.get('source_mode') or '')
     wb_total_to_pay_text = _money_or_state(wb_total_to_pay) if wb_total_to_pay not in (None, 0, 0.0) else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
+    logistics_text = _money_or_state(snapshot.get('logistics_total')) if snapshot.get('logistics_total') is not None else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
+    storage_text = _money_or_state(snapshot.get('storage_total')) if snapshot.get('storage_total') is not None else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
     money_lines = [
         f"- Продажа WB: {_money_or_state(unified_snapshot.get('sales_revenue'), 'нет данных')}",
         f"- К перечислению WB: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
@@ -17798,10 +17840,10 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         money_lines.append(f"- Итого к оплате WB: {wb_total_to_pay_text}")
     if snapshot.get('advertising_total') is not None:
         money_lines.append(f"- Реклама: {_money_or_state(snapshot.get('advertising_total'))}")
-    if snapshot.get('logistics_total') is not None:
-        money_lines.append(f"- Логистика WB: {_money_or_state(snapshot.get('logistics_total'))}")
-    if snapshot.get('storage_total') is not None:
-        money_lines.append(f"- Хранение WB: {_money_or_state(snapshot.get('storage_total'))}")
+    if logistics_text:
+        money_lines.append(f"- Логистика WB: {logistics_text}")
+    if storage_text:
+        money_lines.append(f"- Хранение WB: {storage_text}")
     if snapshot.get('deductions_total') is not None:
         money_lines.append(f"- Удержания WB: {_money_or_state(snapshot.get('deductions_total'))}")
     if snapshot.get('acquiring_total') is not None:
@@ -19687,11 +19729,14 @@ def _unified_report_text(user, days):
     finance_confidence = str(snapshot.get("finance_confidence") or "UNKNOWN")
     is_preliminary = bool(snapshot.get("is_preliminary"))
     wb_total_to_pay = snapshot.get("wb_total_to_pay")
+    source_mode = str(snapshot.get("source_mode") or "")
     total_to_pay_text = (
         _money_or_state(wb_total_to_pay)
         if wb_total_to_pay not in (None, 0, 0.0)
-        else ("ожидает данные" if str(snapshot.get("source_mode") or "") == "WB_NATIVE_CLOSED" else "данные обновляются")
+        else ("ожидает данные" if source_mode == "WB_NATIVE_CLOSED" else "данные обновляются")
     )
+    logistics_text = _money_or_state(snapshot.get("logistics")) if snapshot.get("logistics") is not None else ("ожидает данные" if source_mode == "WB_NATIVE_CLOSED" else "данные обновляются")
+    storage_text = _money_or_state(snapshot.get("storage")) if snapshot.get("storage") is not None else ("ожидает данные" if source_mode == "WB_NATIVE_CLOSED" else "данные обновляются")
     lines = [
         '📊 Отчёт',
         '',
@@ -19705,8 +19750,8 @@ def _unified_report_text(user, days):
         '',
         f'Продажа WB: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
         f'К выплате WB: {_money_or_state(snapshot.get("wb_payout"))}',
-        f'Логистика: {_money_or_state(snapshot.get("logistics"), "данные обновляются")}',
-        f'Хранение: {_money_or_state(snapshot.get("storage"), "данные обновляются")}',
+        f'Логистика: {logistics_text}',
+        f'Хранение: {storage_text}',
         f'Эквайринг: {_money_or_state(snapshot.get("acquiring"), "данные обновляются")}',
         f'Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}',
         f'Итого к оплате WB: {total_to_pay_text}',

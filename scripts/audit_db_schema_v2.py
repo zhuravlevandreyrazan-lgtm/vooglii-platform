@@ -24,6 +24,7 @@ REQUIRED_TABLES = {
     "product_catalog": {"user_columns": ("user_id",), "date_columns": ("updated_at", "created_at"), "unique_columns": ("nm_id",)},
     "sync_state": {"user_columns": ("telegram_id", "user_id"), "date_columns": ("updated_at",), "unique_columns": ("sync_block",)},
     "finance_expense_events": {"user_columns": ("user_id",), "date_columns": ("event_date",), "unique_columns": ("source_event_id",)},
+    "payment_reports_rows": {"user_columns": ("user_id",), "date_columns": ("date_from", "date_to"), "unique_columns": ("report_id", "report_type")},
     "stock_snapshots": {"user_columns": ("user_id",), "date_columns": ("snapshot_date",), "unique_columns": ("source_snapshot_id",)},
     "financial_snapshot_audit": {"user_columns": ("user_id",), "date_columns": ("period_start", "period_end"), "unique_columns": ("snapshot_key",)},
 }

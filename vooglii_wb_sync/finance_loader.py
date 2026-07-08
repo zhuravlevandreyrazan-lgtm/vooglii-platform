@@ -9,6 +9,9 @@ import load_sales
 from vooglii_telegram import legacy_bot
 
 
+PAYMENT_REPORTS_SOURCE_WB_API = "wb_api"
+
+
 def _expense_insert(cur, row: dict) -> None:
     if float(row.get("amount") or 0) <= 0:
         return
@@ -103,6 +106,187 @@ def _persist_legacy_rows(user_id: int, raw_rows: list[dict], expense_rows: list[
             "invalid": 0,
             "source_rows": len(raw_rows),
         }
+    finally:
+        conn.close()
+
+
+def _payment_report_identity(row: dict) -> tuple[str, str, str, str]:
+    return (
+        str(row.get("report_id") or ""),
+        str(row.get("type") or ""),
+        str(row.get("period_start") or ""),
+        str(row.get("period_end") or ""),
+    )
+
+
+def _payment_report_db_tuple(user_id: int, row: dict, *, now: str) -> tuple:
+    return (
+        int(user_id),
+        str(row.get("report_id") or ""),
+        str(row.get("period_start") or ""),
+        str(row.get("period_end") or ""),
+        str(row.get("create_date") or ""),
+        str(row.get("type") or ""),
+        float(row.get("revenue") or 0),
+        float(row.get("for_pay") or 0),
+        float(row.get("bank_payment") or 0),
+        float(row.get("delivery") or 0),
+        float(row.get("storage") or 0),
+        float(row.get("deduction") or 0),
+        float(row.get("penalty") or 0),
+        float(row.get("additional_payment") or 0),
+        str(row.get("payment_schedule") or ""),
+        str(row.get("currency_name") or ""),
+        PAYMENT_REPORTS_SOURCE_WB_API,
+        str(row.get("raw_json") or "{}"),
+        now,
+        now,
+    )
+
+
+def _persist_payment_report_rows(user_id: int, rows: list[dict], date_from: str, date_to: str) -> dict:
+    init_db()
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    inserted = 0
+    updated = 0
+    skipped = 0
+    invalid = 0
+    now = load_sales._dt()
+    seen_keys: set[tuple[str, str, str, str]] = set()
+    try:
+        existing_rows = cur.execute(
+            """
+            SELECT *
+            FROM payment_reports_rows
+            WHERE user_id=? AND date_from=? AND date_to=?
+            """,
+            (int(user_id), str(date_from), str(date_to)),
+        ).fetchall()
+        existing_by_key = {
+            (
+                str(item["report_id"] or ""),
+                str(item["report_type"] or ""),
+                str(item["date_from"] or ""),
+                str(item["date_to"] or ""),
+            ): dict(item)
+            for item in existing_rows
+        }
+        for row in rows:
+            key = _payment_report_identity(row)
+            if not any(key):
+                invalid += 1
+                continue
+            seen_keys.add(key)
+            existing = existing_by_key.get(key)
+            payload = _payment_report_db_tuple(user_id, row, now=now)
+            if existing is None:
+                cur.execute(
+                    """
+                    INSERT INTO payment_reports_rows(
+                        user_id, report_id, date_from, date_to, create_date, report_type,
+                        revenue, for_pay, bank_payment, delivery, storage, deduction,
+                        penalty, additional_payment, payment_schedule, currency_name,
+                        source_type, raw_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    payload,
+                )
+                inserted += 1
+                continue
+            comparable_existing = (
+                int(existing["user_id"] or 0),
+                str(existing["report_id"] or ""),
+                str(existing["date_from"] or ""),
+                str(existing["date_to"] or ""),
+                str(existing["create_date"] or ""),
+                str(existing["report_type"] or ""),
+                float(existing["revenue"] or 0),
+                float(existing["for_pay"] or 0),
+                float(existing["bank_payment"] or 0),
+                float(existing["delivery"] or 0),
+                float(existing["storage"] or 0),
+                float(existing["deduction"] or 0),
+                float(existing["penalty"] or 0),
+                float(existing["additional_payment"] or 0),
+                str(existing["payment_schedule"] or ""),
+                str(existing["currency_name"] or ""),
+                str(existing["source_type"] or ""),
+                str(existing["raw_json"] or "{}"),
+            )
+            comparable_payload = payload[:-2]
+            if comparable_existing == comparable_payload:
+                skipped += 1
+                continue
+            cur.execute(
+                """
+                UPDATE payment_reports_rows
+                SET create_date=?, revenue=?, for_pay=?, bank_payment=?, delivery=?, storage=?,
+                    deduction=?, penalty=?, additional_payment=?, payment_schedule=?,
+                    currency_name=?, source_type=?, raw_json=?, updated_at=?
+                WHERE user_id=? AND report_id=? AND report_type=? AND date_from=? AND date_to=?
+                """,
+                (
+                    payload[4],
+                    payload[6],
+                    payload[7],
+                    payload[8],
+                    payload[9],
+                    payload[10],
+                    payload[11],
+                    payload[12],
+                    payload[13],
+                    payload[14],
+                    payload[15],
+                    payload[16],
+                    payload[17],
+                    payload[19],
+                    int(user_id),
+                    payload[1],
+                    payload[5],
+                    payload[2],
+                    payload[3],
+                ),
+            )
+            updated += 1
+
+        stale_keys = [key for key in existing_by_key if key not in seen_keys]
+        for report_id, report_type, key_from, key_to in stale_keys:
+            cur.execute(
+                """
+                DELETE FROM payment_reports_rows
+                WHERE user_id=? AND report_id=? AND report_type=? AND date_from=? AND date_to=?
+                """,
+                (int(user_id), report_id, report_type, key_from, key_to),
+            )
+        conn.commit()
+        legacy_bot._invalidate_payment_reports_source_cache(int(user_id), str(date_from), str(date_to))
+        return {
+            "inserted": inserted,
+            "updated": updated,
+            "skipped": skipped,
+            "invalid": invalid,
+            "source_rows": len(rows),
+            "deleted": len(stale_keys),
+        }
+    finally:
+        conn.close()
+
+
+def _delete_payment_report_rows(user_id: int, date_from: str, date_to: str) -> int:
+    init_db()
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM payment_reports_rows WHERE user_id=? AND date_from=? AND date_to=?",
+            (int(user_id), str(date_from), str(date_to)),
+        )
+        deleted = int(cur.rowcount or 0)
+        conn.commit()
+        legacy_bot._invalidate_payment_reports_source_cache(int(user_id), str(date_from), str(date_to))
+        return deleted
     finally:
         conn.close()
 
@@ -292,4 +476,56 @@ def sync_finance(user_id: int, token: str, period: int | tuple[str, str]) -> dic
             "fallback_status": fallback.get("raw_status"),
             "diagnostics": diagnostics,
         },
+    }
+
+
+def sync_payment_reports(user_id: int, token: str, period: int | tuple[str, str]) -> dict:
+    if isinstance(period, tuple):
+        date_from, date_to = period
+    else:
+        date_from, date_to = load_sales._normalize_period_dates(period)
+
+    result = legacy_bot.fetch_wb_finance_reports_list(date_from, date_to, token=token)
+    status = str(result.get("status") or "")
+    rows = list(result.get("rows") or [])
+    source_name = "finance-api.sales-reports-list"
+    if status == "SUCCESS" and rows:
+        persisted = _persist_payment_report_rows(user_id, rows, date_from, date_to)
+        return {
+            "raw_status": "SUCCESS",
+            "source_name": source_name,
+            "source_rows": int(len(rows)),
+            "inserted": int(persisted.get("inserted") or 0),
+            "updated": int(persisted.get("updated") or 0),
+            "skipped": int(persisted.get("skipped") or 0),
+            "invalid": int(persisted.get("invalid") or 0),
+            "meta": {
+                "deleted": int(persisted.get("deleted") or 0),
+                "source_type": PAYMENT_REPORTS_SOURCE_WB_API,
+                "date_from": str(date_from),
+                "date_to": str(date_to),
+            },
+        }
+    if status == "EMPTY":
+        deleted = _delete_payment_report_rows(user_id, date_from, date_to)
+        legacy_bot._invalidate_payment_reports_source_cache(int(user_id), str(date_from), str(date_to))
+        return {
+            "raw_status": "NO_ROWS",
+            "source_name": source_name,
+            "source_rows": 0,
+            "inserted": 0,
+            "updated": 0,
+            "skipped": 0,
+            "invalid": 0,
+            "meta": {"message": result.get("message") or "No payment reports rows returned", "deleted": deleted},
+        }
+    return {
+        "raw_status": status or "ERROR",
+        "source_name": source_name,
+        "source_rows": 0,
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "invalid": 0,
+        "meta": {"message": result.get("message") or "Payment reports sync failed"},
     }

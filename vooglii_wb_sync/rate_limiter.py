@@ -6,6 +6,7 @@ import load_sales
 
 
 SYNC_OK = "OK"
+SYNC_NO_ROWS = "NO_ROWS"
 SYNC_PARTIAL = "PARTIAL"
 SYNC_API_LIMIT = "API_LIMIT"
 SYNC_NO_TOKEN = "NO_TOKEN"
@@ -27,6 +28,8 @@ def parse_status_kind(status: str | None) -> str:
         return SYNC_OK
     if value in ("NO_TOKEN", "NO_WB_TOKEN"):
         return SYNC_NO_TOKEN
+    if value in ("NO_ROWS", "EMPTY"):
+        return SYNC_NO_ROWS
     if value.startswith(("RATE_LIMIT", "SKIPPED_COOLDOWN", "ADS_COOLDOWN", "FULLSTATS_429", "ADS_STEP_COOLDOWN")):
         return SYNC_API_LIMIT
     if value.startswith(("WB_API_UNAVAILABLE_FOR_PERIOD", "UNAVAILABLE")):
@@ -34,8 +37,6 @@ def parse_status_kind(status: str | None) -> str:
     if "PARTIAL" in value:
         return SYNC_PARTIAL
     if value == "MISSING_COST_VALUES":
-        return SYNC_PARTIAL
-    if value.startswith("EMPTY"):
         return SYNC_PARTIAL
     return SYNC_ERROR
 

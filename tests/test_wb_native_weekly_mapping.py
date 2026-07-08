@@ -69,3 +69,46 @@ def test_wb_native_weekly_mapping_prefers_weekly_report_totals(tmp_path, monkeyp
     assert snapshot.source_map["wb_storage"]["source_column"] == "storage"
     assert snapshot.source_map["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
     assert snapshot.source_map["wb_total_to_pay"]["source_column"] == "bank_payment"
+
+
+def test_wb_native_weekly_mapping_ignores_manual_reference_fallback_rows(tmp_path, monkeypatch):
+    db_path = _prepare_db(tmp_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO finance_raw_audit(telegram_id, rrd_id, report_date, deduction, acquiring_fee, raw_json, created_at) "
+            "VALUES(42, 'rrd-1', '2026-05-25', 2148.00, 558.14, ?, '2026-07-08 10:00:00')",
+            ('{"delivery_rub": 3463.06, "storage_fee": 631.09, "retail_amount": 14046.08, "ppvz_for_pay": 15327.09}',),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(
+        "vooglii_validation.wb_weekly_snapshot._fetch_payment_snapshot",
+        lambda *_args, **_kwargs: {
+            "payment_reports_source": "no_rows",
+            "payment_reports_status": "NO_ROWS",
+            "payment_reports_rows": [],
+            "payment_reports_total_revenue": None,
+            "payment_reports_total_for_pay": None,
+            "payment_reports_total_bank_payment": None,
+            "payment_reports_total_delivery": None,
+            "payment_reports_total_storage": None,
+            "payment_reports_total_deduction": None,
+        },
+    )
+
+    snapshot = build_wb_weekly_snapshot(42, date(2026, 5, 25), date(2026, 5, 31))
+
+    assert snapshot.wb_sale_amount == 14046.08
+    assert snapshot.wb_payout_amount == 15327.09
+    assert snapshot.wb_logistics is None
+    assert snapshot.wb_storage is None
+    assert snapshot.wb_total_to_pay is None
+    assert snapshot.wb_acquiring == 558.14
+    assert snapshot.wb_deductions == 2148.00
+    assert snapshot.source_map["wb_sale_amount"]["selected_source"] == "finance_raw_audit.raw_json"
+    assert snapshot.source_map["wb_logistics"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.source_map["wb_storage"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.source_map["wb_total_to_pay"]["selected_source"] == "payment_reports.missing"

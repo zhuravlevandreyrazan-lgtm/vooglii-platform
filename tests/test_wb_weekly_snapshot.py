@@ -16,7 +16,7 @@ def _prepare_db(tmp_path):
     return db_path
 
 
-def test_wb_weekly_snapshot_prefers_finance_raw_then_falls_back_to_events(tmp_path, monkeypatch):
+def test_wb_weekly_snapshot_keeps_official_only_fields_missing_without_payment_reports(tmp_path, monkeypatch):
     db_path = _prepare_db(tmp_path)
     conn = sqlite3.connect(db_path)
     try:
@@ -52,8 +52,9 @@ def test_wb_weekly_snapshot_prefers_finance_raw_then_falls_back_to_events(tmp_pa
 
     snapshot = build_wb_weekly_snapshot(42, date(2026, 6, 29), date(2026, 7, 5))
 
-    assert snapshot.wb_logistics == 80.0
-    assert snapshot.wb_storage == 12.0
+    assert snapshot.wb_logistics is None
+    assert snapshot.wb_storage is None
+    assert snapshot.wb_total_to_pay is None
     assert snapshot.wb_acquiring == 7.0
     assert snapshot.wb_deductions == 15.0
     assert snapshot.penalties == 2.0
@@ -63,5 +64,6 @@ def test_wb_weekly_snapshot_prefers_finance_raw_then_falls_back_to_events(tmp_pa
     assert snapshot.orders_count == 1
     assert snapshot.buyouts_count == 1
     assert snapshot.returns_count == 1
-    assert snapshot.source_map["wb_logistics"]["selected_source"] == "finance_raw_audit.raw_json"
-
+    assert snapshot.source_map["wb_logistics"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.source_map["wb_storage"]["selected_source"] == "payment_reports.missing"
+    assert snapshot.source_map["wb_total_to_pay"]["selected_source"] == "payment_reports.missing"

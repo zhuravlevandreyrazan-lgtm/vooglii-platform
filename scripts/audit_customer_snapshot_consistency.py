@@ -51,6 +51,7 @@ def main() -> int:
     snapshot = telegram_bot._customer_financial_snapshot(args.user_id, days)
     wb_weekly_snapshot = None
     closed_period_mismatches: list[str] = []
+    failures: list[str] = []
     if str(snapshot.get("source_mode") or "") == "WB_NATIVE_CLOSED":
         wb_weekly_snapshot = build_wb_weekly_snapshot_dict(args.user_id, period_from, period_to)
         for field_name in (
@@ -69,6 +70,13 @@ def main() -> int:
                 closed_period_mismatches.append(
                     f"{field_name}: customer_snapshot={_money(customer_value)} wb_weekly_snapshot={_money(weekly_value)}"
                 )
+        for field_name in ("wb_logistics", "wb_storage", "wb_total_to_pay"):
+            trace = dict((snapshot.get("field_trace") or {}).get(field_name) or {})
+            selected_source = str(trace.get("selected_source") or "")
+            if selected_source.startswith("finance_raw_audit"):
+                failures.append(f"{field_name}: FAIL source={selected_source}")
+        if snapshot.get("wb_total_to_pay") == snapshot.get("wb_payout_amount") and snapshot.get("wb_total_to_pay") is not None:
+            failures.append("wb_total_to_pay: FAIL equals wb_payout_amount")
     surfaces = {
         "Snapshot": telegram_bot._customer_financial_values(snapshot),
         "Home": _surface_values("Home", telegram_bot._home_snapshot(args.user_id, days)),
@@ -99,7 +107,13 @@ def main() -> int:
         else:
             print("OK customer_snapshot matches wb_weekly_snapshot selected values")
         print("")
-    return 1 if closed_period_mismatches else 0
+    if failures:
+        print("FAIL")
+        print("----")
+        for item in failures:
+            print(item)
+        print("")
+    return 1 if closed_period_mismatches or failures else 0
 
 
 if __name__ == "__main__":

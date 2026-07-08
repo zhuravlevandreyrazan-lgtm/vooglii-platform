@@ -26,6 +26,7 @@ PY_COMPILE_FILES = [
     "vooglii_telegram/handlers/validate.py",
     "vooglii_telegram/services/sync_service.py",
     "vooglii_wb_sync/products_loader.py",
+    "vooglii_wb_sync/finance_loader.py",
     "vooglii_wb_sync/rate_limiter.py",
     "vooglii_wb_sync/sync_queue.py",
     "vooglii_wb_sync/sync_orchestrator.py",
@@ -45,6 +46,7 @@ PY_COMPILE_FILES = [
     "scripts/audit_wb_data_loading.py",
     "scripts/audit_advertising_sync.py",
     "scripts/audit_customer_snapshot_consistency.py",
+    "scripts/audit_payment_reports_rows.py",
     "scripts/audit_wb_native_weekly_snapshot.py",
     "scripts/audit_wb_weekly_sources.py",
     "scripts/diagnose_financial_period.py",
@@ -78,6 +80,7 @@ REQUIRED_PYTEST_TESTS = [
     "tests/test_customer_financial_snapshot.py",
     "tests/test_customer_snapshot_consistency.py",
     "tests/test_wb_native_closed_period.py",
+    "tests/test_payment_reports_loader.py",
     "tests/test_customer_no_manual_validation_ux.py",
     "tests/test_wb_financial_periods.py",
 ]

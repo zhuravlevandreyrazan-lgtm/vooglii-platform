@@ -15,13 +15,11 @@ from .models import WBWeeklySnapshot
 RAW_LOGISTICS_KEYS = (
     "delivery_rub",
     "rebill_logistic_cost",
-    "return_amount",
-    "delivery_amount",
 )
-RAW_STORAGE_KEYS = ("storage_fee", "storage", "storage_cost")
-RAW_REVENUE_KEYS = ("sale_amount", "retail_amount", "retail_price_withdisc_rub")
-RAW_PAYOUT_KEYS = ("ppvz_for_pay", "supplier_operating_reward", "supplier_payment", "to_pay", "payment_amount")
-RAW_TOTAL_TO_PAY_KEYS = ("ppvz_for_pay", "to_pay", "payment_amount")
+RAW_STORAGE_KEYS = ("storage_fee",)
+RAW_REVENUE_KEYS = ("retail_amount",)
+RAW_PAYOUT_KEYS = ("ppvz_for_pay",)
+RAW_TOTAL_TO_PAY_KEYS = ("ppvz_for_pay",)
 
 
 def _connect() -> sqlite3.Connection:
@@ -275,6 +273,31 @@ def _source_entry(selected_source: str | None, selected_value: float | int | Non
     }
 
 
+def _missing_source_entry(
+    *,
+    source_name: str,
+    source_table: str,
+    source_column: str,
+    source_filter: str,
+    source_min_date: str | None,
+    source_max_date: str | None,
+    rows: int,
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "selected_source": source_name,
+        "selected_value": None,
+        "rows": int(rows or 0),
+        "source_table": source_table,
+        "source_column": source_column,
+        "source_filter": source_filter,
+        "source_min_date": source_min_date,
+        "source_max_date": source_max_date,
+        "breakdown": {},
+        "candidates": [dict(item) for item in candidates],
+    }
+
+
 def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -> WBWeeklySnapshot:
     conn = _connect()
     try:
@@ -283,6 +306,8 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
         events = _fetch_grouped_events(conn, int(user_id), period_from, period_to)
         expenses = _fetch_grouped_expenses(conn, int(user_id), period_from, period_to)
         payment_snapshot = _fetch_payment_snapshot(int(user_id), period_from, period_to)
+        payment_source = str(payment_snapshot.get("payment_reports_source") or "").strip()
+        payment_status = str(payment_snapshot.get("payment_reports_status") or "").strip()
 
         payment_rows = [
             row
@@ -626,8 +651,8 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
         warnings: list[str] = []
         if not raw.get("rows"):
             warnings.append("No finance_raw_audit rows in the requested weekly period.")
-        if selected["wb_total_to_pay"][1] is None:
-            warnings.append("WB total to pay is unavailable, parity will be approximate for payout metrics.")
+        if payment_source != "wb_api":
+            warnings.append(f"payment_reports_rows unavailable: source={payment_source or 'unknown'} status={payment_status or 'UNKNOWN'}")
         if selected["advertising"][1] is None:
             warnings.append("Advertising was not found in weekly WB-aligned expense layers.")
         if raw.get("rows") and not raw.get("logistics") and not (events.get("logistics") or {}).get("amount"):
@@ -644,6 +669,26 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
             metric_name: _source_entry(selected_source, selected_value, rows_count, metrics[metric_name])
             for metric_name, (selected_source, selected_value, rows_count) in selected.items()
         }
+        for metric_name, source_column in {
+            "wb_logistics": "delivery",
+            "wb_storage": "storage",
+            "wb_total_to_pay": "bank_payment",
+        }.items():
+            details = dict(source_map.get(metric_name) or {})
+            if str(details.get("selected_source") or "").startswith("payment_reports.") and details.get("selected_value") is not None:
+                continue
+            source_map[metric_name] = _missing_source_entry(
+                source_name="payment_reports.missing",
+                source_table="payment_reports_rows",
+                source_column=source_column,
+                source_filter=weekly_filter,
+                source_min_date=payment_min_date,
+                source_max_date=payment_max_date,
+                rows=len(payment_rows),
+                candidates=metrics[metric_name],
+            )
+        if source_map["wb_total_to_pay"].get("selected_value") is None:
+            warnings.append("WB total to pay is unavailable, parity will be approximate for payout metrics.")
         source_map["finance_raw_audit"] = {
             "rows": int(raw.get("rows") or 0),
             "operation_types": dict(raw.get("operation_types") or {}),
@@ -658,12 +703,12 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
             returns_count=int(counts.get("returns_count") or 0),
             wb_sale_amount=selected["wb_sale_amount"][1],
             wb_payout_amount=selected["wb_payout_amount"][1],
-            wb_logistics=selected["wb_logistics"][1],
-            wb_storage=selected["wb_storage"][1],
+            wb_logistics=source_map["wb_logistics"].get("selected_value"),
+            wb_storage=source_map["wb_storage"].get("selected_value"),
             wb_acquiring=selected["wb_acquiring"][1],
             wb_deductions=selected["wb_deductions"][1],
             wb_other=selected["wb_other"][1],
-            wb_total_to_pay=selected["wb_total_to_pay"][1],
+            wb_total_to_pay=source_map["wb_total_to_pay"].get("selected_value"),
             source_rows=source_rows,
             source_map=source_map,
             warnings=list(dict.fromkeys(warnings)),

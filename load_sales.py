@@ -3428,29 +3428,29 @@ def load_finance_expenses(telegram_id, token, days=30):
             nm_id = _first(row, ['nm_id', 'nmID', 'nmId'])
             supplier_article = _first(row, ['supplier_article', 'supplierArticle', 'sa_name', 'saName']) or article
             srid = _first(row, ['srid', 'srId'])
-            doc_type_name = _first(row, ['doc_type_name', 'docTypeName', 'doc_type'])
-            operation_type = _first(row, ['operation_type', 'operationType'])
-            payment_type = _first(row, ['payment_type', 'paymentType'])
-            subject_name = _first(row, ['subject_name', 'subjectName'])
-            brand_name = _first(row, ['brand_name', 'brandName'])
-            sa_name = _first(row, ['sa_name', 'saName'])
-            bonus_type_name = _first(row, ['bonus_type_name', 'bonusTypeName'])
-            sticker_id = _first(row, ['sticker_id', 'stickerId'])
-            gi_id = _first(row, ['gi_id', 'giId'])
-            row_rrd = _first(row, ['rrd_id', 'rrdId', 'rrdid'], f'{page}:{idx}')
+            doc_type_name = _first(row, ['doc_type_name', 'doc_type'])
+            operation_type = row.get('operation_type')
+            payment_type = row.get('payment_type')
+            subject_name = row.get('subject_name')
+            brand_name = row.get('brand_name')
+            sa_name = row.get('sa_name')
+            bonus_type_name = row.get('bonus_type_name')
+            sticker_id = row.get('sticker_id')
+            gi_id = row.get('gi_id')
+            row_rrd = _first(row, ['rrd_id', 'rrdid'], f'{page}:{idx}')
             penalty = _num(row.get('penalty'))
             deduction = _num(row.get('deduction'))
             acceptance = _num(row.get('acceptance'))
-            acceptance_fee = _num(row.get('acceptance_fee')) + _num(row.get('acceptanceFee'))
-            additional_payment = _num(row.get('additional_payment')) + _num(row.get('additionalPayment'))
-            acquiring_fee = _num(row.get('acquiring_fee')) + _num(row.get('acquiringFee'))
+            acceptance_fee = _num(row.get('acceptance_fee'))
+            additional_payment = _num(row.get('additional_payment'))
+            acquiring_fee = _num(row.get('acquiring_fee'))
 
             logistics = sum(abs(_num(row.get(x))) for x in [
-                'delivery_rub', 'deliveryRub', 'return_amount', 'returnAmount',
-                'rebill_logistic_cost', 'rebillLogisticCost', 'delivery_amount', 'deliveryAmount'
+                'delivery_rub',
+                'rebill_logistic_cost',
             ])
             storage = sum(abs(_num(row.get(x))) for x in [
-                'storage_fee', 'storageFee', 'storage', 'storage_cost', 'storageCost'
+                'storage_fee',
             ])
             other = sum(abs(v) for v in [
                 penalty, deduction, acceptance, acceptance_fee, additional_payment, acquiring_fee

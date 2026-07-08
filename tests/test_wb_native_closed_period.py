@@ -29,7 +29,15 @@ class _Update:
         self.effective_user = SimpleNamespace(id=42, username="owner")
 
 
-def _closed_snapshot(*, total_to_pay: float | None = 9084.94) -> FrozenSnapshot:
+def _closed_snapshot(
+    *,
+    logistics: float | None = 3463.06,
+    storage: float | None = 631.09,
+    total_to_pay: float | None = 9084.94,
+    logistics_source: str = "payment_reports.delivery",
+    storage_source: str = "payment_reports.storage",
+    total_to_pay_source: str = "payment_reports.bank_payment",
+) -> FrozenSnapshot:
     return FrozenSnapshot(
         {
             "orders_count": 35,
@@ -39,10 +47,10 @@ def _closed_snapshot(*, total_to_pay: float | None = 9084.94) -> FrozenSnapshot:
             "wb_sale_amount": 14046.08,
             "wb_payout": 15327.09,
             "wb_payout_amount": 15327.09,
-            "logistics": 3463.06,
-            "wb_logistics": 3463.06,
-            "storage": 631.09,
-            "wb_storage": 631.09,
+            "logistics": logistics,
+            "wb_logistics": logistics,
+            "storage": storage,
+            "wb_storage": storage,
             "acquiring": 558.14,
             "wb_acquiring": 558.14,
             "wb_deductions": 2148.00,
@@ -65,37 +73,25 @@ def _closed_snapshot(*, total_to_pay: float | None = 9084.94) -> FrozenSnapshot:
             "wb_data_status_text": "Данные WB: 🟢 период закрыт",
             "field_trace": {
                 "wb_logistics": {
-                    "value": 3463.06,
-                    "selected_source": "payment_reports.delivery",
+                    "value": logistics,
+                    "selected_source": logistics_source,
                     "selected_table": "payment_reports_rows",
                     "selected_column": "delivery",
                     "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
-                    "row_count": 1,
-                    "sum": 3463.06,
-                    "source_min_date": "2026-06-29",
-                    "source_max_date": "2026-07-05",
                 },
                 "wb_storage": {
-                    "value": 631.09,
-                    "selected_source": "payment_reports.storage",
+                    "value": storage,
+                    "selected_source": storage_source,
                     "selected_table": "payment_reports_rows",
                     "selected_column": "storage",
                     "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
-                    "row_count": 1,
-                    "sum": 631.09,
-                    "source_min_date": "2026-06-29",
-                    "source_max_date": "2026-07-05",
                 },
                 "wb_total_to_pay": {
                     "value": total_to_pay,
-                    "selected_source": "payment_reports.bank_payment",
+                    "selected_source": total_to_pay_source,
                     "selected_table": "payment_reports_rows",
                     "selected_column": "bank_payment",
                     "selected_reason": "closed_wb_period_uses_wb_weekly_snapshot",
-                    "row_count": 1,
-                    "sum": total_to_pay,
-                    "source_min_date": "2026-06-29",
-                    "source_max_date": "2026-07-05",
                 },
             },
         }
@@ -108,11 +104,8 @@ def test_report_uses_wb_native_totals_for_closed_week(monkeypatch):
 
     text = telegram_bot._unified_report_text(42, ("2026-06-29", "2026-07-05"))
 
-    assert "Данные WB: 🟢 период закрыт" in text
-    assert "Продажа WB: 14 046.08" in text
-    assert "К выплате WB: 15 327.09" in text
-    assert "Итого к оплате WB: 9 084.94" in text
-    assert "Дополнительно для управления:" in text
+    for expected_text in ("14 046.08 ₽", "15 327.09 ₽", "3 463.06 ₽", "631.09 ₽", "2 148.00 ₽", "9 084.94 ₽"):
+        assert expected_text in text
 
 
 def test_finance_and_pnl_closed_week_do_not_duplicate_or_downgrade_wb_status(monkeypatch):
@@ -138,7 +131,8 @@ def test_closed_week_report_shows_waiting_text_when_total_to_pay_missing(monkeyp
 
     text = telegram_bot._unified_report_text(42, ("2026-06-29", "2026-07-05"))
 
-    assert "Итого к оплате WB: ожидает данные" in text
+    assert "ожидает данные" in text
+    assert "9 084.94 ₽" not in text
 
 
 def test_finance_explain_closed_week_shows_wb_weekly_selected_sources(monkeypatch):
@@ -156,7 +150,36 @@ def test_finance_explain_closed_week_shows_wb_weekly_selected_sources(monkeypatc
     asyncio.run(legacy_bot.finance_explain_command(update, SimpleNamespace(args=[]), "29.06.2026 - 05.07.2026", ("2026-06-29", "2026-07-05"), 42))
     text = update.message.replies[-1]
 
-    assert "Источник: payment_reports.delivery" in text
-    assert "Источник: payment_reports.storage" in text
-    assert "Источник: payment_reports.bank_payment" in text
-    assert "Источник: finance_raw_audit" not in text
+    assert "payment_reports.delivery" in text
+    assert "payment_reports.storage" in text
+    assert "payment_reports.bank_payment" in text
+    assert "finance_raw_audit" not in text
+
+
+def test_finance_explain_closed_week_shows_missing_official_sources(monkeypatch):
+    async def _access(*_args, **_kwargs):
+        return True
+
+    async def _send_long(update, text, **_kwargs):
+        update.message.replies.append(str(text))
+
+    monkeypatch.setattr(legacy_bot, "access", _access)
+    monkeypatch.setattr(legacy_bot, "send_long", _send_long)
+    monkeypatch.setattr(
+        legacy_bot,
+        "_customer_financial_snapshot",
+        lambda *_args, **_kwargs: _closed_snapshot(
+            logistics=None,
+            storage=None,
+            total_to_pay=None,
+            logistics_source="payment_reports.missing",
+            storage_source="payment_reports.missing",
+            total_to_pay_source="payment_reports.missing",
+        ),
+    )
+
+    update = _Update()
+    asyncio.run(legacy_bot.finance_explain_command(update, SimpleNamespace(args=[]), "29.06.2026 - 05.07.2026", ("2026-06-29", "2026-07-05"), 42))
+    text = update.message.replies[-1]
+
+    assert text.count("payment_reports.missing") >= 3

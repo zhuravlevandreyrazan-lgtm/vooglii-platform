@@ -156,7 +156,7 @@ def format_sync_result(result):
     if isinstance(blocks, dict) and any(isinstance(item, dict) and "raw_status" in item for item in blocks.values()):
         lines = [
             _format_block_line(name, blocks.get(name) or {})
-            for name in ["sales", "orders", "finance", "advertising", "stocks", "products", "cost"]
+            for name in ["sales", "orders", "finance", "payment_reports", "advertising", "stocks", "products", "cost"]
             if blocks.get(name)
         ]
         if overall_status == "API_LIMIT":
@@ -236,7 +236,7 @@ def _sync_status_line(block_name: str, state: dict, queue_task: dict | None) -> 
 def build_sync_status_text(user_id: int) -> str:
     state_map = list_sync_state(int(user_id))
     lines = ["Синхронизация WB", ""]
-    for block_name in ["sales", "orders", "finance", "advertising", "stocks", "products", "cost"]:
+    for block_name in ["sales", "orders", "finance", "payment_reports", "advertising", "stocks", "products", "cost"]:
         lines.append(_sync_status_line(block_name, state_map.get(block_name) or {}, get_next_sync_task(int(user_id), block_name)))
     return "\n".join(lines)
 

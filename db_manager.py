@@ -258,6 +258,47 @@ def init_db():
         created_at TEXT,
         updated_at TEXT
         )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS payment_reports_rows(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        report_id TEXT,
+        date_from TEXT,
+        date_to TEXT,
+        create_date TEXT,
+        report_type TEXT,
+        revenue REAL,
+        for_pay REAL,
+        bank_payment REAL,
+        delivery REAL,
+        storage REAL,
+        deduction REAL,
+        penalty REAL,
+        additional_payment REAL,
+        payment_schedule TEXT,
+        currency_name TEXT,
+        source_type TEXT,
+        raw_json TEXT,
+        created_at TEXT,
+        updated_at TEXT
+        )''')
+        for c, s in {
+        'create_date': 'TEXT',
+        'report_type': 'TEXT',
+        'revenue': 'REAL',
+        'for_pay': 'REAL',
+        'bank_payment': 'REAL',
+        'delivery': 'REAL',
+        'storage': 'REAL',
+        'deduction': 'REAL',
+        'penalty': 'REAL',
+        'additional_payment': 'REAL',
+        'payment_schedule': 'TEXT',
+        'currency_name': 'TEXT',
+        'source_type': 'TEXT',
+        'raw_json': 'TEXT',
+        'created_at': 'TEXT',
+        'updated_at': 'TEXT'
+        }.items(): _add(cur, 'payment_reports_rows', c, s)
         cur.execute('''CREATE TABLE IF NOT EXISTS stock_snapshots(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -509,6 +550,8 @@ def init_db():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_date ON finance_expense_events (user_id, event_date)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_finance_expense_events_user_period ON finance_expense_events (user_id, period_key)')
         cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_expense_events_source_id ON finance_expense_events (user_id, source_event_id) WHERE source_event_id IS NOT NULL')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_payment_reports_rows_user_period ON payment_reports_rows (user_id, date_from, date_to)')
+        cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_reports_rows_identity ON payment_reports_rows (user_id, report_id, report_type, date_from, date_to)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_stock_snapshots_user_date ON stock_snapshots (user_id, snapshot_date)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_stock_snapshots_user_period ON stock_snapshots (user_id, period_key)')
         cur.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_snapshots_source_id ON stock_snapshots (user_id, source_snapshot_id) WHERE source_snapshot_id IS NOT NULL')
