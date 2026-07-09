@@ -133,7 +133,7 @@ def test_finance_and_pnl_closed_week_do_not_duplicate_or_downgrade_wb_status(mon
     assert "К перечислению за товар: 15 327.09 ₽" in finance_text
     assert "Итого к оплате WB: 9 084.94 ₽" in finance_text
     assert "Итого к оплате WB — это сумма к выплате/выводу, не прибыль бизнеса." in finance_text
-    assert "Чистая прибыль: не рассчитана" in finance_text
+    assert "Чистая прибыль:\nне рассчитана" in finance_text
     assert "Причина: налоговый режим не настроен." in finance_text
     assert "Расходы (частично)" not in pnl_text
 

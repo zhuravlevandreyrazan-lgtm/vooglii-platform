@@ -88,4 +88,5 @@ def test_finance_command_uses_unified_renderer_for_default_and_date_period(monke
         assert "Почему прибыль и выплата отличаются:" in text
         assert "Расходы бизнеса:" in text
         assert "Чистая прибыль:" in text
+        assert "Чистая прибыль:\nне рассчитана" in text
         assert "Деньги:" not in text

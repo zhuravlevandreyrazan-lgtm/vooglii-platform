@@ -17898,13 +17898,13 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         'Чистая прибыль:',
     ]
     if snapshot.get('net_profit') is not None:
-        lines.append(f'- Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитана")}')
+        lines.append(_money_or_state(snapshot.get("net_profit"), "не рассчитана"))
     else:
-        lines.append('- Чистая прибыль: не рассчитана')
+        lines.append('не рассчитана')
         if snapshot.get('tax_amount') is None:
-            lines.append('- Причина: налоговый режим не настроен.')
+            lines.append('Причина: налоговый режим не настроен.')
         elif is_preliminary or finance_confidence != 'HIGH':
-            lines.append('- Причина: WB-период ещё не закрыт.')
+            lines.append('Причина: WB-период ещё не закрыт.')
 
     lines.extend(['', 'Что сделать:'])
     if is_closed_week:
