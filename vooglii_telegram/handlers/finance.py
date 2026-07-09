@@ -16,4 +16,12 @@ async def finance_command(update, context):
             return
         await update.message.reply_text(automatic_validation_message())
         return
+
+    # Customer /finance should always use the unified finance renderer directly.
+    # Legacy subcommands stay routed through the compatibility entrypoint below.
+    center_period = bot._customer_command_period(bot.uid(update), args, "current_month")
+    if not args or center_period is not None:
+        _, days = center_period or bot._customer_command_period(bot.uid(update), ["current_month"], "current_month")
+        await bot.send_long(update, bot._finance_center_text(bot.uid(update), days))
+        return
     return await bot._finance_command_entry(update, context)
