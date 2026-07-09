@@ -148,11 +148,16 @@ def test_closed_week_operational_profit_uses_single_customer_snapshot_formula(mo
     assert snapshot.finance_status == "FINANCE_OK"
     assert snapshot.finance_confidence == "HIGH"
     assert snapshot.field_trace["operational_profit"]["selected_reason"] == "closed_customer_snapshot_formula"
+    assert snapshot.field_trace["operational_profit"]["selected_source"] == "derived_sales_revenue_minus_expenses_total"
+    assert snapshot.field_trace["operational_profit"]["sum"] == snapshot.operational_profit
+    assert snapshot.field_trace["expenses_total"]["selected_source"] == "derived_sum"
+    assert snapshot.field_trace["expenses_total"]["sum"] == snapshot.expenses_total
+    assert snapshot.net_profit is None
     assert snapshot.wb_total_to_pay != snapshot.expenses_total
     assert snapshot.wb_payout_amount != snapshot.expenses_total
 
 
-def test_closed_week_report_and_pnl_use_same_operational_profit(monkeypatch):
+def test_closed_week_report_finance_and_pnl_use_same_operational_profit(monkeypatch):
     case = {
         "period": ("2026-06-29", "2026-07-05"),
         "revenue": 14046.08,
@@ -174,7 +179,10 @@ def test_closed_week_report_and_pnl_use_same_operational_profit(monkeypatch):
 
     report_text = telegram_bot._unified_report_text(42, case["period"])
     pnl_text = telegram_bot._pnl_customer_text(42, case["period"])
+    finance_text = telegram_bot._finance_center_text(42, case["period"])
 
     assert "-338.45" in report_text
     assert "-338.45" in pnl_text
-    assert "Расходы (частично)" not in pnl_text
+    assert "-338.45" in finance_text
+    assert "Чистая прибыль: не рассчитана" in report_text
+    assert "Р Р°СЃС…РѕРґС‹ (С‡Р°СЃС‚РёС‡РЅРѕ)" not in pnl_text

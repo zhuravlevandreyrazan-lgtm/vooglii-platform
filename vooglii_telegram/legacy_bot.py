@@ -6734,9 +6734,13 @@ async def finance_explain_command(update, context, period_name, days, user):
         *_explain_metric("Расходы всего", "expenses_total", snapshot.get("expenses_total")),
         "",
         *_explain_metric("Операционная прибыль", "operational_profit", snapshot.operational_profit),
-        "",
-        *_explain_metric("Чистая прибыль", "net_profit", snapshot.get("net_profit")),
     ]
+    if snapshot.get("net_profit") is not None:
+        lines.extend(["", *_explain_metric("Чистая прибыль", "net_profit", snapshot.get("net_profit"))])
+    else:
+        lines.extend(["", "Чистая прибыль:", "не рассчитана"])
+        if snapshot.get("tax_amount") is None:
+            lines.append("Причина: tax_regime_not_configured")
     if snapshot.get("warnings"):
         lines.extend(["", "Важно:"])
         for item in list(snapshot.get("warnings") or [])[:5]:
@@ -17864,11 +17868,20 @@ def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
         money_lines.append(f"- Операционная оценка: {_money_or_state(snapshot.get('profit_total'), 'не рассчитано')}")
     elif unified_snapshot.get('profit_before_tax') is not None:
         money_lines.append(f"- Операционная оценка: {_money_or_state(unified_snapshot.get('profit_before_tax'), 'пока не рассчитана')}")
+    if not is_preliminary:
+        if snapshot.get('official_net_profit') is not None:
+            money_lines.append(f"- Чистая прибыль: {_money_or_state(snapshot.get('official_net_profit'), 'не рассчитано')}")
+        elif unified_snapshot.get('net_profit') is not None:
+            money_lines.append(f"- Чистая прибыль: {_money_or_state(unified_snapshot.get('net_profit'), 'не рассчитано')}")
+        else:
+            money_lines.append("- Чистая прибыль: не рассчитана")
     important_note = (
         str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
         if not is_preliminary
         else "Текущий период ещё обновляется. Операционная оценка предварительная."
     )
+    if not is_preliminary and unified_snapshot.get('tax_amount') is None:
+        important_note = "Налоговый режим не настроен. Чистая прибыль после налога не рассчитана."
     validation_summary = str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
     if validation_summary == important_note:
         validation_summary = None
@@ -19777,6 +19790,8 @@ def _unified_report_text(user, days):
         lines.append(f'Чистая прибыль: {_money_or_state(snapshot.get("official_net_profit"), "не рассчитано")}')
     elif finance_confidence == 'HIGH' and official_available and snapshot.get("net_profit") is not None:
         lines.append(f'Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитано")}')
+    elif finance_confidence == 'HIGH' and official_available:
+        lines.append('Чистая прибыль: не рассчитана')
     if is_preliminary:
         lines.append('Статус оценки: предварительная')
     return '\n'.join(lines)

@@ -76,6 +76,13 @@ def test_customer_snapshot_uses_wb_native_selected_sources_for_closed_period(mon
     assert snapshot.field_trace["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
     assert snapshot.field_trace["wb_storage"]["selected_column"] == "storage"
     assert snapshot.wb_data_status_text == "Данные WB: 🟢 период закрыт"
+    assert snapshot.net_profit is None
+    assert snapshot.official_net_profit is None
+    assert snapshot.field_trace["expenses_total"]["selected_source"] == "derived_sum"
+    assert snapshot.field_trace["operational_profit"]["selected_source"] == "derived_sales_revenue_minus_expenses_total"
+    assert snapshot.field_trace["expenses_total"]["sum"] == snapshot.expenses_total
+    assert snapshot.field_trace["operational_profit"]["sum"] == snapshot.operational_profit
+    assert "Налоговый режим не настроен. Чистая прибыль после налога не рассчитана." in snapshot.warnings
 
 
 def test_customer_snapshot_closed_period_keeps_none_total_to_pay_without_payout_fallback(monkeypatch):

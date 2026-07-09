@@ -154,6 +154,9 @@ def test_customer_snapshot_closed_period_matches_wb_weekly_selected_values(monke
     assert snapshot.field_trace["wb_logistics"]["selected_source"] == "payment_reports.delivery"
     assert snapshot.field_trace["wb_storage"]["selected_source"] == "payment_reports.storage"
     assert snapshot.field_trace["wb_total_to_pay"]["selected_source"] == "payment_reports.bank_payment"
+    assert snapshot.field_trace["expenses_total"]["sum"] == snapshot.expenses_total
+    assert snapshot.field_trace["operational_profit"]["sum"] == snapshot.operational_profit
+    assert snapshot.net_profit is None
 
 
 def test_customer_snapshot_closed_period_marks_missing_official_weekly_fields(monkeypatch):

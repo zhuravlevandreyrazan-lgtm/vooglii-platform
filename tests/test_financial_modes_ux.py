@@ -7,71 +7,83 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import telegram_bot
 
-from vooglii_telegram.ux.financial_modes import FinancialMode, financial_mode_hint, financial_mode_label, validation_summary_text
+from vooglii_finance.customer_snapshot import FrozenSnapshot
 
 
-def test_financial_mode_labels_and_hints():
-    assert financial_mode_label(FinancialMode.MANAGEMENT_PNL) == "Управленческий P&L"
-    assert financial_mode_label(FinancialMode.WB_WEEKLY_PARITY) == "Сверка с официальным отчётом WB"
-    assert "/finance validate" in financial_mode_hint(FinancialMode.MANAGEMENT_PNL)
-    assert "не управленческий P&L" in financial_mode_hint(FinancialMode.WB_WEEKLY_PARITY)
-
-
-def test_management_reports_show_mode_labels(monkeypatch):
-    monkeypatch.setattr(
-        "vooglii_finance.unified_snapshot.build_unified_financial_snapshot_dict",
-        lambda *_args, **_kwargs: {
-            "orders_count": 10,
-            "sales_count": 8,
-            "returns_count": 2,
-            "sales_revenue": 1000.0,
-            "wb_payout": 700.0,
-            "wb_payments_received": 650.0,
-            "cost_price": 400.0,
-            "advertising_spend": 50.0,
-            "logistics": 20.0,
-            "storage": 5.0,
-            "acquiring": 3.0,
-            "wb_deductions": 10.0,
-            "other_expenses": 2.0,
-            "expenses_total": 490.0,
-            "tax_amount": 50.0,
-            "margin_percent": 21.0,
-            "roi_percent": 30.0,
-            "drr_percent": 5.0,
-            "roas": 20.0,
+def _closed_week_snapshot() -> FrozenSnapshot:
+    return FrozenSnapshot(
+        {
+            "source_mode": "WB_NATIVE_CLOSED",
+            "is_preliminary": False,
             "finance_status": "FINANCE_OK",
             "finance_confidence": "HIGH",
+            "finance_confidence_score": 95.0,
+            "sales_revenue": 14046.08,
+            "wb_sale_amount": 14046.08,
+            "wb_payout": 15327.09,
+            "wb_payout_amount": 15327.09,
+            "wb_total_to_pay": 9084.94,
+            "logistics": 3463.06,
+            "wb_logistics": 3463.06,
+            "storage": 631.09,
+            "wb_storage": 631.09,
+            "acquiring": 558.14,
+            "wb_acquiring": 558.14,
+            "wb_deductions": 2148.00,
+            "wb_other": 0.0,
+            "other_expenses": 0.0,
+            "penalties": 0.0,
+            "advertising_spend": 2177.24,
+            "advertising": 2177.24,
+            "cost_price": 5407.00,
+            "operational_profit": -338.45,
+            "profit_before_tax": -338.45,
+            "net_profit": None,
+            "official_net_profit": None,
+            "tax_amount": None,
+            "expenses_total": 14384.53,
+            "margin_percent": -2.4,
+            "roi_percent": -4.5,
+            "orders_count": 12,
+            "buyouts_count": 10,
+            "returns_count": 1,
             "advertising_status": "ADS_OK",
             "cost_status": "COST_OK",
-            "cost_coverage_percent": 100.0,
-            "profit_display_mode": "FINAL",
-            "net_profit": 210.0,
-            "profit_before_tax": 260.0,
-        },
+            "wb_data_status_text": "Р”Р°РЅРЅС‹Рµ WB: рџџў РїРµСЂРёРѕРґ Р·Р°РєСЂС‹С‚",
+            "warnings": ("РќР°Р»РѕРіРѕРІС‹Р№ СЂРµР¶РёРј РЅРµ РЅР°СЃС‚СЂРѕРµРЅ. Р§РёСЃС‚Р°СЏ РїСЂРёР±С‹Р»СЊ РїРѕСЃР»Рµ РЅР°Р»РѕРіР° РЅРµ СЂР°СЃСЃС‡РёС‚Р°РЅР°.",),
+            "field_trace": {
+                "expenses_total": {
+                    "selected_source": "derived_sum",
+                    "sum": 14384.53,
+                },
+                "operational_profit": {
+                    "selected_source": "derived_sales_revenue_minus_expenses_total",
+                    "sum": -338.45,
+                },
+            },
+        }
     )
-    monkeypatch.setattr(telegram_bot, "_unified_finance_bot", lambda: telegram_bot)
+
+
+def test_closed_week_report_shows_uncomputed_net_profit(monkeypatch):
+    snapshot = _closed_week_snapshot()
+    monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: snapshot)
     monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "29.06.2026 - 05.07.2026")
-    monkeypatch.setattr(telegram_bot, "_customer_finance_status_label", lambda *_args, **_kwargs: "подтверждено")
-    monkeypatch.setattr(telegram_bot, "_customer_ads_status_label", lambda *_args, **_kwargs: "OK")
-    monkeypatch.setattr(telegram_bot, "_customer_cost_status_label", lambda *_args, **_kwargs: "OK")
-    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "400.00 ₽")
-    monkeypatch.setattr(telegram_bot, "_customer_finance_waiting_note", lambda *_args, **_kwargs: "Финансовые данные подтверждены.")
-    monkeypatch.setattr("vooglii_telegram.ux.financial_modes.get_latest_validation_result", lambda _user_id: None)
+    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 в‚Ѕ")
 
     report_text = telegram_bot._unified_report_text(42, ("2026-06-29", "2026-07-05"))
-    pnl_text = telegram_bot._pnl_customer_text(42, ("2026-06-29", "2026-07-05"))
 
-    assert "Режим:" in report_text
-    assert "Управленческий P&L" in report_text
-    assert "/finance validate" in report_text
-    assert "Режим:" in pnl_text
-    assert "Управленческий P&L" in pnl_text
+    assert "Операционная прибыль: -338.45" in report_text
+    assert "Чистая прибыль: не рассчитана" in report_text
 
 
-def test_validation_summary_text_without_history(monkeypatch):
-    monkeypatch.setattr("vooglii_telegram.ux.financial_modes.get_latest_validation_result", lambda _user_id: None)
+def test_closed_week_finance_ux_uses_confirmed_wb_status_and_tax_note(monkeypatch):
+    snapshot = _closed_week_snapshot()
+    monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: snapshot)
+    monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "29.06.2026 - 05.07.2026")
+    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 в‚Ѕ")
 
-    text = validation_summary_text(42, compact=True)
+    finance_text = telegram_bot._finance_center_text(42, ("2026-06-29", "2026-07-05"))
 
-    assert text == "Сверка WB: ещё не выполнялась"
+    assert "Финансовые данные WB ещё не подтверждены" not in finance_text
+    assert "Налоговый режим не настроен" in finance_text

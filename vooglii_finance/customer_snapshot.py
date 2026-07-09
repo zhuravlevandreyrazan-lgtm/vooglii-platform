@@ -198,19 +198,27 @@ def _wb_data_status_text(period_status: str, validation_status: str | None) -> s
     return "Данные WB: 🟡 данные обновляются"
 
 
-def _trace_entry(value: Any, source_entry: Mapping[str, Any] | None, selected_reason: str) -> dict[str, Any]:
+def _trace_entry(
+    value: Any,
+    source_entry: Mapping[str, Any] | None,
+    selected_reason: str,
+    *,
+    selected_source: str | None = None,
+    selected_value: Any = None,
+) -> dict[str, Any]:
     entry = dict(source_entry or {})
-    selected_source = entry.get("selected_source") or entry.get("source")
+    resolved_source = selected_source if selected_source is not None else entry.get("selected_source") or entry.get("source")
     selected_table = entry.get("selected_table") or entry.get("source_table")
     selected_column = entry.get("selected_column") or entry.get("source_column")
+    resolved_sum = selected_value if selected_value is not None else entry.get("selected_value", _money(value))
     return {
         "value": _money(value) if isinstance(value, (int, float)) or value is None else value,
-        "selected_source": selected_source,
+        "selected_source": resolved_source,
         "selected_table": selected_table,
         "selected_column": selected_column,
         "selected_reason": entry.get("source_filter") or selected_reason,
         "row_count": int(entry.get("rows") or 0) if entry.get("rows") is not None else 0,
-        "sum": entry.get("selected_value", _money(value)),
+        "sum": resolved_sum,
         "source_min_date": entry.get("source_min_date"),
         "source_max_date": entry.get("source_max_date"),
     }
@@ -263,6 +271,16 @@ def _sum_known(values: list[float | None]) -> float | None:
     if not known:
         return None
     return round(sum(known), 2)
+
+
+def _derived_trace_entry(value: float | None, selected_source: str, selected_reason: str) -> dict[str, Any]:
+    return _trace_entry(
+        value,
+        None,
+        selected_reason,
+        selected_source=selected_source,
+        selected_value=_money(value),
+    )
 
 
 def _build_field_trace(
@@ -329,6 +347,16 @@ def _build_field_trace(
     )
 
     reason = TRACE_REASON_CLOSED if use_wb else TRACE_REASON_OPEN
+    expenses_trace = (
+        _derived_trace_entry(expenses_total, "derived_sum", expenses_total_reason)
+        if use_wb
+        else _trace_entry(expenses_total, unified_sources.get("expenses_total"), expenses_total_reason)
+    )
+    operational_trace = (
+        _derived_trace_entry(operational_profit, "derived_sales_revenue_minus_expenses_total", operational_reason)
+        if use_wb
+        else _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), operational_reason)
+    )
     field_trace = {
         "wb_sale_amount": _trace_entry(wb_sale_amount, wb_sources.get("wb_sale_amount") if use_wb else unified_sources.get("sales_revenue"), reason),
         "sales_revenue": _trace_entry(wb_sale_amount, wb_sources.get("wb_sale_amount") if use_wb else unified_sources.get("sales_revenue"), reason),
@@ -352,9 +380,9 @@ def _build_field_trace(
         "other_expenses": _trace_entry(other_expenses, wb_sources.get("wb_other") if use_wb else unified_sources.get("other_expenses"), reason),
         "wb_other": _trace_entry(other_expenses, wb_sources.get("wb_other") if use_wb else unified_sources.get("other_expenses"), reason),
         "penalties": _trace_entry(penalties, wb_sources.get("penalties") if use_wb else unified_sources.get("penalties"), reason),
-        "expenses_total": _trace_entry(expenses_total, unified_sources.get("expenses_total"), expenses_total_reason),
-        "operational_profit": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), operational_reason),
-        "profit_before_tax": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), operational_reason),
+        "expenses_total": expenses_trace,
+        "operational_profit": operational_trace,
+        "profit_before_tax": operational_trace,
         "net_profit": _trace_entry(unified_snapshot.get("net_profit"), unified_sources.get("net_profit"), "customer_snapshot_uses_unified_net_profit"),
     }
     return {key: _alias_trace(value) for key, value in field_trace.items()}
@@ -487,6 +515,13 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         margin_percent = _money(unified.get("margin_percent"))
         roi_percent = _money(unified.get("roi_percent"))
 
+    tax_amount = _money(unified.get("tax_amount"))
+    net_profit = (
+        round(float(operational_profit) - float(tax_amount), 2)
+        if use_wb_native and operational_profit is not None and tax_amount is not None
+        else (None if use_wb_native else _money(unified.get("net_profit")))
+    )
+
     closed_week_ready = (
         use_wb_native
         and all(
@@ -530,6 +565,18 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         "closed_customer_snapshot_expense_sum" if use_wb_native else "customer_snapshot_uses_operational_expenses_total",
     )
 
+    warnings = list(unified.get("warnings") or [])
+    if use_wb_native:
+        warnings = [
+            item
+            for item in warnings
+            if "official net profit" not in str(item).lower()
+            and "ещё не подтверждены" not in str(item).lower()
+            and "подтверждены полностью" not in str(item).lower()
+        ]
+        if tax_amount is None:
+            warnings.append("Налоговый режим не настроен. Чистая прибыль после налога не рассчитана.")
+
     payload = {
         **dict(unified),
         "source_mode": source_mode,
@@ -559,6 +606,9 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         "operational_profit": _money(operational_profit),
         "operational_estimate": _money(operational_profit),
         "profit_before_tax": _money(operational_profit),
+        "tax_amount": tax_amount,
+        "net_profit": _money(net_profit),
+        "official_net_profit": None if use_wb_native else _money(unified.get("official_net_profit")),
         "expenses_total": _money(operational_expenses_total),
         "margin_percent": margin_percent,
         "roi_percent": roi_percent,
@@ -575,6 +625,7 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         "operational_snapshot": _freeze(dict(unified)),
         "validation_status": (same_period_validation or {}).get("status"),
         "validation_score": _money((same_period_validation or {}).get("parity_score")),
+        "warnings": tuple(warnings),
         "field_trace": _freeze(field_trace),
         "financial_trace": _freeze(field_trace),
     }
