@@ -249,6 +249,22 @@ def _select_snapshot_value(
     return _money(unified_snapshot.get(unified_field_name))
 
 
+def _selected_source_name(source_entry: Mapping[str, Any] | None) -> str:
+    entry = dict(source_entry or {})
+    return str(entry.get("selected_source") or entry.get("source") or "").strip()
+
+
+def _is_payment_reports_missing(source_entry: Mapping[str, Any] | None) -> bool:
+    return _selected_source_name(source_entry) == "payment_reports.missing"
+
+
+def _sum_known(values: list[float | None]) -> float | None:
+    known = [float(value) for value in values if value is not None]
+    if not known:
+        return None
+    return round(sum(known), 2)
+
+
 def _build_field_trace(
     unified_snapshot: Mapping[str, Any],
     wb_snapshot: Mapping[str, Any],
@@ -257,6 +273,11 @@ def _build_field_trace(
     advertising_value: float | None,
     operational_profit: float | None,
     cost_price: float | None,
+    other_expenses: float | None,
+    penalties: float | None,
+    expenses_total: float | None,
+    operational_reason: str,
+    expenses_total_reason: str,
 ) -> dict[str, Any]:
     unified_sources = dict(unified_snapshot.get("source_map") or unified_snapshot.get("debug_sources") or {})
     wb_sources = dict(wb_snapshot.get("source_map") or {})
@@ -328,8 +349,12 @@ def _build_field_trace(
         "advertising": _trace_entry(advertising_value, wb_sources.get("advertising") if use_wb else unified_sources.get("advertising_spend"), reason),
         "advertising_spend": _trace_entry(advertising_value, wb_sources.get("advertising") if use_wb else unified_sources.get("advertising_spend"), reason),
         "cost_price": _trace_entry(cost_price, unified_sources.get("cost_price"), "customer_snapshot_uses_unified_cost_price"),
-        "operational_profit": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), "customer_snapshot_uses_unified_operational_profit"),
-        "profit_before_tax": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), "customer_snapshot_uses_unified_operational_profit"),
+        "other_expenses": _trace_entry(other_expenses, wb_sources.get("wb_other") if use_wb else unified_sources.get("other_expenses"), reason),
+        "wb_other": _trace_entry(other_expenses, wb_sources.get("wb_other") if use_wb else unified_sources.get("other_expenses"), reason),
+        "penalties": _trace_entry(penalties, wb_sources.get("penalties") if use_wb else unified_sources.get("penalties"), reason),
+        "expenses_total": _trace_entry(expenses_total, unified_sources.get("expenses_total"), expenses_total_reason),
+        "operational_profit": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), operational_reason),
+        "profit_before_tax": _trace_entry(operational_profit, unified_sources.get("profit_before_tax"), operational_reason),
         "net_profit": _trace_entry(unified_snapshot.get("net_profit"), unified_sources.get("net_profit"), "customer_snapshot_uses_unified_net_profit"),
     }
     return {key: _alias_trace(value) for key, value in field_trace.items()}
@@ -418,8 +443,77 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         unified_snapshot=unified,
         unified_field_name="advertising_spend",
     )
-    operational_profit = unified.get("profit_before_tax")
     cost_price = unified.get("cost_price")
+    penalties = _select_snapshot_value(
+        use_wb_native=use_wb_native,
+        wb_snapshot=wb_snapshot,
+        wb_field_name="penalties",
+        unified_snapshot=unified,
+        unified_field_name="penalties",
+    )
+
+    if use_wb_native:
+        operational_expenses_total = _sum_known(
+            [
+                _money(cost_price),
+                _money(advertising),
+                _money(wb_logistics),
+                _money(wb_storage),
+                _money(wb_acquiring),
+                _money(wb_deductions),
+                _money(wb_other),
+                _money(penalties),
+            ]
+        )
+        operational_profit = (
+            round(float(wb_sale_amount) - float(operational_expenses_total), 2)
+            if wb_sale_amount is not None and operational_expenses_total is not None
+            else None
+        )
+        margin_percent = (
+            round(float(operational_profit) / float(wb_sale_amount) * 100, 1)
+            if operational_profit is not None and wb_sale_amount not in (None, 0)
+            else None
+        )
+        roi_base = _sum_known([_money(cost_price), _money(advertising)])
+        roi_percent = (
+            round(float(operational_profit) / float(roi_base) * 100, 1)
+            if operational_profit is not None and roi_base not in (None, 0)
+            else None
+        )
+    else:
+        operational_expenses_total = _money(unified.get("expenses_total"))
+        operational_profit = _money(unified.get("profit_before_tax"))
+        margin_percent = _money(unified.get("margin_percent"))
+        roi_percent = _money(unified.get("roi_percent"))
+
+    closed_week_ready = (
+        use_wb_native
+        and all(
+            value is not None
+            for value in (
+                wb_sale_amount,
+                cost_price,
+                advertising,
+                wb_logistics,
+                wb_storage,
+                wb_acquiring,
+                wb_deductions,
+            )
+        )
+        and not _is_payment_reports_missing((wb_snapshot.get("source_map") or {}).get("wb_logistics"))
+        and not _is_payment_reports_missing((wb_snapshot.get("source_map") or {}).get("wb_storage"))
+    )
+
+    finance_status = "FINANCE_OK" if closed_week_ready else unified.get("finance_status")
+    finance_confidence = "HIGH" if closed_week_ready else unified.get("finance_confidence")
+    finance_confidence_score = 95 if closed_week_ready else unified.get("finance_confidence_score")
+    finance_confidence_reason = (
+        "Closed weekly WB period uses customer snapshot P&L breakdown."
+        if closed_week_ready
+        else unified.get("finance_confidence_reason")
+    )
+    profit_display_mode = "FINAL" if closed_week_ready else unified.get("profit_display_mode")
 
     field_trace = _build_field_trace(
         unified,
@@ -429,6 +523,11 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         _money(advertising),
         _money(operational_profit),
         _money(cost_price),
+        _money(wb_other),
+        _money(penalties),
+        _money(operational_expenses_total),
+        "closed_customer_snapshot_formula" if use_wb_native else "customer_snapshot_uses_unified_operational_profit",
+        "closed_customer_snapshot_expense_sum" if use_wb_native else "customer_snapshot_uses_operational_expenses_total",
     )
 
     payload = {
@@ -453,11 +552,21 @@ def build_customer_financial_snapshot(user_id: int, period_from: date, period_to
         "wb_deductions": _money(wb_deductions),
         "other_expenses": _money(wb_other),
         "wb_other": _money(wb_other),
+        "penalties": _money(penalties),
         "advertising_spend": _money(advertising),
         "advertising": _money(advertising),
         "cost_price": _money(cost_price),
         "operational_profit": _money(operational_profit),
         "operational_estimate": _money(operational_profit),
+        "profit_before_tax": _money(operational_profit),
+        "expenses_total": _money(operational_expenses_total),
+        "margin_percent": margin_percent,
+        "roi_percent": roi_percent,
+        "finance_status": finance_status,
+        "finance_confidence": finance_confidence,
+        "finance_confidence_score": finance_confidence_score,
+        "finance_confidence_reason": finance_confidence_reason,
+        "profit_display_mode": profit_display_mode,
         "period_status": period_info["status"],
         "period_status_source": period_info["source"],
         "period_status_confidence": period_info["confidence"],

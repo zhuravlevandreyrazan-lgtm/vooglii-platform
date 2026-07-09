@@ -240,8 +240,7 @@ def _build_raw_summary(
         "wb_deductions": _sum_values([abs(_money(row["deduction"]) or 0.0) for row in rows]) if rows else None,
         "other": _sum_values(
             [
-                abs(_money(row["penalty"]) or 0.0)
-                + abs(_money(row["acceptance"]) or 0.0)
+                abs(_money(row["acceptance"]) or 0.0)
                 + abs(_money(row["acceptance_fee"]) or 0.0)
                 + abs(_money(row["additional_payment"]) or 0.0)
                 for row in rows

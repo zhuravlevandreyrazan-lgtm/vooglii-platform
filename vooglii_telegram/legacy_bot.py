@@ -1237,8 +1237,11 @@ _CUSTOMER_FINANCIAL_FIELDS = (
     'wb_storage',
     'wb_deductions',
     'wb_acquiring',
+    'wb_other',
+    'penalties',
     'advertising',
     'cost_price',
+    'expenses_total',
     'operational_profit',
 )
 
@@ -1258,8 +1261,11 @@ def _customer_financial_values(snapshot):
         'wb_storage': snapshot.wb_storage,
         'wb_deductions': snapshot.wb_deductions,
         'wb_acquiring': snapshot.wb_acquiring,
+        'wb_other': snapshot.get('wb_other'),
+        'penalties': snapshot.get('penalties'),
         'advertising': snapshot.advertising,
         'cost_price': snapshot.cost_price,
+        'expenses_total': snapshot.get('expenses_total'),
         'operational_profit': snapshot.operational_profit,
     }
 
@@ -6691,6 +6697,18 @@ async def finance_explain_command(update, context, period_name, days, user):
         "",
         f"Период: {period_name}",
         "",
+        "Расчёт операционной прибыли:",
+        f"Продажа WB: {_money_or_state(snapshot.wb_sale_amount, 'нет данных')}",
+        f"- Себестоимость: {_money_or_state(snapshot.cost_price, 'нет данных')}",
+        f"- Реклама: {_money_or_state(snapshot.advertising, 'нет данных')}",
+        f"- Логистика: {_money_or_state(snapshot.wb_logistics, 'нет данных')}",
+        f"- Хранение: {_money_or_state(snapshot.wb_storage, 'нет данных')}",
+        f"- Эквайринг: {_money_or_state(snapshot.wb_acquiring, 'нет данных')}",
+        f"- Удержания WB: {_money_or_state(snapshot.get('wb_deductions'), 'нет данных')}",
+        f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses'), 'нет данных')}",
+        f"- Штрафы: {_money_or_state(snapshot.get('penalties'), 'нет данных')}",
+        f"= Операционная прибыль: {_money_or_state(snapshot.operational_profit, 'нет данных')}",
+        "",
         *_explain_metric("Продажа WB", "wb_sale_amount", snapshot.wb_sale_amount),
         "",
         *_explain_metric("К перечислению WB", "wb_payout_amount", snapshot.wb_payout_amount),
@@ -6709,7 +6727,11 @@ async def finance_explain_command(update, context, period_name, days, user):
         "",
         *_explain_metric("Прочие расходы", "other_expenses", snapshot.get("other_expenses")),
         "",
+        *_explain_metric("Штрафы", "penalties", snapshot.get("penalties")),
+        "",
         *_explain_metric("Себестоимость", "cost_price", snapshot.cost_price),
+        "",
+        *_explain_metric("Расходы всего", "expenses_total", snapshot.get("expenses_total")),
         "",
         *_explain_metric("Операционная прибыль", "operational_profit", snapshot.operational_profit),
         "",
@@ -17757,7 +17779,7 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
         'financial_engine_status': 'SEE_CUSTOMER_SNAPSHOT',
         'official_new_finance_available': bool(unified_snapshot.get('finance_status') == 'FINANCE_OK'),
         'official_net_profit': unified_snapshot.get('net_profit'),
-        'profit_total': unified_snapshot.operational_profit if unified_snapshot.is_preliminary else unified_snapshot.net_profit,
+        'profit_total': unified_snapshot.operational_profit,
         'legacy_fallback_status': 'NOT_ACTIVE',
         'payment_status': 'SEE_CUSTOMER_SNAPSHOT',
         'payment_received_total': unified_snapshot.get('wb_payments_received'),
@@ -17870,7 +17892,7 @@ def _pnl_customer_text(user, days):
     snapshot = _customer_financial_snapshot(user, days)
     official_available = str(snapshot.get('finance_status') or '') == 'FINANCE_OK'
     finance_confidence = str(snapshot.get('finance_confidence') or 'UNKNOWN')
-    profit_value = snapshot.get('net_profit')
+    profit_value = snapshot.get('operational_profit')
     expense_total = snapshot.get('expenses_total')
     margin_value = float(snapshot.get('margin_percent') or 0)
     cost_label = _customer_cost_status_label(snapshot.get('cost_status'), cost_value=snapshot.get('cost_price'))
@@ -17901,12 +17923,12 @@ def _pnl_customer_text(user, days):
         cost_label,
         '',
         'Что важно:',
-        'Прибыль рассчитана по подтверждённым финансовым данным WB.' if finance_confidence == 'HIGH' and official_available else 'P&L пока предварительный.',
+        'Операционная прибыль рассчитана по customer snapshot без дублей расходов.' if finance_confidence == 'HIGH' and official_available else 'P&L пока предварительный.',
     ]
     if finance_confidence == 'HIGH' and official_available:
-        lines.insert(10, f'- Прибыль: {_money_or_state(profit_value, "пока не рассчитана")}' if profit_value is not None else '- Прибыль: пока не рассчитана')
+        lines.insert(10, f'- Операционная прибыль: {_money_or_state(profit_value, "пока не рассчитана")}' if profit_value is not None else '- Операционная прибыль: пока не рассчитана')
     elif finance_confidence == 'MEDIUM':
-        estimate = snapshot.get("profit_before_tax")
+        estimate = snapshot.get("operational_profit")
         lines.insert(10, f'- Предварительная операционная оценка: {_money_or_state(estimate, "пока не рассчитана")}' if estimate is not None else '- Предварительная операционная оценка: пока не рассчитана')
     else:
         lines.insert(10, '- Прибыль будет рассчитана после подтверждения финансов WB.')
@@ -19746,8 +19768,8 @@ def _unified_report_text(user, days):
         f'Себестоимость: {_customer_cost_value_text(snapshot)}',
         '',
         (
-            f'Операционная оценка: {_money_or_state(snapshot.get("profit_before_tax"), "пока не рассчитана")}'
-            if snapshot.get("profit_before_tax") is not None
+            f'Операционная прибыль: {_money_or_state(snapshot.get("operational_profit"), "пока не рассчитана")}'
+            if snapshot.get("operational_profit") is not None
             else 'Операционная оценка: пока не рассчитана'
         ),
     ]
