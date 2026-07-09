@@ -17827,77 +17827,99 @@ def _finance_center_snapshot(user=658486226, days=('2026-05-01', '2026-05-31')):
 
 def _finance_center_text(user=658486226, days=('2026-05-01', '2026-05-31')):
     days = _center_days(days)
-    snapshot = _finance_center_snapshot(user=user, days=days)
-    finance_status = str(snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
-    official_available = finance_status == 'FINANCE_OK'
-    status_text = str(snapshot.get('finance_status_text') or _customer_finance_status_label(finance_status))
-    unified_snapshot = dict(snapshot.get('unified_snapshot') or {})
+    center_snapshot = _finance_center_snapshot(user=user, days=days)
+    snapshot = (
+        center_snapshot.get('customer_financial_snapshot')
+        or center_snapshot.get('unified_snapshot')
+        or center_snapshot
+    )
+
+    finance_status = str(snapshot.get('finance_status') or center_snapshot.get('finance_status') or 'FINANCE_WAITING_WB')
+    finance_confidence = str(snapshot.get('finance_confidence') or center_snapshot.get('finance_confidence') or 'UNKNOWN')
+    source_mode = str(snapshot.get('source_mode') or '')
+    is_closed_week = source_mode == 'WB_NATIVE_CLOSED'
     is_preliminary = bool(snapshot.get('is_preliminary'))
-    cost_label = _customer_cost_status_label(
-        unified_snapshot.get('cost_status'),
-        cost_value=snapshot.get('cost_price_total'),
-        coverage_percent=((snapshot.get('unified_snapshot') or {}).get('cost_coverage_percent') if isinstance(snapshot.get('unified_snapshot'), dict) else None),
+    wb_status_text = str(snapshot.get('wb_data_status_text') or center_snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
+    finance_status_text = (
+        '🟢 Финансовые данные WB подтверждены'
+        if finance_status == 'FINANCE_OK'
+        else '🟡 Финансовые данные предварительные'
     )
     wb_total_to_pay = snapshot.get('wb_total_to_pay')
-    source_mode = str(unified_snapshot.get('source_mode') or '')
-    wb_total_to_pay_text = _money_or_state(wb_total_to_pay) if wb_total_to_pay not in (None, 0, 0.0) else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
-    logistics_text = _money_or_state(snapshot.get('logistics_total')) if snapshot.get('logistics_total') is not None else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
-    storage_text = _money_or_state(snapshot.get('storage_total')) if snapshot.get('storage_total') is not None else ('ожидает данные' if source_mode == 'WB_NATIVE_CLOSED' else None)
-    money_lines = [
-        f"- Продажа WB: {_money_or_state(unified_snapshot.get('sales_revenue'), 'нет данных')}",
-        f"- К перечислению WB: {_money_or_state(snapshot.get('sales_for_pay_total'))}",
+    wb_total_to_pay_text = (
+        _money_or_state(wb_total_to_pay)
+        if wb_total_to_pay not in (None, 0, 0.0)
+        else ('ожидает данные' if is_closed_week else 'данные обновляются')
+    )
+    logistics_text = _money_or_state(snapshot.get('wb_logistics') if snapshot.get('wb_logistics') is not None else snapshot.get('logistics'), 'данные обновляются')
+    storage_text = _money_or_state(snapshot.get('wb_storage') if snapshot.get('wb_storage') is not None else snapshot.get('storage'), 'данные обновляются')
+    other_expenses_value = snapshot.get('other_expenses')
+    if other_expenses_value is None:
+        other_expenses_value = snapshot.get('wb_other')
+
+    lines = [
+        '💰 Финансы',
+        '',
+        f'Период: {_customer_period_label(user, days)}',
+        wb_status_text,
+        finance_status_text,
+        '',
+        'Главное:',
+        f'- Операционная прибыль: {_money_or_state(snapshot.get("operational_profit"), "не рассчитана")}',
+        (
+            f'- Маржа: {float(snapshot.get("margin_percent") or 0):.1f}%'
+            if snapshot.get('margin_percent') is not None
+            else '- Маржа: не рассчитана'
+        ),
+        f'- Выручка WB: {_money_or_state(snapshot.get("sales_revenue"), "нет данных")}',
+        f'- Расходы бизнеса: {_money_or_state(snapshot.get("expenses_total"), "не рассчитано")}',
+        '',
+        'Деньги WB:',
+        f'- К перечислению за товар: {_money_or_state(snapshot.get("wb_payout_amount"), "данные обновляются")}',
+        f'- Итого к оплате WB: {wb_total_to_pay_text}',
+        '- Пояснение: Итого к оплате WB — это сумма к выплате/выводу, не прибыль бизнеса.',
+        '',
+        'Почему прибыль и выплата отличаются:',
+        '- Себестоимость не удерживается WB, но влияет на прибыль.',
+        '- Реклама влияет на прибыль.',
+        '- Логистика, хранение и удержания уменьшают выплату WB.',
+        '- Итого к оплате WB ≠ прибыль.',
+        '',
+        'Расходы бизнеса:',
+        f'- Себестоимость: {_customer_cost_value_text(snapshot, "не рассчитано")}',
+        f'- Реклама: {_money_or_state(snapshot.get("advertising_spend"), "данные обновляются")}',
+        f'- Логистика: {logistics_text}',
+        f'- Хранение: {storage_text}',
+        f'- Эквайринг: {_money_or_state(snapshot.get("wb_acquiring"), "данные обновляются")}',
+        f'- Удержания WB: {_money_or_state(snapshot.get("wb_deductions"), "данные обновляются")}',
+        f'- Прочие расходы: {_money_or_state(other_expenses_value, "данные обновляются")}',
+        f'- Штрафы: {_money_or_state(snapshot.get("penalties"), "данные обновляются")}',
+        '',
+        'Чистая прибыль:',
     ]
-    if wb_total_to_pay_text:
-        money_lines.append(f"- Итого к оплате WB: {wb_total_to_pay_text}")
-    if snapshot.get('advertising_total') is not None:
-        money_lines.append(f"- Реклама: {_money_or_state(snapshot.get('advertising_total'))}")
-    if logistics_text:
-        money_lines.append(f"- Логистика WB: {logistics_text}")
-    if storage_text:
-        money_lines.append(f"- Хранение WB: {storage_text}")
-    if snapshot.get('deductions_total') is not None:
-        money_lines.append(f"- Удержания WB: {_money_or_state(snapshot.get('deductions_total'))}")
-    if snapshot.get('acquiring_total') is not None:
-        money_lines.append(f"- Эквайринг WB: {_money_or_state(snapshot.get('acquiring_total'))}")
-    money_lines.append(f"- Себестоимость: {_customer_cost_value_text({'cost_status': unified_snapshot.get('cost_status'), 'cost_price': snapshot.get('cost_price_total')}, 'не рассчитано')}")
-    if snapshot.get('cost_price_total') is None:
-        money_lines.append(f"- Статус себестоимости: {cost_label}")
-    if snapshot.get('other_expenses_total') is not None:
-        money_lines.append(f"- Прочие расходы: {_money_or_state(snapshot.get('other_expenses_total'))}")
-    if snapshot.get('profit_total') is not None and not is_preliminary:
-        money_lines.append(f"- Операционная оценка: {_money_or_state(snapshot.get('profit_total'), 'не рассчитано')}")
-    elif unified_snapshot.get('profit_before_tax') is not None:
-        money_lines.append(f"- Операционная оценка: {_money_or_state(unified_snapshot.get('profit_before_tax'), 'пока не рассчитана')}")
-    if not is_preliminary:
-        if snapshot.get('official_net_profit') is not None:
-            money_lines.append(f"- Чистая прибыль: {_money_or_state(snapshot.get('official_net_profit'), 'не рассчитано')}")
-        elif unified_snapshot.get('net_profit') is not None:
-            money_lines.append(f"- Чистая прибыль: {_money_or_state(unified_snapshot.get('net_profit'), 'не рассчитано')}")
-        else:
-            money_lines.append("- Чистая прибыль: не рассчитана")
-    important_note = (
-        str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
-        if not is_preliminary
-        else "Текущий период ещё обновляется. Операционная оценка предварительная."
-    )
-    if not is_preliminary and unified_snapshot.get('tax_amount') is None:
-        important_note = "Налоговый режим не настроен. Чистая прибыль после налога не рассчитана."
-    validation_summary = str(snapshot.get('wb_data_status_text') or 'Данные WB: 🟡 данные обновляются')
-    if validation_summary == important_note:
-        validation_summary = None
-    actions = _customer_actions(
-        "Обновить данные через /update." if not official_available else "",
-        "Открыть /business и сверить общую картину." if not official_available else "",
-        "Проверить рекламные расходы в /analytics." if float(snapshot.get('coverage_percent') or 0) < 95 else "",
-    )
-    return finance_screen(
-        _customer_period_label(user, days),
-        status_text,
-        money_lines,
-        important_note,
-        actions,
-        validation_summary=validation_summary,
-    )
+    if snapshot.get('net_profit') is not None:
+        lines.append(f'- Чистая прибыль: {_money_or_state(snapshot.get("net_profit"), "не рассчитана")}')
+    else:
+        lines.append('- Чистая прибыль: не рассчитана')
+        if snapshot.get('tax_amount') is None:
+            lines.append('- Причина: налоговый режим не настроен.')
+        elif is_preliminary or finance_confidence != 'HIGH':
+            lines.append('- Причина: WB-период ещё не закрыт.')
+
+    lines.extend(['', 'Что сделать:'])
+    if is_closed_week:
+        lines.extend([
+            '- Проверить товары с отрицательной маржой',
+            '- Проверить рекламу',
+            '- Проверить себестоимость',
+        ])
+    else:
+        lines.extend([
+            '- Обновить данные /update',
+            '- Дождаться закрытия WB-периода',
+        ])
+
+    return '\n'.join(lines)
 
 
 def _pnl_customer_text(user, days):

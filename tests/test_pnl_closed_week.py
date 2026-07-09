@@ -161,6 +161,8 @@ def test_closed_week_report_finance_and_pnl_use_same_operational_profit(monkeypa
     case = {
         "period": ("2026-06-29", "2026-07-05"),
         "revenue": 14046.08,
+        "payout": 15327.09,
+        "total_to_pay": 9084.94,
         "cost": 5407.00,
         "advertising": 2177.24,
         "logistics": 3463.06,
@@ -185,4 +187,11 @@ def test_closed_week_report_finance_and_pnl_use_same_operational_profit(monkeypa
     assert "-338.45" in pnl_text
     assert "-338.45" in finance_text
     assert "Чистая прибыль: не рассчитана" in report_text
-    assert "Р Р°СЃС…РѕРґС‹ (С‡Р°СЃС‚РёС‡РЅРѕ)" not in pnl_text
+    assert "Главное:" in finance_text
+    assert "Деньги WB:" in finance_text
+    assert "Расходы бизнеса:" in finance_text
+    assert "К перечислению за товар:" in finance_text
+    assert "15 327.09" in finance_text
+    assert "Итого к оплате WB:" in finance_text
+    assert "9 084.94" in finance_text
+    assert "Расходы (частично)" not in pnl_text

@@ -57,20 +57,23 @@ def _closed_snapshot(
             "wb_total_to_pay": total_to_pay,
             "wb_other": 0.0,
             "other_expenses": 0.0,
-            "advertising_spend": 500.0,
-            "advertising": 500.0,
-            "cost_price": 4000.0,
-            "profit_before_tax": 1200.0,
-            "operational_profit": 1200.0,
-            "net_profit": 1000.0,
-            "expenses_total": 7300.0,
-            "margin_percent": 7.1,
+            "penalties": 0.0,
+            "advertising_spend": 2177.24,
+            "advertising": 2177.24,
+            "cost_price": 5407.0,
+            "profit_before_tax": -338.45,
+            "operational_profit": -338.45,
+            "net_profit": None,
+            "tax_amount": None,
+            "expenses_total": 14384.53,
+            "margin_percent": -2.4,
             "finance_status": "FINANCE_OK",
             "finance_confidence": "HIGH",
             "source_mode": "WB_NATIVE_CLOSED",
             "is_preliminary": False,
             "cost_status": "FULL",
             "wb_data_status_text": "Данные WB: 🟢 период закрыт",
+            "warnings": ("Налоговый режим не настроен. Чистая прибыль после налога не рассчитана.",),
             "field_trace": {
                 "wb_logistics": {
                     "value": logistics,
@@ -111,17 +114,27 @@ def test_report_uses_wb_native_totals_for_closed_week(monkeypatch):
 def test_finance_and_pnl_closed_week_do_not_duplicate_or_downgrade_wb_status(monkeypatch):
     monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: _closed_snapshot())
     monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "29.06.2026 - 05.07.2026")
-    monkeypatch.setattr(telegram_bot, "_finance_api_status_snapshot", lambda *_args, **_kwargs: {"status": "OK"})
-    monkeypatch.setattr(telegram_bot, "_financial_engine_snapshot", lambda *_args, **_kwargs: {"status": "OK", "official_new_finance_available": True, "official_net_profit": 1000.0})
-    monkeypatch.setattr(telegram_bot, "_payment_reconciliation_snapshot", lambda *_args, **_kwargs: {"status": "OK"})
-    monkeypatch.setattr(telegram_bot, "get_finance_difference_snapshot", lambda *_args, **_kwargs: {"status": "OK"})
-    monkeypatch.setattr(telegram_bot, "_advertising_customer_snapshot", lambda *_args, **_kwargs: {"status": "OK"})
-    monkeypatch.setattr(telegram_bot, "_report_mgmt_snapshot", lambda *_args, **_kwargs: {"status": "OK"})
 
     finance_text = telegram_bot._finance_center_text(42, ("2026-06-29", "2026-07-05"))
     pnl_text = telegram_bot._pnl_customer_text(42, ("2026-06-29", "2026-07-05"))
 
     assert finance_text.count("Данные WB: 🟢 период закрыт") == 1
+    assert "🟢 Финансовые данные WB подтверждены" in finance_text
+    assert "Главное:" in finance_text
+    assert "Деньги WB:" in finance_text
+    assert "Почему прибыль и выплата отличаются:" in finance_text
+    assert "Расходы бизнеса:" in finance_text
+    assert "Чистая прибыль:" in finance_text
+    assert "Что сделать:" in finance_text
+    assert "Операционная прибыль: -338.45" in finance_text
+    assert "Маржа: -2.4%" in finance_text
+    assert "Выручка WB: 14 046.08 ₽" in finance_text
+    assert "Расходы бизнеса: 14 384.53 ₽" in finance_text
+    assert "К перечислению за товар: 15 327.09 ₽" in finance_text
+    assert "Итого к оплате WB: 9 084.94 ₽" in finance_text
+    assert "Итого к оплате WB — это сумма к выплате/выводу, не прибыль бизнеса." in finance_text
+    assert "Чистая прибыль: не рассчитана" in finance_text
+    assert "Причина: налоговый режим не настроен." in finance_text
     assert "Расходы (частично)" not in pnl_text
 
 
@@ -133,6 +146,27 @@ def test_closed_week_report_shows_waiting_text_when_total_to_pay_missing(monkeyp
 
     assert "ожидает данные" in text
     assert "9 084.94 ₽" not in text
+
+
+def test_finance_open_period_shows_preliminary_actions(monkeypatch):
+    open_snapshot = FrozenSnapshot(
+        {
+            **dict(_closed_snapshot()),
+            "source_mode": "OPERATIONAL_PRELIMINARY",
+            "is_preliminary": True,
+            "finance_status": "FINANCE_WAITING_WB",
+            "finance_confidence": "LOW",
+            "wb_data_status_text": "Данные WB: 🟡 данные обновляются",
+        }
+    )
+    monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: open_snapshot)
+    monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "07.07.2026 - 09.07.2026")
+
+    text = telegram_bot._finance_center_text(42, ("2026-07-07", "2026-07-09"))
+
+    assert "🟡 Финансовые данные предварительные" in text
+    assert "- Обновить данные /update" in text
+    assert "- Дождаться закрытия WB-периода" in text
 
 
 def test_finance_explain_closed_week_shows_wb_weekly_selected_sources(monkeypatch):

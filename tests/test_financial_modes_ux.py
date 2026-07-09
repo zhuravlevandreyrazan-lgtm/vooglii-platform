@@ -49,18 +49,9 @@ def _closed_week_snapshot() -> FrozenSnapshot:
             "returns_count": 1,
             "advertising_status": "ADS_OK",
             "cost_status": "COST_OK",
-            "wb_data_status_text": "Р”Р°РЅРЅС‹Рµ WB: рџџў РїРµСЂРёРѕРґ Р·Р°РєСЂС‹С‚",
-            "warnings": ("РќР°Р»РѕРіРѕРІС‹Р№ СЂРµР¶РёРј РЅРµ РЅР°СЃС‚СЂРѕРµРЅ. Р§РёСЃС‚Р°СЏ РїСЂРёР±С‹Р»СЊ РїРѕСЃР»Рµ РЅР°Р»РѕРіР° РЅРµ СЂР°СЃСЃС‡РёС‚Р°РЅР°.",),
-            "field_trace": {
-                "expenses_total": {
-                    "selected_source": "derived_sum",
-                    "sum": 14384.53,
-                },
-                "operational_profit": {
-                    "selected_source": "derived_sales_revenue_minus_expenses_total",
-                    "sum": -338.45,
-                },
-            },
+            "wb_data_status_text": "Данные WB: 🟢 период закрыт",
+            "warnings": ("Налоговый режим не настроен. Чистая прибыль после налога не рассчитана.",),
+            "field_trace": {},
         }
     )
 
@@ -69,7 +60,7 @@ def test_closed_week_report_shows_uncomputed_net_profit(monkeypatch):
     snapshot = _closed_week_snapshot()
     monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: snapshot)
     monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "29.06.2026 - 05.07.2026")
-    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 в‚Ѕ")
+    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 ₽")
 
     report_text = telegram_bot._unified_report_text(42, ("2026-06-29", "2026-07-05"))
 
@@ -81,9 +72,10 @@ def test_closed_week_finance_ux_uses_confirmed_wb_status_and_tax_note(monkeypatc
     snapshot = _closed_week_snapshot()
     monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: snapshot)
     monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "29.06.2026 - 05.07.2026")
-    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 в‚Ѕ")
+    monkeypatch.setattr(telegram_bot, "_customer_cost_value_text", lambda *_args, **_kwargs: "5 407.00 ₽")
 
     finance_text = telegram_bot._finance_center_text(42, ("2026-06-29", "2026-07-05"))
 
     assert "Финансовые данные WB ещё не подтверждены" not in finance_text
-    assert "Налоговый режим не настроен" in finance_text
+    assert "налоговый режим не настроен" in finance_text.lower()
+    assert "Итого к оплате WB — это сумма к выплате/выводу, не прибыль бизнеса." in finance_text
