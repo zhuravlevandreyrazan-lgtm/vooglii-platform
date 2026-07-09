@@ -183,3 +183,22 @@ def test_finance_explain_closed_week_shows_missing_official_sources(monkeypatch)
     text = update.message.replies[-1]
 
     assert text.count("payment_reports.missing") >= 3
+
+
+def test_report_shows_retail_amount_sum_week_revenue(monkeypatch):
+    retail_week_snapshot = FrozenSnapshot(
+        {
+            **dict(_closed_snapshot()),
+            "sales_revenue": 8395.94,
+            "wb_sale_amount": 8395.94,
+            "wb_payout": 8100.00,
+            "wb_payout_amount": 8100.00,
+            "wb_total_to_pay": 4600.00,
+        }
+    )
+    monkeypatch.setattr(telegram_bot, "_customer_financial_snapshot", lambda *_args, **_kwargs: retail_week_snapshot)
+    monkeypatch.setattr(telegram_bot, "_customer_period_label", lambda *_args, **_kwargs: "22.06.2026 - 28.06.2026")
+
+    text = telegram_bot._unified_report_text(42, ("2026-06-22", "2026-06-28"))
+
+    assert "8 395.94" in text

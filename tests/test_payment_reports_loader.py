@@ -194,8 +194,77 @@ def test_sync_payment_reports_persists_revenue_from_real_alternative_wb_field():
         assert revenue == 14046.08
 
 
+def test_sync_payment_reports_sums_retail_amount_sum_for_2026_06_22_week():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config, legacy_bot, finance_loader, sync_state = _reload_modules(tmp_dir)
+        legacy_bot.fetch_wb_finance_reports_list = lambda *_args, **_kwargs: {
+            "status": "SUCCESS",
+            "rows": [
+                legacy_bot._normalize_finance_report_row(
+                    {
+                        "reportId": "report-1",
+                        "dateFrom": "2026-06-22",
+                        "dateTo": "2026-06-28",
+                        "createDate": "2026-06-29T10:00:00",
+                        "reportType": "1",
+                        "retailAmountSum": 7846.00,
+                        "forPaySum": 7600.00,
+                        "bankPaymentSum": 4300.00,
+                        "deliveryServiceSum": 1800.00,
+                        "paidStorageSum": 200.00,
+                        "deductionSum": 900.00,
+                    }
+                ),
+                legacy_bot._normalize_finance_report_row(
+                    {
+                        "reportId": "report-2",
+                        "dateFrom": "2026-06-22",
+                        "dateTo": "2026-06-28",
+                        "createDate": "2026-06-29T10:01:00",
+                        "reportType": "2",
+                        "retailAmountSum": 549.94,
+                        "forPaySum": 500.00,
+                        "bankPaymentSum": 300.00,
+                        "deliveryServiceSum": 100.00,
+                        "paidStorageSum": 20.00,
+                        "deductionSum": 30.00,
+                    }
+                ),
+            ],
+            "message": "ok",
+        }
+
+        result = finance_loader.sync_payment_reports(42, "token", ("2026-06-22", "2026-06-28"))
+        assert result["raw_status"] == "SUCCESS"
+
+        sync_state.save_sync_state(
+            42,
+            "payment_reports",
+            "OK",
+            status_reason="SUCCESS",
+            source_rows=2,
+            source_name="finance-api.sales-reports-list",
+        )
+        legacy_bot._invalidate_payment_reports_source_cache(42, "2026-06-22", "2026-06-28")
+        payload = legacy_bot._payment_reports_source_data(42, "2026-06-22", "2026-06-28")
+
+        assert payload["source"] == "wb_api"
+        assert len(payload["rows"]) == 2
+        assert round(sum(float(item.get("revenue") or 0) for item in payload["rows"]), 2) == 8395.94
+
+        conn = sqlite3.connect(config.DB_NAME)
+        try:
+            revenue = conn.execute(
+                "SELECT ROUND(COALESCE(SUM(revenue),0), 2) FROM payment_reports_rows WHERE user_id=42 AND date_from='2026-06-22' AND date_to='2026-06-28'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert revenue == 8395.94
+
+
 if __name__ == "__main__":
     test_sync_payment_reports_persists_rows_and_reads_from_db()
     test_sync_payment_reports_no_rows_status()
     test_sync_payment_reports_persists_revenue_from_real_alternative_wb_field()
+    test_sync_payment_reports_sums_retail_amount_sum_for_2026_06_22_week()
     print("PAYMENT REPORTS LOADER OK", flush=True)

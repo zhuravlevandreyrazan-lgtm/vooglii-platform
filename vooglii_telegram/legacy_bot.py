@@ -14392,7 +14392,7 @@ def _normalize_finance_report_row(row):
             row.get('reportType')
             or ''
         ) or None,
-        'revenue': _first_money('salesSum', 'saleSum', 'realizationSum', 'totalSale'),
+        'revenue': _first_money('salesSum', 'retailAmountSum', 'saleSum', 'realizationSum', 'totalSale'),
         'for_pay': _first_money('forPaySum'),
         'bank_payment': _first_money('bankPaymentSum'),
         'delivery': _first_money('deliveryServiceSum'),

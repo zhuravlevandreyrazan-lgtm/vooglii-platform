@@ -65,3 +65,23 @@ def test_normalize_finance_report_row_accepts_real_alternative_revenue_field_nam
     assert normalized["create_date"] == "2026-07-06T10:00:00"
     assert normalized["currency_name"] == "RUB"
     assert normalized["revenue"] == 14046.08
+
+
+def test_normalize_finance_report_row_prioritizes_retail_amount_sum_after_sales_sum():
+    row = {
+        "reportId": "rep-3",
+        "dateFrom": "2026-06-22",
+        "dateTo": "2026-06-28",
+        "createDate": "2026-06-29T10:00:00",
+        "reportType": "1",
+        "retailAmountSum": 7846.00,
+        "forPaySum": 7000.00,
+        "bankPaymentSum": 5000.00,
+        "deliveryServiceSum": 1000.00,
+        "paidStorageSum": 300.00,
+        "deductionSum": 200.00,
+    }
+
+    normalized = _normalize_finance_report_row(row)
+
+    assert normalized["revenue"] == 7846.00
