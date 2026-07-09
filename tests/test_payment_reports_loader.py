@@ -262,9 +262,87 @@ def test_sync_payment_reports_sums_retail_amount_sum_for_2026_06_22_week():
         assert revenue == 8395.94
 
 
+def test_persist_payment_report_rows_twice_updates_without_integrity_error():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config, _legacy_bot, finance_loader, _sync_state = _reload_modules(tmp_dir)
+        first = [
+            {
+                "report_id": "same-report",
+                "period_start": "2026-06-29",
+                "period_end": "2026-07-05",
+                "create_date": "2026-07-06T10:00:00",
+                "type": "main",
+                "revenue": 14046.08,
+                "for_pay": 15327.09,
+                "bank_payment": 9084.94,
+                "delivery": 3463.06,
+                "storage": 631.09,
+                "deduction": 2148.00,
+                "penalty": 0.0,
+                "additional_payment": 0.0,
+                "payment_schedule": "weekly",
+                "currency_name": "RUB",
+                "raw_json": '{"reportId":"same-report","forPaySum":15327.09}',
+            }
+        ]
+        second = [
+            {
+                "report_id": "same-report",
+                "period_start": "2026-06-29",
+                "period_end": "2026-07-05",
+                "create_date": "2026-07-07T12:00:00",
+                "type": "main",
+                "revenue": 15000.00,
+                "for_pay": 16000.00,
+                "bank_payment": 9100.00,
+                "delivery": 3400.00,
+                "storage": 640.00,
+                "deduction": 2200.00,
+                "penalty": 10.0,
+                "additional_payment": 5.0,
+                "payment_schedule": "weekly-updated",
+                "currency_name": "RUB",
+                "source_type": "wb_api",
+                "raw_json": '{"reportId":"same-report","forPaySum":16000.00}',
+            }
+        ]
+
+        first_result = finance_loader._persist_payment_report_rows(42, first, "2026-06-29", "2026-07-05")
+        second_result = finance_loader._persist_payment_report_rows(42, second, "2026-06-29", "2026-07-05")
+
+        assert first_result["inserted"] == 1
+        assert second_result["updated"] == 1
+        conn = sqlite3.connect(config.DB_NAME)
+        try:
+            row = conn.execute(
+                "SELECT create_date, revenue, for_pay, bank_payment, delivery, storage, deduction, penalty, additional_payment, payment_schedule, currency_name, source_type, raw_json, created_at "
+                "FROM payment_reports_rows WHERE user_id=42 AND report_id='same-report' AND report_type='main' AND date_from='2026-06-29' AND date_to='2026-07-05'"
+            ).fetchone()
+        finally:
+            conn.close()
+
+        assert row[:13] == (
+            "2026-07-06T10:00:00",
+            15000.0,
+            16000.0,
+            9100.0,
+            3400.0,
+            640.0,
+            2200.0,
+            10.0,
+            5.0,
+            "weekly-updated",
+            "RUB",
+            "wb_api",
+            '{"reportId":"same-report","forPaySum":16000.00}',
+        )
+        assert row[13] is not None
+
+
 if __name__ == "__main__":
     test_sync_payment_reports_persists_rows_and_reads_from_db()
     test_sync_payment_reports_no_rows_status()
     test_sync_payment_reports_persists_revenue_from_real_alternative_wb_field()
     test_sync_payment_reports_sums_retail_amount_sum_for_2026_06_22_week()
+    test_persist_payment_report_rows_twice_updates_without_integrity_error()
     print("PAYMENT REPORTS LOADER OK", flush=True)

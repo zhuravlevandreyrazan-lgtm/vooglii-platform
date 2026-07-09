@@ -190,9 +190,45 @@ def _persist_payment_report_rows(user_id: int, rows: list[dict], date_from: str,
                         penalty, additional_payment, payment_schedule, currency_name,
                         source_type, raw_json, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, report_id, report_type, date_from, date_to) DO UPDATE SET
+                        revenue=excluded.revenue,
+                        for_pay=excluded.for_pay,
+                        bank_payment=excluded.bank_payment,
+                        delivery=excluded.delivery,
+                        storage=excluded.storage,
+                        deduction=excluded.deduction,
+                        penalty=excluded.penalty,
+                        additional_payment=excluded.additional_payment,
+                        payment_schedule=excluded.payment_schedule,
+                        currency_name=excluded.currency_name,
+                        source_type=excluded.source_type,
+                        raw_json=excluded.raw_json,
+                        updated_at=excluded.updated_at
                     """,
                     payload,
                 )
+                existing_by_key[key] = {
+                    "user_id": int(user_id),
+                    "report_id": payload[1],
+                    "date_from": payload[2],
+                    "date_to": payload[3],
+                    "create_date": payload[4],
+                    "report_type": payload[5],
+                    "revenue": payload[6],
+                    "for_pay": payload[7],
+                    "bank_payment": payload[8],
+                    "delivery": payload[9],
+                    "storage": payload[10],
+                    "deduction": payload[11],
+                    "penalty": payload[12],
+                    "additional_payment": payload[13],
+                    "payment_schedule": payload[14],
+                    "currency_name": payload[15],
+                    "source_type": payload[16],
+                    "raw_json": payload[17],
+                    "created_at": payload[18],
+                    "updated_at": payload[19],
+                }
                 inserted += 1
                 continue
             comparable_existing = (
@@ -221,34 +257,51 @@ def _persist_payment_report_rows(user_id: int, rows: list[dict], date_from: str,
                 continue
             cur.execute(
                 """
-                UPDATE payment_reports_rows
-                SET create_date=?, revenue=?, for_pay=?, bank_payment=?, delivery=?, storage=?,
-                    deduction=?, penalty=?, additional_payment=?, payment_schedule=?,
-                    currency_name=?, source_type=?, raw_json=?, updated_at=?
-                WHERE user_id=? AND report_id=? AND report_type=? AND date_from=? AND date_to=?
+                INSERT INTO payment_reports_rows(
+                    user_id, report_id, date_from, date_to, create_date, report_type,
+                    revenue, for_pay, bank_payment, delivery, storage, deduction,
+                    penalty, additional_payment, payment_schedule, currency_name,
+                    source_type, raw_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, report_id, report_type, date_from, date_to) DO UPDATE SET
+                    revenue=excluded.revenue,
+                    for_pay=excluded.for_pay,
+                    bank_payment=excluded.bank_payment,
+                    delivery=excluded.delivery,
+                    storage=excluded.storage,
+                    deduction=excluded.deduction,
+                    penalty=excluded.penalty,
+                    additional_payment=excluded.additional_payment,
+                    payment_schedule=excluded.payment_schedule,
+                    currency_name=excluded.currency_name,
+                    source_type=excluded.source_type,
+                    raw_json=excluded.raw_json,
+                    updated_at=excluded.updated_at
                 """,
-                (
-                    payload[4],
-                    payload[6],
-                    payload[7],
-                    payload[8],
-                    payload[9],
-                    payload[10],
-                    payload[11],
-                    payload[12],
-                    payload[13],
-                    payload[14],
-                    payload[15],
-                    payload[16],
-                    payload[17],
-                    payload[19],
-                    int(user_id),
-                    payload[1],
-                    payload[5],
-                    payload[2],
-                    payload[3],
-                ),
+                payload,
             )
+            existing_by_key[key] = {
+                "user_id": int(user_id),
+                "report_id": payload[1],
+                "date_from": payload[2],
+                "date_to": payload[3],
+                "create_date": payload[4],
+                "report_type": payload[5],
+                "revenue": payload[6],
+                "for_pay": payload[7],
+                "bank_payment": payload[8],
+                "delivery": payload[9],
+                "storage": payload[10],
+                "deduction": payload[11],
+                "penalty": payload[12],
+                "additional_payment": payload[13],
+                "payment_schedule": payload[14],
+                "currency_name": payload[15],
+                "source_type": payload[16],
+                "raw_json": payload[17],
+                "created_at": existing.get("created_at"),
+                "updated_at": payload[19],
+            }
             updated += 1
 
         stale_keys = [key for key in existing_by_key if key not in seen_keys]
