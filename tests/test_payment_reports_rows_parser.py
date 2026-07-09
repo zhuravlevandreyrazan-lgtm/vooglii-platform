@@ -42,3 +42,26 @@ def test_normalize_finance_report_row_uses_real_wb_api_fields_only():
     assert normalized["deduction"] == 2148.00
     assert "payment_total" in normalized["raw_fields"]
     assert json.loads(normalized["raw_json"])["payment_total"] == 999999.0
+
+
+def test_normalize_finance_report_row_accepts_real_alternative_revenue_field_names():
+    row = {
+        "reportId": "rep-2",
+        "dateFrom": "2026-06-29",
+        "dateTo": "2026-07-05",
+        "createDate": "2026-07-06T10:00:00",
+        "reportType": "main",
+        "saleSum": 14046.08,
+        "forPaySum": 15327.09,
+        "bankPaymentSum": 9084.94,
+        "deliveryServiceSum": 3463.06,
+        "paidStorageSum": 631.09,
+        "deductionSum": 2148.00,
+        "currencyName": "RUB",
+    }
+
+    normalized = _normalize_finance_report_row(row)
+
+    assert normalized["create_date"] == "2026-07-06T10:00:00"
+    assert normalized["currency_name"] == "RUB"
+    assert normalized["revenue"] == 14046.08

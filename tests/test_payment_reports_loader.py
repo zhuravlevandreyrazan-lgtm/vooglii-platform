@@ -153,7 +153,49 @@ def test_sync_payment_reports_no_rows_status():
         assert count == 0
 
 
+def test_sync_payment_reports_persists_revenue_from_real_alternative_wb_field():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config, legacy_bot, finance_loader, _sync_state = _reload_modules(tmp_dir)
+        legacy_bot.fetch_wb_finance_reports_list = lambda *_args, **_kwargs: {
+            "status": "SUCCESS",
+            "rows": [
+                {
+                    "report_id": "main-2026-06-29",
+                    "period_start": "2026-06-29",
+                    "period_end": "2026-07-05",
+                    "create_date": "2026-07-06T10:00:00",
+                    "type": "main",
+                    "revenue": 14046.08,
+                    "for_pay": 15327.09,
+                    "bank_payment": 9084.94,
+                    "delivery": 3463.06,
+                    "storage": 631.09,
+                    "deduction": 2148.00,
+                    "penalty": 0.0,
+                    "additional_payment": 0.0,
+                    "payment_schedule": "weekly",
+                    "currency_name": "RUB",
+                    "raw_json": '{"saleSum":14046.08,"forPaySum":15327.09,"bankPaymentSum":9084.94,"deliveryServiceSum":3463.06,"paidStorageSum":631.09,"deductionSum":2148.00}',
+                }
+            ],
+            "message": "ok",
+        }
+
+        result = finance_loader.sync_payment_reports(42, "token", ("2026-06-29", "2026-07-05"))
+
+        assert result["raw_status"] == "SUCCESS"
+        conn = sqlite3.connect(config.DB_NAME)
+        try:
+            revenue = conn.execute(
+                "SELECT revenue FROM payment_reports_rows WHERE user_id=42 AND report_id='main-2026-06-29'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert revenue == 14046.08
+
+
 if __name__ == "__main__":
     test_sync_payment_reports_persists_rows_and_reads_from_db()
     test_sync_payment_reports_no_rows_status()
+    test_sync_payment_reports_persists_revenue_from_real_alternative_wb_field()
     print("PAYMENT REPORTS LOADER OK", flush=True)

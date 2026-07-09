@@ -14362,6 +14362,15 @@ def _manual_bank_payment_reference_rows():
 def _normalize_finance_report_row(row):
     row = dict(row or {})
     raw_fields = sorted(str(key) for key in row.keys())
+    def _first_money(*field_names):
+        for field_name in field_names:
+            if field_name not in row:
+                continue
+            try:
+                return round(float(row.get(field_name) or 0), 2)
+            except Exception:
+                continue
+        return 0.0
     return {
         'report_id': str(
             row.get('reportId')
@@ -14375,7 +14384,7 @@ def _normalize_finance_report_row(row):
             row.get('dateTo')
             or ''
         )[:10] or None,
-        'created_at': str(
+        'create_date': str(
             row.get('createDate')
             or ''
         ) or None,
@@ -14383,40 +14392,16 @@ def _normalize_finance_report_row(row):
             row.get('reportType')
             or ''
         ) or None,
-        'revenue': round(float(
-            row.get('salesSum')
-            or 0
-        ), 2),
-        'for_pay': round(float(
-            row.get('forPaySum')
-            or 0
-        ), 2),
-        'bank_payment': round(float(
-            row.get('bankPaymentSum')
-            or 0
-        ), 2),
-        'delivery': round(float(
-            row.get('deliveryServiceSum')
-            or 0
-        ), 2),
-        'storage': round(float(
-            row.get('paidStorageSum')
-            or 0
-        ), 2),
-        'deduction': round(float(
-            row.get('deductionSum')
-            or 0
-        ), 2),
-        'penalty': round(float(
-            row.get('penaltySum')
-            or 0
-        ), 2),
-        'additional_payment': round(float(
-            row.get('additionalPaymentSum')
-            or 0
-        ), 2),
+        'revenue': _first_money('salesSum', 'saleSum', 'realizationSum', 'totalSale'),
+        'for_pay': _first_money('forPaySum'),
+        'bank_payment': _first_money('bankPaymentSum'),
+        'delivery': _first_money('deliveryServiceSum'),
+        'storage': _first_money('paidStorageSum'),
+        'deduction': _first_money('deductionSum'),
+        'penalty': _first_money('penaltySum'),
+        'additional_payment': _first_money('additionalPaymentSum'),
         'payment_schedule': str(row.get('paymentSchedule') or '') or None,
-        'currency': str(row.get('currencyName') or '') or None,
+        'currency_name': str(row.get('currencyName') or '') or None,
         'reason': row.get('reason'),
         'doc_type': row.get('docType'),
         'income_type': row.get('incomeType'),

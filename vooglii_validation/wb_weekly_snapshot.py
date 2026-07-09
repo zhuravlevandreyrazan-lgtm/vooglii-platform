@@ -573,7 +573,10 @@ def build_wb_weekly_snapshot(user_id: int, period_from: date, period_to: date) -
             "wb_sale_amount": [
                 _candidate(
                     "payment_reports.revenue",
-                    payment_total_revenue,
+                    None if (
+                        payment_total_revenue in (None, 0.0)
+                        and raw.get("revenue") not in (None, 0.0)
+                    ) else payment_total_revenue,
                     len(payment_rows),
                     source_table="payment_reports_rows",
                     source_column="revenue",
